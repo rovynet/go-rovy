@@ -11,6 +11,7 @@ require (
 	github.com/multiformats/go-varint v0.0.6
 	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392
 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect
+	golang.zx2c4.com/wireguard v0.0.20201118
 )
 
 //replace golang.zx2c4.com/wireguard => ../wireguard-go

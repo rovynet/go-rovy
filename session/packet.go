@@ -9,6 +9,10 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
+
+	"golang.org/x/crypto/blake2s"
+	"golang.org/x/crypto/poly1305"
+	"golang.zx2c4.com/wireguard/tai64n"
 )
 
 const (
@@ -16,28 +20,31 @@ const (
 	MaxPeerIDSize    = 128
 )
 
+// TODO: the endianess is off everywhere in this file
+
 type HelloPacket struct {
-	MsgType      uint8
-	reserved     [3]uint8
-	SenderIndex  uint32
+	HelloHeader
 	ObservedMTU  uint64
 	ObservedAddr multiaddr.Multiaddr
 	PeerID       rovy.PeerID
+}
+
+type HelloHeader struct {
+	MsgType     uint8
+	Reserved    [3]uint8
+	SenderIndex uint32
+	Ephemeral   rovy.PublicKey
+	Static      [rovy.PublicKeySize + poly1305.TagSize]byte
+	Timestamp   [tai64n.TimestampSize + poly1305.TagSize]byte
+	MAC1        [blake2s.Size128]byte
+	MAC2        [blake2s.Size128]byte
 }
 
 func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 	var buf [rovy.PreliminaryMTU]byte
 	w := bytes.NewBuffer(buf[:0])
 
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.reserved); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.SenderIndex); err != nil {
+	if err := binary.Write(w, binary.LittleEndian, pkt.HelloHeader); err != nil {
 		return buf[:], err
 	}
 
@@ -73,13 +80,7 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 	}
 	r := bytes.NewBuffer(buf)
 
-	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.reserved); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.SenderIndex); err != nil {
+	if err = binary.Read(r, binary.LittleEndian, &pkt.HelloHeader); err != nil {
 		return err
 	}
 
@@ -125,32 +126,29 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 }
 
 type HelloResponsePacket struct {
+	HelloResponseHeader
+	ObservedMTU  uint64
+	ObservedAddr multiaddr.Multiaddr
+	PeerID       rovy.PeerID
+}
+
+type HelloResponseHeader struct {
 	MsgType       uint8
-	reserved      [3]uint8
+	Reserved      [3]uint8
 	SenderIndex   uint32
 	ReceiverIndex uint32
-	ObservedMTU   uint64
-	ObservedAddr  multiaddr.Multiaddr
-	PeerID        rovy.PeerID
+	Ephemeral     rovy.PublicKey
+	Static        [rovy.PublicKeySize + poly1305.TagSize]byte
+	Timestamp     [tai64n.TimestampSize + poly1305.TagSize]byte
+	MAC1          [blake2s.Size128]byte
+	MAC2          [blake2s.Size128]byte
 }
 
 func (pkt *HelloResponsePacket) MarshalBinary() ([]byte, error) {
 	var buf [rovy.PreliminaryMTU]byte
 	w := bytes.NewBuffer(buf[:0])
 
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.reserved); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.SenderIndex); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.ReceiverIndex); err != nil {
+	if err := binary.Write(w, binary.LittleEndian, pkt.HelloResponseHeader); err != nil {
 		return buf[:], err
 	}
 
@@ -186,16 +184,7 @@ func (pkt *HelloResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	}
 	r := bytes.NewBuffer(buf)
 
-	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.reserved); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.SenderIndex); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.ReceiverIndex); err != nil {
+	if err = binary.Read(r, binary.LittleEndian, &pkt.HelloResponseHeader); err != nil {
 		return err
 	}
 
@@ -241,25 +230,21 @@ func (pkt *HelloResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 }
 
 type DataPacket struct {
+	DataHeader
+	Data []byte
+}
+
+type DataHeader struct {
 	MsgType       uint8
-	reserved      [3]uint8
+	Reserved      [3]uint8
 	ReceiverIndex uint32
-	Data          []byte
 }
 
 func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
 	var buf [rovy.PreliminaryMTU]byte
 	w := bytes.NewBuffer(buf[:0])
 
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.reserved); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.ReceiverIndex); err != nil {
+	if err := binary.Write(w, binary.LittleEndian, pkt.DataHeader); err != nil {
 		return buf[:], err
 	}
 
@@ -280,13 +265,7 @@ func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
 	}
 	r := bytes.NewBuffer(buf)
 
-	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.reserved); err != nil {
-		return err
-	}
-	if err = binary.Read(r, binary.LittleEndian, &pkt.ReceiverIndex); err != nil {
+	if err = binary.Read(r, binary.LittleEndian, &pkt.DataHeader); err != nil {
 		return err
 	}
 

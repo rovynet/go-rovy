@@ -69,8 +69,10 @@ func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multia
 	}
 
 	pkt := &HelloPacket{
-		MsgType:      0x01,
-		SenderIndex:  idx,
+		HelloHeader: HelloHeader{
+			MsgType:     0x01,
+			SenderIndex: idx,
+		},
 		ObservedAddr: raddr,
 		ObservedMTU:  rovy.PreliminaryMTU,
 		PeerID:       sm.peerid,
@@ -99,12 +101,14 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 	}
 
 	pkt2 := &HelloResponsePacket{
-		MsgType:       0x02,
-		ReceiverIndex: idx,
-		SenderIndex:   pkt.SenderIndex,
-		ObservedMTU:   rovy.PreliminaryMTU,
-		ObservedAddr:  raddr,
-		PeerID:        sm.peerid,
+		HelloResponseHeader: HelloResponseHeader{
+			MsgType:       0x02,
+			ReceiverIndex: idx,
+			SenderIndex:   pkt.SenderIndex,
+		},
+		ObservedMTU:  rovy.PreliminaryMTU,
+		ObservedAddr: raddr,
+		PeerID:       sm.peerid,
 	}
 
 	return pkt2
@@ -132,9 +136,11 @@ func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket,
 	for idx, s := range sm.store {
 		if s.remotePeerID == peerid {
 			pkt := &DataPacket{
-				MsgType:       0x03,
-				ReceiverIndex: idx,
-				Data:          p,
+				DataHeader: DataHeader{
+					MsgType:       0x03,
+					ReceiverIndex: idx,
+				},
+				Data: p,
 			}
 			return pkt, s.remoteAddr, nil
 		}
