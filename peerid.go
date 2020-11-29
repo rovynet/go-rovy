@@ -48,20 +48,47 @@ func init() {
 	})
 }
 
-type PeerID cid.Cid
+type PeerID PublicKey
 
 func NewPeerID(pubkey PublicKey) PeerID {
-	bytes := pubkey[:]
-	mhash, _ := multihash.Sum(bytes, multihash.IDENTITY, len(bytes))
-	return PeerID(cid.NewCidV1(RovyKeyMulticodec, mhash))
+	return PeerID(pubkey)
+}
+
+func NewPeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
+	if c.Type() != RovyKeyMulticodec {
+		err = fmt.Errorf("peerid can't be cid with type %O", c.Type())
+		return
+	}
+
+	mhash, err := multihash.Decode(c.Hash())
+	if err != nil {
+		return
+	}
+
+	if mhash.Length != PublicKeySize {
+		err = fmt.Errorf("invalid public key size: %d", mhash.Length)
+		return
+	}
+
+	copy(pid[:], mhash.Digest)
+	return
+}
+
+func (pid PeerID) cid() cid.Cid {
+	mhash, _ := multihash.Sum(pid[:], multihash.IDENTITY, PublicKeySize)
+	return cid.NewCidV1(RovyKeyMulticodec, mhash)
 }
 
 func (pid PeerID) Bytes() []byte {
-	return cid.Cid(pid).Bytes()
+	return pid.cid().Bytes()
 }
 
 func (pid PeerID) String() string {
-	return cid.Cid(pid).String()
+	return pid.cid().String()
+}
+
+func (pid PeerID) PublicKey() PublicKey {
+	return PublicKey(pid)
 }
 
 func maddrStr2b(s string) ([]byte, error) {
@@ -82,7 +109,11 @@ func maddrB2Str(b []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return PeerID(c).String(), nil
+	pid, err := NewPeerIDFromCid(c)
+	if err != nil {
+		return "", err
+	}
+	return pid.String(), nil
 }
 
 func maddrValid(b []byte) error {

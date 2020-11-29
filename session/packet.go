@@ -116,11 +116,14 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 	if err = binary.Read(r, binary.LittleEndian, peeridBytes); err != nil {
 		return err
 	}
-	_, cid, err := cid.CidFromBytes(peeridBytes[:peeridSize]) // TODO this should be on PeerID itself
+	_, c, err := cid.CidFromBytes(peeridBytes[:peeridSize]) // TODO this should be on PeerID itself
 	if err != nil {
 		return err
 	}
-	pkt.PeerID = rovy.PeerID(cid)
+	pkt.PeerID, err = rovy.NewPeerIDFromCid(c)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -220,11 +223,14 @@ func (pkt *HelloResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	if err = binary.Read(r, binary.LittleEndian, peeridBytes); err != nil {
 		return err
 	}
-	_, cid, err := cid.CidFromBytes(peeridBytes[:peeridSize]) // TODO this should be on PeerID itself
+	_, c, err := cid.CidFromBytes(peeridBytes[:peeridSize]) // TODO this should be on PeerID itself
 	if err != nil {
 		return err
 	}
-	pkt.PeerID = rovy.PeerID(cid)
+	pkt.PeerID, err = rovy.NewPeerIDFromCid(c)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
