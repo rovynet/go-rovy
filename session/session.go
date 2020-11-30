@@ -49,6 +49,53 @@ func NewSessionManager(privkey rovy.PrivateKey, pubkey rovy.PublicKey, peerid ro
 	return sm
 }
 
+func (sm *SessionManager) Insert(s *Session) uint32 {
+	var idx uint32
+	for {
+		idx = rand.Uint32()
+		_, present := sm.store[idx]
+		if !present {
+			break
+		}
+	}
+
+	sm.store[idx] = s
+	return idx
+}
+
+func (sm *SessionManager) Get(idx uint32) (s *Session, present bool) {
+	s, present = sm.store[idx]
+	return
+}
+
+func (sm *SessionManager) Find(peerid rovy.PeerID) (*Session, uint32, bool) {
+	for idx, s := range sm.store {
+		if s.remotePeerID == peerid {
+			return s, idx, true
+		}
+	}
+	return nil, 0, false
+}
+
+func (sm *SessionManager) Swap(idx1, idx2 uint32) {
+	s, present := sm.store[idx1]
+	if present {
+		delete(sm.store, idx1)
+	}
+
+	// TODO: what if we overwrite an existing session here?
+	sm.store[idx2] = s
+
+	return
+}
+
+func (sm *SessionManager) Remove(idx uint32) {
+	_, present := sm.store[idx]
+	if present {
+		delete(sm.store, idx)
+	}
+}
+
 func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) *HelloPacket {
 	s := &Session{
 		initiator:    true,
@@ -56,17 +103,9 @@ func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multia
 		remoteAddr:   raddr,
 		remotePeerID: peerid,
 	}
+	idx := sm.Insert(s)
 
-	// Loop to make sure we don't overwrite an existing session, however unlikely.
-	var idx uint32
-	for {
-		idx = rand.Uint32()
-		_, present := sm.store[idx]
-		if !present {
-			sm.store[idx] = s
-			break
-		}
-	}
+	// _, msg := ikpsk2.WriteMessageA(s.handshake, []byte{})
 
 	pkt := &HelloPacket{
 		HelloHeader: HelloHeader{
@@ -88,17 +127,7 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 		remoteAddr:   raddr,
 		remotePeerID: pkt.PeerID,
 	}
-
-	// Make sure we don't overwrite an existing session, however unlikely.
-	var idx uint32
-	for {
-		idx = rand.Uint32()
-		_, present := sm.store[idx]
-		if !present {
-			sm.store[idx] = s
-			break
-		}
-	}
+	idx := sm.Insert(s)
 
 	pkt2 := &HelloResponsePacket{
 		HelloResponseHeader: HelloResponseHeader{
@@ -115,14 +144,12 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 }
 
 func (sm *SessionManager) HandleHelloResponse(pkt *HelloResponsePacket, raddr multiaddr.Multiaddr) {
-	s, present := sm.store[pkt.SenderIndex]
+	s, present := sm.Get(pkt.SenderIndex)
 	if !present || !s.initiator || s.stage != 0x01 {
 		return
 	}
 
-	delete(sm.store, pkt.SenderIndex)
-	// TODO: make sure we don't overwrite an existing session
-	sm.store[pkt.ReceiverIndex] = s
+	sm.Swap(pkt.SenderIndex, pkt.ReceiverIndex)
 
 	s.stage = 0x03
 	s.remoteAddr = raddr
@@ -133,19 +160,19 @@ func (sm *SessionManager) HandleHelloResponse(pkt *HelloResponsePacket, raddr mu
 }
 
 func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiaddr.Multiaddr, error) {
-	for idx, s := range sm.store {
-		if s.remotePeerID == peerid {
-			pkt := &DataPacket{
-				DataHeader: DataHeader{
-					MsgType:       0x03,
-					ReceiverIndex: idx,
-				},
-				Data: p,
-			}
-			return pkt, s.remoteAddr, nil
-		}
+	s, idx, present := sm.Find(peerid)
+	if !present {
+		return nil, nil, fmt.Errorf("no session for %s", peerid)
 	}
-	return nil, nil, fmt.Errorf("no session for %s", peerid)
+
+	pkt := &DataPacket{
+		DataHeader: DataHeader{
+			MsgType:       0x03,
+			ReceiverIndex: idx,
+		},
+		Data: p,
+	}
+	return pkt, s.remoteAddr, nil
 }
 
 func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
@@ -168,12 +195,13 @@ func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr)
 
 func (sm *SessionManager) WaitFor(peerid rovy.PeerID) chan error {
 	ch := make(chan error, 1)
-	for _, s := range sm.store {
-		if s.remotePeerID == peerid {
-			s.waiters = append(s.waiters, ch)
-			return ch
-		}
+
+	s, _, present := sm.Find(peerid)
+	if !present {
+		ch <- fmt.Errorf("no session for %s", peerid)
+		return ch
 	}
-	ch <- fmt.Errorf("no session for %s", peerid)
+
+	s.waiters = append(s.waiters, ch)
 	return ch
 }
