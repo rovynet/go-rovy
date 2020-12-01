@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	cid "github.com/ipfs/go-cid" // TOOD: kill this dep
-	multiaddr "github.com/multiformats/go-multiaddr"
 	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
 
@@ -24,9 +23,7 @@ const (
 
 type HelloPacket struct {
 	HelloHeader
-	ObservedMTU  uint64
-	ObservedAddr multiaddr.Multiaddr
-	PeerID       rovy.PeerID
+	PeerID rovy.PeerID
 }
 
 type HelloHeader struct {
@@ -45,20 +42,6 @@ func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.HelloHeader); err != nil {
-		return buf[:], err
-	}
-
-	mtu := varint.ToUvarint(pkt.ObservedMTU)
-	if err := binary.Write(w, binary.LittleEndian, mtu); err != nil {
-		return buf[:], err
-	}
-
-	maddrBytes := pkt.ObservedAddr.Bytes()
-	maddrSize := varint.ToUvarint(uint64(binary.Size(maddrBytes)))
-	if err := binary.Write(w, binary.LittleEndian, maddrSize); err != nil {
-		return buf[:], err
-	}
-	if err := binary.Write(w, binary.LittleEndian, maddrBytes); err != nil {
 		return buf[:], err
 	}
 
@@ -81,27 +64,6 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 	r := bytes.NewBuffer(buf)
 
 	if err = binary.Read(r, binary.LittleEndian, &pkt.HelloHeader); err != nil {
-		return err
-	}
-
-	pkt.ObservedMTU, err = varint.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-
-	maddrSize, err := varint.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-	if maddrSize > MaxMultiaddrSize {
-		return fmt.Errorf("multiaddr too long")
-	}
-	maddrBytes := make([]byte, maddrSize)
-	if err = binary.Read(r, binary.LittleEndian, maddrBytes); err != nil {
-		return err
-	}
-	pkt.ObservedAddr, err = multiaddr.NewMultiaddrBytes(maddrBytes[:maddrSize])
-	if err != nil {
 		return err
 	}
 
@@ -130,9 +92,7 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 
 type HelloResponsePacket struct {
 	HelloResponseHeader
-	ObservedMTU  uint64
-	ObservedAddr multiaddr.Multiaddr
-	PeerID       rovy.PeerID
+	PeerID rovy.PeerID
 }
 
 type HelloResponseHeader struct {
@@ -155,20 +115,6 @@ func (pkt *HelloResponsePacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	mtu := varint.ToUvarint(pkt.ObservedMTU)
-	if err := binary.Write(w, binary.LittleEndian, mtu); err != nil {
-		return buf[:], err
-	}
-
-	maddrBytes := pkt.ObservedAddr.Bytes()
-	maddrSize := varint.ToUvarint(uint64(binary.Size(maddrBytes)))
-	if err := binary.Write(w, binary.LittleEndian, maddrSize); err != nil {
-		return buf[:], err
-	}
-	if err := binary.Write(w, binary.LittleEndian, maddrBytes); err != nil {
-		return buf[:], err
-	}
-
 	peeridBytes := pkt.PeerID.Bytes()
 	peeridSize := varint.ToUvarint(uint64(binary.Size(peeridBytes)))
 	if err := binary.Write(w, binary.LittleEndian, peeridSize); err != nil {
@@ -188,27 +134,6 @@ func (pkt *HelloResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	r := bytes.NewBuffer(buf)
 
 	if err = binary.Read(r, binary.LittleEndian, &pkt.HelloResponseHeader); err != nil {
-		return err
-	}
-
-	pkt.ObservedMTU, err = varint.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-
-	maddrSize, err := varint.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-	if maddrSize > MaxMultiaddrSize {
-		return fmt.Errorf("multiaddr too long")
-	}
-	maddrBytes := make([]byte, maddrSize)
-	if err = binary.Read(r, binary.LittleEndian, maddrBytes); err != nil {
-		return err
-	}
-	pkt.ObservedAddr, err = multiaddr.NewMultiaddrBytes(maddrBytes[:maddrSize])
-	if err != nil {
 		return err
 	}
 

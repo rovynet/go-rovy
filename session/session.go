@@ -112,9 +112,7 @@ func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multia
 			MsgType:     0x01,
 			SenderIndex: idx,
 		},
-		ObservedAddr: raddr,
-		ObservedMTU:  rovy.PreliminaryMTU,
-		PeerID:       sm.peerid,
+		PeerID: sm.peerid,
 	}
 
 	return pkt
@@ -135,9 +133,7 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 			ReceiverIndex: idx,
 			SenderIndex:   pkt.SenderIndex,
 		},
-		ObservedMTU:  rovy.PreliminaryMTU,
-		ObservedAddr: raddr,
-		PeerID:       sm.peerid,
+		PeerID: sm.peerid,
 	}
 
 	return pkt2
