@@ -9,6 +9,7 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
+	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
 var (
@@ -108,17 +109,15 @@ func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multia
 	// _, msg := ikpsk2.WriteMessageA(s.handshake, []byte{})
 
 	pkt := &HelloPacket{
-		HelloHeader: HelloHeader{
-			MsgType:     0x01,
-			SenderIndex: idx,
-		},
-		PeerID: sm.peerid,
+		MsgType:     0x01,
+		SenderIndex: idx,
+		PeerID:      sm.peerid,
 	}
 
 	return pkt
 }
 
-func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) *HelloResponsePacket {
+func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) *ResponsePacket {
 	s := &Session{
 		initiator:    false,
 		stage:        0x02,
@@ -127,19 +126,19 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 	}
 	idx := sm.Insert(s)
 
-	pkt2 := &HelloResponsePacket{
-		HelloResponseHeader: HelloResponseHeader{
-			MsgType:       0x02,
-			ReceiverIndex: idx,
-			SenderIndex:   pkt.SenderIndex,
-		},
+	pkt2 := &ResponsePacket{
+		MsgType:        0x02,
+		ReceiverIndex:  idx,
+		SenderIndex:    pkt.SenderIndex,
+		ResponseHeader: ikpsk2.ResponseHeader{},
+		// TODO: remove pkt.PeerID once we can extract peerid from handshake
 		PeerID: sm.peerid,
 	}
 
 	return pkt2
 }
 
-func (sm *SessionManager) HandleHelloResponse(pkt *HelloResponsePacket, raddr multiaddr.Multiaddr) {
+func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multiaddr) {
 	s, present := sm.Get(pkt.SenderIndex)
 	if !present || !s.initiator || s.stage != 0x01 {
 		return
@@ -149,6 +148,8 @@ func (sm *SessionManager) HandleHelloResponse(pkt *HelloResponsePacket, raddr mu
 
 	s.stage = 0x03
 	s.remoteAddr = raddr
+	// TODO: remove pkt.PeerID once we can extract peerid from handshake
+	// TODO: verify peerid against expected peerid from s.remotePeerID
 	s.remotePeerID = pkt.PeerID
 	for _, waiter := range s.waiters {
 		waiter <- nil
@@ -162,11 +163,9 @@ func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket,
 	}
 
 	pkt := &DataPacket{
-		DataHeader: DataHeader{
-			MsgType:       0x03,
-			ReceiverIndex: idx,
-		},
-		Data: p,
+		MsgType:       0x03,
+		ReceiverIndex: idx,
+		Data:          p,
 	}
 	return pkt, s.remoteAddr, nil
 }

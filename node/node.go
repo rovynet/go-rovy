@@ -85,7 +85,7 @@ func (node *Node) handlePacket(p []byte, n int, raddr net.Addr) {
 	case 0x01:
 		node.handleHelloPacket(p, n, raddr)
 	case 0x02:
-		node.handleHelloResponsePacket(p, n, raddr)
+		node.handleResponsePacket(p, n, raddr)
 	case 0x03:
 		node.handleDataPacket(p, n, raddr)
 	}
@@ -136,8 +136,8 @@ func (node *Node) handleHelloPacket(p []byte, n int, raddr net.Addr) {
 	return
 }
 
-func (node *Node) handleHelloResponsePacket(p []byte, n int, raddr net.Addr) {
-	pkt := &session.HelloResponsePacket{}
+func (node *Node) handleResponsePacket(p []byte, n int, raddr net.Addr) {
+	pkt := &session.ResponsePacket{}
 
 	if err := pkt.UnmarshalBinary(p[:n]); err != nil {
 		node.logger.Printf("UnmarshalBinary: %s", err)

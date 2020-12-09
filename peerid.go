@@ -1,11 +1,14 @@
 package rovy
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	cid "github.com/ipfs/go-cid"
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multihash "github.com/multiformats/go-multihash"
+	varint "github.com/multiformats/go-varint"
 )
 
 const (
@@ -23,16 +26,19 @@ const (
 	//
 	// The base32-encoded PeerID always starts with 'bafzaai'.
 	//
-	// 0x73 comes right after the "libp2p-key" multicodec at 0x72.
+	// 0x73 comes right after the "libp2p-key" multicodec at 0x72, we might get
+	// asked to pick a higher number in double-byte-varint space.
 	//
-	// TODO: see if there's a number that gets us 'brovyai'
-	// TODO: pick a number that works as a multiaddr too
+	// TODO: officially register the multicodec number
 	RovyKeyMulticodec = 0x73
 
+	// TODO: officially register the multicodec number
 	RovyMultiaddrCodec = 0x1a6
 
 	PreliminaryMTU = 1500
 	// PreliminaryMTU = 500
+
+	MaxPeerIDSize = 128
 )
 
 func init() {
@@ -72,6 +78,36 @@ func NewPeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
 
 	copy(pid[:], mhash.Digest)
 	return
+}
+
+func Buf2PeerID(r *bytes.Buffer) (pid PeerID, err error) {
+	size, err := varint.ReadUvarint(r)
+	if err != nil {
+		return
+	}
+	if size > MaxPeerIDSize {
+		err = fmt.Errorf("PeerID too long")
+		return
+	}
+	bytes := make([]byte, size)
+	if err = binary.Read(r, binary.BigEndian, bytes); err != nil {
+		return
+	}
+	_, c, err := cid.CidFromBytes(bytes[:size])
+	if err != nil {
+		return
+	}
+	return NewPeerIDFromCid(c)
+}
+
+// TODO: double-check the size calculation
+func PeerID2Buf(pid PeerID, w *bytes.Buffer) (err error) {
+	bytes := pid.Bytes()
+	size := varint.ToUvarint(uint64(binary.Size(bytes)))
+	if err = binary.Write(w, binary.BigEndian, size); err != nil {
+		return
+	}
+	return binary.Write(w, binary.BigEndian, bytes)
 }
 
 func (pid PeerID) cid() cid.Cid {
