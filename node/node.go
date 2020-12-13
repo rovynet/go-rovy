@@ -105,7 +105,6 @@ func (node *Node) handleDataPacket(p []byte, n int, raddr net.Addr) {
 		return
 	}
 
-	// node.logger.Printf("got data from %s: %+v", peerid, data)
 	if node.handler != nil {
 		node.handler(data, peerid)
 	}
@@ -118,7 +117,6 @@ func (node *Node) handleHelloPacket(p []byte, n int, raddr net.Addr) {
 		node.logger.Printf("UnmarshalBinary: %s", err)
 		return
 	}
-	// node.logger.Printf("got hello: %+v", pkt)
 
 	maddr, _ := multiaddrnet.FromNetAddr(raddr)
 	pkt2 := node.sessions.HandleHello(pkt, maddr)
@@ -143,7 +141,6 @@ func (node *Node) handleResponsePacket(p []byte, n int, raddr net.Addr) {
 		node.logger.Printf("UnmarshalBinary: %s", err)
 		return
 	}
-	// node.logger.Printf("got helloResponse: %+v", pkt)
 
 	maddr, _ := multiaddrnet.FromNetAddr(raddr)
 	node.sessions.HandleHelloResponse(pkt, maddr)

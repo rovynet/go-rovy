@@ -2,6 +2,7 @@ package rovy
 
 import (
 	"crypto/rand"
+
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -33,4 +34,8 @@ func (privkey *PrivateKey) PublicKey() PublicKey {
 	aprivk := (*[PrivateKeySize]byte)(privkey)
 	curve25519.ScalarBaseMult(apubk, aprivk)
 	return pubkey
+}
+
+func (pubkey PublicKey) Bytes() []byte {
+	return pubkey[:]
 }

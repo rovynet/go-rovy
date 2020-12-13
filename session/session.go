@@ -27,6 +27,7 @@ type Session struct {
 	stage        int
 	writer       func([]byte) error
 	waiters      []chan error
+	handshake    *ikpsk2.Handshake
 	remoteAddr   multiaddr.Multiaddr
 	remotePeerID rovy.PeerID
 }
@@ -98,31 +99,55 @@ func (sm *SessionManager) Remove(idx uint32) {
 }
 
 func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) *HelloPacket {
+	hs, err := ikpsk2.NewHandshakeInitiator(sm.privkey, peerid.PublicKey())
+	if err != nil {
+		return nil
+	}
+	hdr, _, err := hs.MakeHello(nil)
+	if err != nil {
+		return nil
+	}
+
 	s := &Session{
 		initiator:    true,
 		stage:        0x01,
+		handshake:    hs,
 		remoteAddr:   raddr,
 		remotePeerID: peerid,
 	}
 	idx := sm.Insert(s)
 
-	// _, msg := ikpsk2.WriteMessageA(s.handshake, []byte{})
-
 	pkt := &HelloPacket{
 		MsgType:     0x01,
 		SenderIndex: idx,
-		PeerID:      sm.peerid,
+		HelloHeader: hdr,
 	}
 
 	return pkt
 }
 
 func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) *ResponsePacket {
+	hs, err := ikpsk2.NewHandshakeResponder(sm.privkey)
+	if err != nil {
+		return nil
+	}
+
+	_, err = hs.ConsumeHello(pkt.HelloHeader, nil)
+	if err != nil {
+		return nil
+	}
+
+	hdr, _, err := hs.MakeResponse(nil)
+	if err != nil {
+		return nil
+	}
+
 	s := &Session{
 		initiator:    false,
 		stage:        0x02,
+		handshake:    hs,
 		remoteAddr:   raddr,
-		remotePeerID: pkt.PeerID,
+		remotePeerID: rovy.PeerID(hs.RemotePublicKey()),
 	}
 	idx := sm.Insert(s)
 
@@ -130,9 +155,7 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 		MsgType:        0x02,
 		ReceiverIndex:  idx,
 		SenderIndex:    pkt.SenderIndex,
-		ResponseHeader: ikpsk2.ResponseHeader{},
-		// TODO: remove pkt.PeerID once we can extract peerid from handshake
-		PeerID: sm.peerid,
+		ResponseHeader: hdr,
 	}
 
 	return pkt2
@@ -144,13 +167,27 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 		return
 	}
 
+	_, err := s.handshake.ConsumeResponse(pkt.ResponseHeader, nil)
+	if err != nil {
+		sm.logger.Printf("ConsumeResponse: %s", err)
+		return
+	}
+
+	peerid := rovy.PeerID(s.handshake.RemotePublicKey())
+	if peerid != s.remotePeerID {
+		sm.Remove(pkt.SenderIndex)
+		err = fmt.Errorf("expected PeerID %s, got %s", s.remoteAddr, peerid)
+		for _, waiter := range s.waiters {
+			waiter <- err
+		}
+		return
+	}
+
 	sm.Swap(pkt.SenderIndex, pkt.ReceiverIndex)
 
 	s.stage = 0x03
 	s.remoteAddr = raddr
-	// TODO: remove pkt.PeerID once we can extract peerid from handshake
-	// TODO: verify peerid against expected peerid from s.remotePeerID
-	s.remotePeerID = pkt.PeerID
+
 	for _, waiter := range s.waiters {
 		waiter <- nil
 	}

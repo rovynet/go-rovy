@@ -14,7 +14,6 @@ type HelloPacket struct {
 	MsgType     uint32
 	SenderIndex uint32
 	ikpsk2.HelloHeader
-	PeerID rovy.PeerID // TODO: remove once we can extract peerid from handshake
 }
 
 func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
@@ -30,10 +29,6 @@ func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 	}
 
 	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader); err != nil {
-		return buf[:], err
-	}
-
-	if err := rovy.PeerID2Buf(pkt.PeerID, w); err != nil {
 		return buf[:], err
 	}
 
@@ -58,8 +53,7 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
-	pkt.PeerID, err = rovy.Buf2PeerID(r)
-	return err
+	return nil
 }
 
 type ResponsePacket struct {
@@ -67,7 +61,6 @@ type ResponsePacket struct {
 	SenderIndex   uint32
 	ReceiverIndex uint32
 	ikpsk2.ResponseHeader
-	PeerID rovy.PeerID // TODO: remove once we can extract peerid from handshake
 }
 
 func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
@@ -87,10 +80,6 @@ func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
 	}
 
 	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader); err != nil {
-		return buf[:], err
-	}
-
-	if err := rovy.PeerID2Buf(pkt.PeerID, w); err != nil {
 		return buf[:], err
 	}
 
@@ -119,8 +108,7 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
-	pkt.PeerID, err = rovy.Buf2PeerID(r)
-	return err
+	return nil
 }
 
 // TODO: ikpsk2.DataHeader
