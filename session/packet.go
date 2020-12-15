@@ -111,11 +111,12 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	return nil
 }
 
-// TODO: ikpsk2.DataHeader
+// TODO: remove that length-prefix and mtu business
 type DataPacket struct {
 	MsgType       uint32
 	ReceiverIndex uint32
-	Data          []byte
+	ikpsk2.MessageHeader
+	Data []byte
 }
 
 func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
@@ -127,6 +128,10 @@ func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
 	}
 
 	if err := binary.Write(w, binary.BigEndian, pkt.ReceiverIndex); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.MessageHeader); err != nil {
 		return buf[:], err
 	}
 
@@ -152,6 +157,10 @@ func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
 	}
 
 	if err = binary.Read(r, binary.BigEndian, &pkt.ReceiverIndex); err != nil {
+		return err
+	}
+
+	if err = binary.Read(r, binary.BigEndian, &pkt.MessageHeader); err != nil {
 		return err
 	}
 

@@ -1,8 +1,9 @@
 package ikpsk2
 
 import (
+	"crypto/cipher"
+	"encoding/binary"
 	"fmt"
-	"log"
 
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -47,7 +48,7 @@ type ResponseHeader struct {
 }
 
 type MessageHeader struct {
-	Counter uint64
+	Nonce [8]byte
 }
 
 type Handshake struct {
@@ -59,8 +60,8 @@ type Handshake struct {
 	remoteStatic     rovy.PublicKey
 	remoteEphemeral  rovy.PublicKey
 	precStaticStatic [rovy.PublicKeySize]byte
-	sendKey          [chacha20poly1305.KeySize]byte
-	receiveKey       [chacha20poly1305.KeySize]byte
+	send             cipher.AEAD
+	receive          cipher.AEAD
 	sendNonce        uint64
 	initiator        bool
 }
@@ -241,7 +242,17 @@ func (hs *Handshake) MakeResponse(payload []byte) (hdr ResponseHeader, payload2 
 	aead.Seal(hdr.Empty[:0], zeroNonce[:], nil, hs.hash[:])
 	mixHash(&hs.hash, &hs.hash, hdr.Empty[:])
 
-	KDF2(&hs.receiveKey, &hs.sendKey, hs.chainKey[:], nil)
+	var sendKey [chacha20poly1305.KeySize]byte
+	var recvKey [chacha20poly1305.KeySize]byte
+	KDF2(&recvKey, &sendKey, hs.chainKey[:], nil)
+	hs.send, err = chacha20poly1305.New(sendKey[:])
+	if err != nil {
+		return
+	}
+	hs.receive, err = chacha20poly1305.New(recvKey[:])
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -273,8 +284,7 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payloa
 	}
 	_, err = aead.Open(nil, zeroNonce[:], hdr.Empty[:], hash[:])
 	if err != nil {
-		log.Printf("handshake: %+v", hs)
-		// err = ErrAEADOpen
+		err = ErrAEADOpen
 		return
 	}
 	mixHash(&hash, &hash, hdr.Empty[:])
@@ -282,11 +292,55 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payloa
 	hs.hash = hash
 	hs.chainKey = chainKey
 
-	KDF2(&hs.sendKey, &hs.receiveKey, hs.chainKey[:], nil)
+	var sendKey [chacha20poly1305.KeySize]byte
+	var recvKey [chacha20poly1305.KeySize]byte
+	KDF2(&sendKey, &recvKey, hs.chainKey[:], nil)
+	hs.send, err = chacha20poly1305.New(sendKey[:])
+	if err != nil {
+		return
+	}
+	hs.receive, err = chacha20poly1305.New(recvKey[:])
+	if err != nil {
+		return
+	}
 
 	return
 }
 
-func (hs *Handshake) MakeMessage() {}
+func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []byte, err error) {
+	padding := calculatePaddingSize(len(payload), rovy.PreliminaryMTU-12)
+	for i := 0; i < padding; i++ {
+		payload = append(payload, 0x0)
+	}
 
-func (hs *Handshake) ConsumeMessage() {}
+	hs.sendNonce += 1
+	binary.BigEndian.PutUint64(hdr.Nonce[:], hs.sendNonce)
+
+	var nonce [chacha20poly1305.NonceSize]byte
+	nonce[0x4] = hdr.Nonce[0x0]
+	nonce[0x5] = hdr.Nonce[0x1]
+	nonce[0x6] = hdr.Nonce[0x2]
+	nonce[0x7] = hdr.Nonce[0x3]
+	nonce[0x8] = hdr.Nonce[0x4]
+	nonce[0x9] = hdr.Nonce[0x5]
+	nonce[0xa] = hdr.Nonce[0x6]
+	nonce[0xb] = hdr.Nonce[0x7]
+	payload2 = hs.send.Seal(payload2[:0], nonce[:], payload, nil)
+
+	return
+}
+
+func (hs *Handshake) ConsumeMessage(hdr MessageHeader, payload []byte) (payload2 []byte, err error) {
+	var nonce [chacha20poly1305.NonceSize]byte
+	nonce[0x4] = hdr.Nonce[0x0]
+	nonce[0x5] = hdr.Nonce[0x1]
+	nonce[0x6] = hdr.Nonce[0x2]
+	nonce[0x7] = hdr.Nonce[0x3]
+	nonce[0x8] = hdr.Nonce[0x4]
+	nonce[0x9] = hdr.Nonce[0x5]
+	nonce[0xa] = hdr.Nonce[0x6]
+	nonce[0xb] = hdr.Nonce[0x7]
+	payload2, err = hs.receive.Open(payload2[:0], nonce[:], payload, nil)
+
+	return
+}

@@ -199,10 +199,16 @@ func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket,
 		return nil, nil, fmt.Errorf("no session for %s", peerid)
 	}
 
+	hdr, p2, err := s.handshake.MakeMessage(p)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	pkt := &DataPacket{
 		MsgType:       0x03,
 		ReceiverIndex: idx,
-		Data:          p,
+		MessageHeader: hdr,
+		Data:          p2,
 	}
 	return pkt, s.remoteAddr, nil
 }
@@ -219,10 +225,15 @@ func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr)
 		}
 	}
 	if s.stage != 0x03 {
-		return nil, rovy.PeerID{}, SessionStateError
+		return nil, s.remotePeerID, SessionStateError
 	}
 
-	return pkt.Data, s.remotePeerID, nil
+	p2, err := s.handshake.ConsumeMessage(pkt.MessageHeader, pkt.Data)
+	if err != nil {
+		return nil, s.remotePeerID, err
+	}
+
+	return p2, s.remotePeerID, nil
 }
 
 func (sm *SessionManager) WaitFor(peerid rovy.PeerID) chan error {

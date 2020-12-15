@@ -84,3 +84,20 @@ func setZero(arr []byte) {
 		arr[i] = 0
 	}
 }
+
+const paddingMultiple = 16
+
+func calculatePaddingSize(packetSize, mtu int) int {
+	lastUnit := packetSize
+	if mtu == 0 {
+		return ((lastUnit + paddingMultiple - 1) & ^(paddingMultiple - 1)) - lastUnit
+	}
+	if lastUnit > mtu {
+		lastUnit %= mtu
+	}
+	paddedSize := ((lastUnit + paddingMultiple - 1) & ^(paddingMultiple - 1))
+	if paddedSize > mtu {
+		paddedSize = mtu
+	}
+	return paddedSize - lastUnit
+}
