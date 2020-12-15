@@ -18,7 +18,6 @@ var (
 )
 
 func init() {
-	// TODO: do we need crypto/rand instead?
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -51,6 +50,7 @@ func NewSessionManager(privkey rovy.PrivateKey, pubkey rovy.PublicKey, peerid ro
 	return sm
 }
 
+// TODO: do we need crypto/rand instead?
 func (sm *SessionManager) Insert(s *Session) uint32 {
 	var idx uint32
 	for {

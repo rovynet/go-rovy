@@ -36,15 +36,11 @@ type HelloHeader struct {
 	Ephemeral rovy.PublicKey
 	Static    [rovy.PublicKeySize + poly1305.TagSize]byte
 	Timestamp [tai64n.TimestampSize + poly1305.TagSize]byte
-	// MAC1      [blake2s.Size128]byte
-	// MAC2      [blake2s.Size128]byte
 }
 
 type ResponseHeader struct {
 	Ephemeral rovy.PublicKey
 	Empty     [poly1305.TagSize]byte
-	// MAC1      [blake2s.Size128]byte
-	// MAC2      [blake2s.Size128]byte
 }
 
 type MessageHeader struct {
@@ -89,8 +85,8 @@ func NewHandshakeInitiator(localStatic rovy.PrivateKey, remoteStatic rovy.Public
 	return hs, nil
 }
 
+// TODO: create our ephemeral key only after we've successfully consumed the hello
 func NewHandshakeResponder(localStatic rovy.PrivateKey) (*Handshake, error) {
-	// TODO: create our ephemeral key only after we've successfully consumed the hello
 	epriv, err := rovy.NewPrivateKey()
 	if err != nil {
 		return nil, err
@@ -111,7 +107,6 @@ func (hs *Handshake) RemotePublicKey() rovy.PublicKey {
 	return hs.remoteStatic
 }
 
-// TODO: encrypt payload2
 func (hs *Handshake) MakeHello(payload []byte) (hdr HelloHeader, payload2 []byte, err error) {
 	if !hs.initiator {
 		err = fmt.Errorf("responder can't send hello")
@@ -153,8 +148,9 @@ func (hs *Handshake) MakeHello(payload []byte) (hdr HelloHeader, payload2 []byte
 	return
 }
 
-// TODO: encrypt payload2
-// TODO: replay protection, flood protection
+// TODO: replay protection
+// TODO: flood protection
+// TODO: cookies
 func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) (payload2 []byte, err error) {
 	if hs.initiator {
 		err = fmt.Errorf("initiator can't consume hello")
@@ -308,6 +304,7 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payloa
 }
 
 func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []byte, err error) {
+	// see https://mailarchive.ietf.org/arch/msg/cfrg/u734TEOSDDWyQgE0pmhxjdncwvw/
 	padding := calculatePaddingSize(len(payload), rovy.PreliminaryMTU-12)
 	for i := 0; i < padding; i++ {
 		payload = append(payload, 0x0)
@@ -316,6 +313,7 @@ func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []
 	hs.sendNonce += 1
 	binary.BigEndian.PutUint64(hdr.Nonce[:], hs.sendNonce)
 
+	// XXX: why leave the first 4 bytes zero instead of something else?
 	var nonce [chacha20poly1305.NonceSize]byte
 	nonce[0x4] = hdr.Nonce[0x0]
 	nonce[0x5] = hdr.Nonce[0x1]
