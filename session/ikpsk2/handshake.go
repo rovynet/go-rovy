@@ -313,7 +313,8 @@ func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []
 	hs.sendNonce += 1
 	binary.BigEndian.PutUint64(hdr.Nonce[:], hs.sendNonce)
 
-	// XXX: why leave the first 4 bytes zero instead of something else?
+	// XXX: why leave the first 4 bytes zero instead of some other part?
+	// TODO: use copy(nonce[4:], hdr.Nonce) instead
 	var nonce [chacha20poly1305.NonceSize]byte
 	nonce[0x4] = hdr.Nonce[0x0]
 	nonce[0x5] = hdr.Nonce[0x1]
