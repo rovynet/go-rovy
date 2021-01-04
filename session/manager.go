@@ -1,9 +1,10 @@
 package session
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"log"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -11,10 +12,6 @@ import (
 	rovy "pkt.dev/go-rovy"
 	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // TODO: make sure indexes from remote don't overwrite other sessions
 type SessionManager struct {
@@ -38,14 +35,25 @@ func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger) *SessionMana
 	return sm
 }
 
-// TODO: do we need crypto/rand instead? yes, because we don't want to be predictable
+func (sm *SessionManager) randUint32() uint32 {
+	var integer [4]byte
+	for {
+		if _, err := rand.Read(integer[:]); err != nil {
+			sm.logger.Printf("can't read from crypto/rand: %s", err)
+			time.Sleep(1 * time.Second)
+		} else {
+			return binary.LittleEndian.Uint32(integer[:])
+		}
+	}
+}
+
 func (sm *SessionManager) Insert(s *Session) uint32 {
 	sm.Lock()
 	defer sm.Unlock()
 
 	var idx uint32
 	for {
-		idx = rand.Uint32()
+		idx = sm.randUint32()
 		_, present := sm.store[idx]
 		if !present {
 			break
