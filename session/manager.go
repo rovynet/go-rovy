@@ -16,8 +16,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// TODO: need a lock around store
-// TODO: make sure indexes from them don't overwrite other sessions
+// TODO: make sure indexes from remote don't overwrite other sessions
 type SessionManager struct {
 	sync.RWMutex
 	privkey rovy.PrivateKey
@@ -27,12 +26,12 @@ type SessionManager struct {
 	logger  *log.Logger
 }
 
-// TODO: derive pubkey and peerid from privkey
-func NewSessionManager(privkey rovy.PrivateKey, pubkey rovy.PublicKey, peerid rovy.PeerID, logger *log.Logger) *SessionManager {
+func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger) *SessionManager {
+	pubkey := privkey.PublicKey()
 	sm := &SessionManager{
 		privkey: privkey,
 		pubkey:  pubkey,
-		peerid:  peerid,
+		peerid:  rovy.NewPeerID(pubkey),
 		store:   make(map[uint32]*Session),
 		logger:  logger,
 	}
@@ -40,7 +39,6 @@ func NewSessionManager(privkey rovy.PrivateKey, pubkey rovy.PublicKey, peerid ro
 }
 
 // TODO: do we need crypto/rand instead? yes, because we don't want to be predictable
-// TODO: un-export this one and the others
 func (sm *SessionManager) Insert(s *Session) uint32 {
 	sm.Lock()
 	defer sm.Unlock()

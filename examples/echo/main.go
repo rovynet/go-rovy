@@ -11,14 +11,14 @@ import (
 )
 
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
-	logger := log.New(os.Stderr, name+" -- ", log.LstdFlags)
+	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.NewPrivateKey()
 	if err != nil {
 		return nil, err
 	}
 
-	node := node.NewNode(privkey, privkey.PublicKey(), logger)
+	node := node.NewNode(privkey, logger)
 
 	if err = node.Listen(lisaddr); err != nil {
 		return nil, err
@@ -52,10 +52,12 @@ func run() error {
 		nodeA.Log().Printf("got echo %+v", p)
 	})
 
-	if err = nodeA.Connect(nodeB.PeerID(), addrB); err != nil {
+	if err := nodeA.Connect(nodeB.PeerID(), addrB); err != nil {
+		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
 		return err
 	}
 	if err := nodeA.Send(nodeB.PeerID(), []byte{0x1, 0x3, 0x1, 0x2}); err != nil {
+		nodeA.Log().Printf("failed to send to nodeB: %s", err)
 		return err
 	}
 

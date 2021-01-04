@@ -63,7 +63,12 @@ For the time being, check out the `examples/` directory.
 
 ## Notes
 
-https://tanzu.vmware.com/content/blog/a-channel-based-ring-buffer-in-go
+Lock-free ring buffers:
+
+- https://tanzu.vmware.com/content/blog/a-channel-based-ring-buffer-in-go
+- https://github.com/textnode/gringo
+
+Rovy packet headers:
 
 - IPv4 header = 24 bytes
 - IPv6 header = 40 bytes
@@ -82,7 +87,7 @@ Per-packet efficiency:
 - Rovy IPv4: 92.0%
 - Rovy Ethernet: 97.1%
 
-Encryption/decryption benchmarks (Ryzen 9 3900X):
+Building blocks benchmarks (Ryzen 9 3900X):
 
 - BenchmarkChacha20Poly1305/Open-1350-24  2315.59 MB/s
 - BenchmarkChacha20Poly1305/Seal-1350-24  2148.09 MB/s
@@ -90,6 +95,7 @@ Encryption/decryption benchmarks (Ryzen 9 3900X):
 - BenchmarkChacha20Poly1305/Seal-8192-24  2873.19 MB/s
 - BenchmarkChacha20Poly1305/Open-65536-24 3123.44 MB/s
 - BenchmarkChacha20Poly1305/Seal-65536-24 3087.66 MB/s
+- BenchmarkForwarder/HandlePacket-1500-24 40788.59 MB/s 0 allocs/op
 
 DNS-facilitated routing:
 

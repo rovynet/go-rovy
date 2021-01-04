@@ -23,13 +23,13 @@ type Node struct {
 	handler   DataHandler
 }
 
-func NewNode(privkey rovy.PrivateKey, pubkey rovy.PublicKey, logger *log.Logger) *Node {
-	peerid := rovy.NewPeerID(pubkey)
+func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
+	pubkey := privkey.PublicKey()
 	node := &Node{
 		pubkey:   pubkey,
-		peerid:   peerid,
+		peerid:   rovy.NewPeerID(pubkey),
 		logger:   logger,
-		sessions: session.NewSessionManager(privkey, pubkey, peerid, logger),
+		sessions: session.NewSessionManager(privkey, logger),
 	}
 	return node
 }

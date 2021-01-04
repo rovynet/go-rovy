@@ -13,14 +13,14 @@ import (
 )
 
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
-	logger := log.New(os.Stderr, name+" -- ", log.LstdFlags)
+	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.NewPrivateKey()
 	if err != nil {
 		return nil, err
 	}
 
-	node := node.NewNode(privkey, privkey.PublicKey(), logger)
+	node := node.NewNode(privkey, logger)
 
 	if err = node.Listen(lisaddr); err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func run() error {
 		return err
 	}
 
-	amount := 1000000
+	amount := 200000
 	mtu := rovy.PreliminaryMTU - 100
 	done := make(chan bool, 1)
 	start := time.Now()
@@ -57,10 +57,11 @@ func run() error {
 		k, err := binary.ReadVarint(bytes.NewBuffer(p))
 		if err != nil {
 			log.Printf("ReadVarint: %s", err)
+			return
 		}
 		j += 1
 		// log.Printf("k = %d", k)
-		if int(k) == amount {
+		if int(k) >= amount {
 			done <- true
 		}
 	})
@@ -75,7 +76,10 @@ func run() error {
 	}
 
 	<-done
-	nodeB.Log().Printf("received %d packets, took %s", j, time.Now().Sub(start))
+
+	duration := time.Now().Sub(start)
+	gbps := float64(j*mtu) / 1024 / 1024 / 1024 * 8 / duration.Seconds()
+	nodeB.Log().Printf("received %d packets, took %s, %.2f Gbps", j, duration, gbps)
 
 	return nil
 }
