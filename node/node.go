@@ -1,7 +1,6 @@
 package node
 
 import (
-	"fmt"
 	"log"
 	"net"
 
@@ -120,8 +119,9 @@ func (node *Node) handleHelloPacket(p []byte, n int, raddr net.Addr) {
 	}
 
 	maddr, _ := multiaddrnet.FromNetAddr(raddr)
-	pkt2 := node.sessions.HandleHello(pkt, maddr)
-	if pkt2 == nil {
+	pkt2, err := node.sessions.HandleHello(pkt, maddr)
+	if err != nil {
+		node.logger.Printf("HandleHello: %s", err)
 		return
 	}
 
@@ -147,15 +147,18 @@ func (node *Node) handleResponsePacket(p []byte, n int, raddr net.Addr) {
 	}
 
 	maddr, _ := multiaddrnet.FromNetAddr(raddr)
-	node.sessions.HandleHelloResponse(pkt, maddr)
+	if err := node.sessions.HandleHelloResponse(pkt, maddr); err != nil {
+		node.logger.Printf("HandleHelloResponse: %s", err)
+		return
+	}
 }
 
 // TODO: timeout
 // TODO: check if we already have a session
 func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
-	hello := node.sessions.CreateHello(peerid, raddr)
-	if hello == nil {
-		return fmt.Errorf("failed to create hello packet")
+	hello, err := node.sessions.CreateHello(peerid, raddr)
+	if err != nil {
+		return err
 	}
 
 	buf, err := hello.MarshalBinary()

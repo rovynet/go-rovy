@@ -3,9 +3,6 @@ package session
 import (
 	"errors"
 	"fmt"
-	"log"
-	"math/rand"
-	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
@@ -13,177 +10,98 @@ import (
 )
 
 var (
-	UnknownIndexError = errors.New("unknown receiver index on packet")
-	SessionStateError = errors.New("prohibited session state transfer")
+	UnknownIndexError = errors.New("unknown session index on packet")
+	SessionStateError = errors.New("invalid session state transition")
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 type Session struct {
 	initiator    bool
 	stage        int
-	writer       func([]byte) error
+	writer       func([]byte) error // unused?
 	waiters      []chan error
 	handshake    *ikpsk2.Handshake
-	remoteAddr   multiaddr.Multiaddr
+	remoteAddr   multiaddr.Multiaddr // unused
 	remotePeerID rovy.PeerID
 }
 
-type SessionManager struct {
-	privkey rovy.PrivateKey
-	pubkey  rovy.PublicKey
-	peerid  rovy.PeerID
-	store   map[uint32]*Session
-	logger  *log.Logger
-}
-
-func NewSessionManager(privkey rovy.PrivateKey, pubkey rovy.PublicKey, peerid rovy.PeerID, logger *log.Logger) *SessionManager {
-	sm := &SessionManager{
-		privkey: privkey,
-		pubkey:  pubkey,
-		peerid:  peerid,
-		store:   make(map[uint32]*Session),
-		logger:  logger,
-	}
-	return sm
-}
-
-// TODO: do we need crypto/rand instead?
-func (sm *SessionManager) Insert(s *Session) uint32 {
-	var idx uint32
-	for {
-		idx = rand.Uint32()
-		_, present := sm.store[idx]
-		if !present {
-			break
-		}
-	}
-
-	sm.store[idx] = s
-	return idx
-}
-
-func (sm *SessionManager) Get(idx uint32) (s *Session, present bool) {
-	s, present = sm.store[idx]
-	return
-}
-
-func (sm *SessionManager) Find(peerid rovy.PeerID) (*Session, uint32, bool) {
-	for idx, s := range sm.store {
-		if s.remotePeerID == peerid {
-			return s, idx, true
-		}
-	}
-	return nil, 0, false
-}
-
-func (sm *SessionManager) Swap(idx1, idx2 uint32) {
-	s, present := sm.store[idx1]
-	if present {
-		delete(sm.store, idx1)
-	}
-
-	// TODO: what if we overwrite an existing session here?
-	sm.store[idx2] = s
-
-	return
-}
-
-func (sm *SessionManager) Remove(idx uint32) {
-	_, present := sm.store[idx]
-	if present {
-		delete(sm.store, idx)
-	}
-}
-
-func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) *HelloPacket {
-	hs, err := ikpsk2.NewHandshakeInitiator(sm.privkey, peerid.PublicKey())
-	if err != nil {
-		return nil
-	}
-	hdr, _, err := hs.MakeHello(nil)
-	if err != nil {
-		return nil
-	}
-
-	s := &Session{
+func newSession(peerid rovy.PeerID, hs *ikpsk2.Handshake) *Session {
+	return &Session{
 		initiator:    true,
 		stage:        0x01,
 		handshake:    hs,
-		remoteAddr:   raddr,
 		remotePeerID: peerid,
 	}
-	idx := sm.Insert(s)
+}
 
-	pkt := &HelloPacket{
+func newSessionIncoming(hs *ikpsk2.Handshake) *Session {
+	return &Session{
+		initiator: false,
+		stage:     0x02,
+		handshake: hs,
+	}
+}
+
+func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) (*HelloPacket, error) {
+	if !s.initiator {
+		return nil, SessionStateError
+	}
+
+	hdr, _, err := s.handshake.MakeHello(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	s.remoteAddr = raddr
+	s.remotePeerID = peerid
+
+	return &HelloPacket{
 		MsgType:     0x01,
-		SenderIndex: idx,
 		HelloHeader: hdr,
-	}
-
-	return pkt
+	}, nil
 }
 
-func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) *ResponsePacket {
-	hs, err := ikpsk2.NewHandshakeResponder(sm.privkey)
+func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) (*ResponsePacket, error) {
+	if s.initiator {
+		return nil, SessionStateError
+	}
+
+	_, err := s.handshake.ConsumeHello(pkt.HelloHeader, nil)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	_, err = hs.ConsumeHello(pkt.HelloHeader, nil)
+	hdr, _, err := s.handshake.MakeResponse(nil)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	hdr, _, err := hs.MakeResponse(nil)
-	if err != nil {
-		return nil
-	}
+	s.remoteAddr = raddr
+	s.remotePeerID = rovy.PeerID(s.handshake.RemotePublicKey())
 
-	s := &Session{
-		initiator:    false,
-		stage:        0x02,
-		handshake:    hs,
-		remoteAddr:   raddr,
-		remotePeerID: rovy.PeerID(hs.RemotePublicKey()),
-	}
-	idx := sm.Insert(s)
-
-	pkt2 := &ResponsePacket{
+	return &ResponsePacket{
 		MsgType:        0x02,
-		ReceiverIndex:  idx,
-		SenderIndex:    pkt.SenderIndex,
 		ResponseHeader: hdr,
-	}
-
-	return pkt2
+	}, nil
 }
 
-func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multiaddr) {
-	s, present := sm.Get(pkt.SenderIndex)
-	if !present || !s.initiator || s.stage != 0x01 {
-		return
+func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multiaddr) error {
+	if !s.initiator || s.stage != 0x01 {
+		return SessionStateError
 	}
 
 	_, err := s.handshake.ConsumeResponse(pkt.ResponseHeader, nil)
 	if err != nil {
-		sm.logger.Printf("ConsumeResponse: %s", err)
-		return
+		return err
 	}
 
 	peerid := rovy.PeerID(s.handshake.RemotePublicKey())
 	if peerid != s.remotePeerID {
-		sm.Remove(pkt.SenderIndex)
-		err = fmt.Errorf("expected PeerID %s, got %s", s.remoteAddr, peerid)
+		err = fmt.Errorf("expected PeerID %s, got %s", s.remotePeerID, peerid)
 		for _, waiter := range s.waiters {
 			waiter <- err
 		}
-		return
+		return err
 	}
-
-	sm.Swap(pkt.SenderIndex, pkt.ReceiverIndex)
 
 	s.stage = 0x03
 	s.remoteAddr = raddr
@@ -191,14 +109,11 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 	for _, waiter := range s.waiters {
 		waiter <- nil
 	}
+
+	return nil
 }
 
-func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiaddr.Multiaddr, error) {
-	s, idx, present := sm.Find(peerid)
-	if !present {
-		return nil, nil, fmt.Errorf("no session for %s", peerid)
-	}
-
+func (s *Session) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiaddr.Multiaddr, error) {
 	hdr, p2, err := s.handshake.MakeMessage(p)
 	if err != nil {
 		return nil, nil, err
@@ -206,18 +121,13 @@ func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket,
 
 	pkt := &DataPacket{
 		MsgType:       0x03,
-		ReceiverIndex: idx,
 		MessageHeader: hdr,
 		Data:          p2,
 	}
 	return pkt, s.remoteAddr, nil
 }
 
-func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
-	s, present := sm.store[pkt.ReceiverIndex]
-	if !present {
-		return nil, rovy.PeerID{}, UnknownIndexError
-	}
+func (s *Session) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
 	if !s.initiator && s.stage == 0x02 {
 		s.stage = 0x03
 		for _, waiter := range s.waiters {
@@ -234,17 +144,4 @@ func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr)
 	}
 
 	return p2, s.remotePeerID, nil
-}
-
-func (sm *SessionManager) WaitFor(peerid rovy.PeerID) chan error {
-	ch := make(chan error, 1)
-
-	s, _, present := sm.Find(peerid)
-	if !present {
-		ch <- fmt.Errorf("no session for %s", peerid)
-		return ch
-	}
-
-	s.waiters = append(s.waiters, ch)
-	return ch
 }
