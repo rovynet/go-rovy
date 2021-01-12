@@ -1,6 +1,8 @@
 package forwarder_test
 
 import (
+	"io/ioutil"
+	"log"
 	"testing"
 
 	// forwarder "go.rovy.net/forwarder"
@@ -13,17 +15,17 @@ func BenchmarkHandlePacket(b *testing.B) {
 	peeridB := newPeerID(b)
 	peeridC := newPeerID(b)
 
-	fwd := forwarder.NewForwarder()
-	fwd.Attach(peeridA, func(_ []byte) error { return nil })
-	fwd.Attach(peeridB, func(_ []byte) error { return nil })
-	fwd.Attach(peeridC, func(_ []byte) error { return nil })
+	fwd := forwarder.NewForwarder(16, log.New(ioutil.Discard, "", log.LstdFlags))
+	fwd.Attach(peeridA, func(_ rovy.PeerID, _ []byte) error { return nil })
+	fwd.Attach(peeridB, func(_ rovy.PeerID, _ []byte) error { return nil })
+	fwd.Attach(peeridC, func(_ rovy.PeerID, _ []byte) error { return nil })
 
-	buf := make([]byte, 1500)
+	buf := make([]byte, 1400)
 	pkt := []byte{0x0, 0x2, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0}
 	var err error
 
 	b.ReportAllocs()
-	b.SetBytes(1500)
+	b.SetBytes(1400)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		copy(buf, pkt)

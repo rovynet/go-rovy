@@ -42,21 +42,21 @@ func run() error {
 	}
 
 	nodeB.Handle(func(p []byte, peerid rovy.PeerID) {
-		nodeB.Log().Printf("got packet from %s %+v", peerid, p)
+		nodeB.Log().Printf("got packet from %s %#v", peerid, p)
 
 		if err := nodeB.Send(peerid, p); err != nil {
 			nodeB.Log().Printf("send: %s", err)
 		}
 	})
 	nodeA.Handle(func(p []byte, peerid rovy.PeerID) {
-		nodeA.Log().Printf("got echo %+v", p)
+		nodeA.Log().Printf("got echo %#v", p)
 	})
 
 	if err := nodeA.Connect(nodeB.PeerID(), addrB); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
 		return err
 	}
-	if err := nodeA.Send(nodeB.PeerID(), []byte{0x1, 0x3, 0x1, 0x2}); err != nil {
+	if err := nodeA.Send(nodeB.PeerID(), []byte{0x42, 0x42, 0x42, 0x42}); err != nil {
 		nodeA.Log().Printf("failed to send to nodeB: %s", err)
 		return err
 	}

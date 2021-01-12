@@ -305,10 +305,10 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payloa
 
 func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []byte, err error) {
 	// see https://mailarchive.ietf.org/arch/msg/cfrg/u734TEOSDDWyQgE0pmhxjdncwvw/
-	padding := calculatePaddingSize(len(payload), rovy.PreliminaryMTU-12)
-	for i := 0; i < padding; i++ {
-		payload = append(payload, 0x0)
-	}
+	// padding := calculatePaddingSize(len(payload), rovy.PreliminaryMTU-12)
+	// for i := 0; i < padding; i++ {
+	// 	payload = append(payload, 0x0)
+	// }
 
 	hs.sendNonce += 1
 	binary.BigEndian.PutUint64(hdr.Nonce[:], hs.sendNonce)

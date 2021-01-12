@@ -26,78 +26,80 @@ package forwarder
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 
 	rovy "pkt.dev/go-rovy"
 )
 
-const (
-	NumSlots = 2 ^ 8
-)
-
 var (
 	ErrPrevHopUnknown = errors.New("no slot for previous hop")
+	ErrNextHopUnknown = errors.New("no slot for next hop")
 	ErrZeroLenLabel   = errors.New("got zero-length route label")
 	ErrLabelTooLong   = errors.New("label is longer than 255 bytes")
-	ErrLoopLabel      = errors.New("label results in loop")
+	ErrLoopLabel      = errors.New("label resulted in loop")
+
+	nullSlotEntry = &slotentry{
+		rovy.NullPeerID,
+		func(_ rovy.PeerID, _ []byte) error { return nil },
+	}
 )
 
 type slotentry struct {
-	peerid *rovy.PeerID
+	peerid rovy.PeerID
 	send   sendFunc
 }
 
-type sendFunc func([]byte) error
-
-func nullSendFunc(b []byte) error { return nil }
+type sendFunc func(rovy.PeerID, []byte) error
 
 // TODO: is rovy.PeerID okay as a map index type?
 type Forwarder struct {
 	sync.RWMutex
-	slots  map[int]slotentry
+	size   int
+	slots  map[int]*slotentry
 	bypeer map[rovy.PeerID]int
+	logger *log.Logger
 }
 
-func NewForwarder() *Forwarder {
+func NewForwarder(size int, logger *log.Logger) *Forwarder {
 	fwd := &Forwarder{
-		slots:  make(map[int]slotentry, NumSlots),
-		bypeer: make(map[rovy.PeerID]int, NumSlots),
+		size:   size,
+		slots:  make(map[int]*slotentry, size),
+		bypeer: make(map[rovy.PeerID]int, size),
+		logger: logger,
 	}
-	for i := 0; i < NumSlots; i++ {
-		fwd.slots[i] = slotentry{send: nullSendFunc}
+	for i := 0; i < fwd.size; i++ {
+		fwd.slots[i] = nullSlotEntry
 	}
 	return fwd
 }
 
-func (fwd *Forwarder) Attach(peerid rovy.PeerID, send sendFunc) error {
+func (fwd *Forwarder) Attach(peerid rovy.PeerID, send sendFunc) (rovy.Route, error) {
 	fwd.Lock()
 	defer fwd.Unlock()
 
-	for i := 0; i < NumSlots; i++ {
-		slot := fwd.slots[i]
-		if slot.peerid == nil || *slot.peerid == peerid {
-			slot.peerid = &peerid
-			slot.send = send
+	for i := 0; i < fwd.size; i++ {
+		if fwd.slots[i] == nullSlotEntry {
+			fwd.slots[i] = &slotentry{peerid, send}
 			fwd.bypeer[peerid] = i
+			return rovy.Route([]byte{byte(i)}), nil
+		}
+	}
+	return nil, fmt.Errorf("no free slots")
+}
+
+func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
+	fwd.Lock()
+	defer fwd.Unlock()
+
+	for i := 0; i < fwd.size; i++ {
+		if fwd.slots[i].peerid.Equal(peerid) {
+			fwd.slots[i] = nullSlotEntry
+			delete(fwd.bypeer, peerid)
 			return nil
 		}
 	}
-	return fmt.Errorf("no free forwarder slots")
-}
-
-func (fwd *Forwarder) Detach(peerid rovy.PeerID) {
-	fwd.Lock()
-	defer fwd.Unlock()
-
-	for i := 0; i < NumSlots; i++ {
-		slot := fwd.slots[i]
-		if *slot.peerid == peerid {
-			slot.peerid = nil
-			slot.send = nullSendFunc
-			delete(fwd.bypeer, peerid)
-			return
-		}
-	}
+	return fmt.Errorf("slot entry not found")
 }
 
 // type stubdatapkt struct {
@@ -107,60 +109,57 @@ func (fwd *Forwarder) Detach(peerid rovy.PeerID) {
 // 	data  []byte
 // }
 
-func (fwd *Forwarder) HandlePacket(buf []byte, peerid rovy.PeerID) error {
-	labellength := buf[1]
-	if labellength == 0 {
+func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
+	// fwd.logger.Printf("fwd: %#v", fwd)
+	// fwd.logger.Printf("in: %#v", buf)
+
+	length := buf[1]
+	if length == 0 {
 		return ErrZeroLenLabel
 	}
 
-	labelpos := buf[0]
-	if labelpos > labellength {
+	pos := buf[0]
+	if pos > length {
 		return ErrLoopLabel
 	}
 
 	fwd.RLock()
 	defer fwd.RUnlock()
 
-	next := buf[2]
-	prev, present := fwd.bypeer[peerid]
+	prev, present := fwd.bypeer[from]
 	if !present {
 		return ErrPrevHopUnknown
 	}
 
-	// shift the label by 1 byte, popping the next hop (that's us)
-	if labellength > 1 {
-		// log.Printf("buf[3]=%+v buf[:]=%+v", buf[3:4], buf[:])
-		copy(buf[2:], buf[3:labellength+1])
-	}
+	next := buf[2+pos]
+	buf[2+pos] = byte(prev)
+	buf[0] = pos + 1
 
-	// now add the previous hop at the end, building up the reverse route
-	buf[labellength+1] = byte(prev)
-
-	// update the position counter
-	buf[0] = labelpos + 1
+	// fwd.logger.Printf("out: %#v", buf)
 
 	// and off the packet goes
-	send := fwd.slots[int(next)].send
-	return send(buf)
+	return fwd.slots[int(next)].send(from, buf)
 }
 
-func (fwd *Forwarder) SendPacket(data []byte, peerid rovy.PeerID, label []byte) error {
-	if len(label) == 0 {
+func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, label rovy.Route) error {
+	length := len(label)
+
+	if length == 0 {
 		return ErrZeroLenLabel
 	}
-	if len(label) > 255 {
+	if length > 255 {
 		return ErrLabelTooLong
 	}
 
-	buf := make([]byte, 2+len(label)+len(data))
+	buf := make([]byte, 2+length+len(data))
 	buf[0] = 0 // position counter
-	buf[1] = byte(len(label))
+	buf[1] = byte(length)
 	copy(buf[2:], label)
-	copy(buf[2+buf[1]:], data)
+	copy(buf[2+length:], data)
 
-	return fwd.HandlePacket(buf, peerid)
+	return fwd.HandlePacket(buf, from)
 }
 
-func (fwd *Forwarder) Overhead(label []byte) uint64 {
-	return uint64(len(label) + 2)
+func (fwd *Forwarder) StripHeader(buf []byte) []byte {
+	return buf[2+buf[1]:]
 }

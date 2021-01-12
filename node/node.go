@@ -7,6 +7,8 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	rovy "pkt.dev/go-rovy"
+	forwarder "pkt.dev/go-rovy/forwarder"
+	routing "pkt.dev/go-rovy/routing"
 	session "pkt.dev/go-rovy/session"
 )
 
@@ -14,23 +16,39 @@ type Listener multiaddrnet.PacketConn
 
 type DataHandler func([]byte, rovy.PeerID)
 
+var NullDataHandler = func(b []byte, peerid rovy.PeerID) {}
+
+// TODO: move lower connection stuff to a Peering type (Connect, SendLower, Handle*)
 type Node struct {
-	pubkey    rovy.PublicKey
+	pubkey    rovy.PublicKey // XXX unused
 	peerid    rovy.PeerID
 	logger    *log.Logger
 	listeners []Listener
 	sessions  *session.SessionManager
 	handler   DataHandler
+	forwarder *forwarder.Forwarder
+	routing   *routing.Routing
 }
 
 func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	pubkey := privkey.PublicKey()
+	peerid := rovy.NewPeerID(pubkey)
+
+	fwd := forwarder.NewForwarder(8, logger)
+
 	node := &Node{
-		pubkey:   pubkey,
-		peerid:   rovy.NewPeerID(pubkey),
-		logger:   logger,
-		sessions: session.NewSessionManager(privkey, logger),
+		pubkey:    pubkey,
+		peerid:    peerid,
+		logger:    logger,
+		handler:   NullDataHandler,
+		forwarder: fwd,
+		routing:   routing.NewRouting(logger),
 	}
+
+	node.sessions = session.NewSessionManager(privkey, logger, node.ConnectedLower)
+
+	fwd.Attach(peerid, node.ReceiveUpper)
+
 	return node
 }
 
@@ -53,6 +71,36 @@ func (node *Node) SessionManager() *session.SessionManager {
 	return node.sessions
 }
 
+func (node *Node) Forwarder() *forwarder.Forwarder {
+	return node.forwarder
+}
+
+func (node *Node) Routing() *routing.Routing {
+	return node.routing
+}
+
+func (node *Node) ConnectedLower(peerid rovy.PeerID) {
+	send := func(from rovy.PeerID, buf []byte) error {
+		return node.SendLower(peerid, buf)
+	}
+
+	slot, err := node.forwarder.Attach(peerid, send)
+	if err != nil {
+		node.Log().Printf("connected to %s, but forwarder error: %s", peerid, err)
+		return
+	}
+
+	node.routing.AddRoute(peerid, slot)
+
+	node.Log().Printf("connected to %s", peerid)
+}
+
+// TODO: implement this and wire it up
+// func (node *Node) DisconnectedLower(peerid rovy.PeerID) {
+// 	// node.forwarder.Detach(peerid)
+// 	// node.routing
+// }
+
 func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 	pktconn, err := multiaddrnet.ListenPacket(lisaddr)
 	if err != nil {
@@ -68,7 +116,7 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 				node.logger.Printf("ReadFrom: %s", err)
 				continue
 			}
-			node.handlePacket(p[:], n, raddr)
+			node.ReceiveLower(p[:], n, raddr)
 		}
 	}()
 
@@ -77,18 +125,6 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 
 func (node *Node) Handle(cb DataHandler) {
 	node.handler = cb
-}
-
-func (node *Node) handlePacket(p []byte, n int, raddr net.Addr) {
-	// node.logger.Printf("got: %+v", p)
-	switch p[0] {
-	case 0x01:
-		node.handleHelloPacket(p, n, raddr)
-	case 0x02:
-		node.handleResponsePacket(p, n, raddr)
-	case 0x03:
-		node.handleDataPacket(p, n, raddr)
-	}
 }
 
 func (node *Node) handleDataPacket(p []byte, n int, raddr net.Addr) {
@@ -105,8 +141,8 @@ func (node *Node) handleDataPacket(p []byte, n int, raddr net.Addr) {
 		return
 	}
 
-	if node.handler != nil {
-		node.handler(data, peerid)
+	if err := node.forwarder.HandlePacket(data, peerid); err != nil {
+		node.Log().Printf("forwarder: %s", err)
 	}
 	return
 }
@@ -135,6 +171,7 @@ func (node *Node) handleHelloPacket(p []byte, n int, raddr net.Addr) {
 		node.logger.Printf("WriteTo: %s", err)
 		return
 	}
+
 	return
 }
 
@@ -173,11 +210,13 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 
 	if err = <-node.sessions.WaitFor(peerid); err != nil {
 		node.Log().Printf("connect %s: %s", peerid, err)
+		return err
 	}
-	return err
+
+	return nil
 }
 
-func (node *Node) Send(pid rovy.PeerID, p []byte) error {
+func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 	pkt, raddr, err := node.sessions.CreateData(pid, p)
 	if err != nil {
 		return err
@@ -189,4 +228,34 @@ func (node *Node) Send(pid rovy.PeerID, p []byte) error {
 	}
 	_, err = node.listeners[0].WriteToMultiaddr(buf, raddr)
 	return err
+}
+
+func (node *Node) ReceiveLower(p []byte, n int, raddr net.Addr) {
+	// node.logger.Printf("got: %+v", p)
+	switch p[0] {
+	case 0x01:
+		node.handleHelloPacket(p, n, raddr)
+	case 0x02:
+		node.handleResponsePacket(p, n, raddr)
+	case 0x03:
+		node.handleDataPacket(p, n, raddr)
+	}
+}
+
+func (node *Node) Send(peerid rovy.PeerID, p []byte) error {
+	return node.SendUpper(peerid, p)
+}
+
+func (node *Node) SendUpper(peerid rovy.PeerID, p []byte) error {
+	label, err := node.Routing().GetRoute(peerid)
+	if err != nil {
+		return err
+	}
+
+	return node.forwarder.SendPacket(p, node.PeerID(), label)
+}
+
+func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte) error {
+	node.handler(node.forwarder.StripHeader(b), from)
+	return nil
 }

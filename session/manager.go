@@ -16,21 +16,25 @@ import (
 // TODO: make sure indexes from remote don't overwrite other sessions
 type SessionManager struct {
 	sync.RWMutex
-	privkey rovy.PrivateKey
-	pubkey  rovy.PublicKey
-	peerid  rovy.PeerID
-	store   map[uint32]*Session
-	logger  *log.Logger
+	privkey       rovy.PrivateKey
+	pubkey        rovy.PublicKey
+	peerid        rovy.PeerID
+	store         map[uint32]*Session
+	logger        *log.Logger
+	establishedCb EstablishedCb
 }
 
-func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger) *SessionManager {
+type EstablishedCb func(rovy.PeerID)
+
+func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger, cb EstablishedCb) *SessionManager {
 	pubkey := privkey.PublicKey()
 	sm := &SessionManager{
-		privkey: privkey,
-		pubkey:  pubkey,
-		peerid:  rovy.NewPeerID(pubkey),
-		store:   make(map[uint32]*Session),
-		logger:  logger,
+		privkey:       privkey,
+		pubkey:        pubkey,
+		peerid:        rovy.NewPeerID(pubkey),
+		store:         make(map[uint32]*Session),
+		logger:        logger,
+		establishedCb: cb,
 	}
 	return sm
 }
@@ -159,6 +163,7 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 
 	sm.Swap(pkt.SenderIndex, pkt.ReceiverIndex)
 
+	sm.establishedCb(s.remotePeerID)
 	for _, waiter := range s.waiters {
 		waiter <- nil
 	}
@@ -184,7 +189,21 @@ func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr)
 		return nil, rovy.PeerID{}, UnknownIndexError
 	}
 
-	return s.HandleData(pkt, raddr)
+	stage := s.stage
+
+	p, peerid, err := s.HandleData(pkt, raddr)
+	if err != nil {
+		return nil, rovy.NullPeerID, err
+	}
+
+	if stage == 0x02 {
+		sm.establishedCb(s.remotePeerID)
+		for _, waiter := range s.waiters {
+			waiter <- nil
+		}
+	}
+
+	return p, peerid, nil
 }
 
 func (sm *SessionManager) WaitFor(peerid rovy.PeerID) chan error {

@@ -41,6 +41,10 @@ const (
 	MaxPeerIDSize = 128
 )
 
+var (
+	NullPeerID = PeerID([32]byte{})
+)
+
 func init() {
 	cid.Codecs["rovy-key"] = RovyKeyMulticodec
 	cid.CodecToStr[RovyKeyMulticodec] = "rovy-key"
@@ -121,6 +125,10 @@ func (pid PeerID) Bytes() []byte {
 
 func (pid PeerID) String() string {
 	return pid.cid().String()
+}
+
+func (pid PeerID) Equal(other PeerID) bool {
+	return bytes.Equal(pid.Bytes(), other.Bytes())
 }
 
 func (pid PeerID) PublicKey() PublicKey {

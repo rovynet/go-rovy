@@ -128,20 +128,12 @@ func (s *Session) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiad
 }
 
 func (s *Session) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
-	if !s.initiator && s.stage == 0x02 {
-		s.stage = 0x03
-		for _, waiter := range s.waiters {
-			waiter <- nil
-		}
-	}
-	if s.stage != 0x03 {
-		return nil, s.remotePeerID, SessionStateError
-	}
-
 	p2, err := s.handshake.ConsumeMessage(pkt.MessageHeader, pkt.Data)
 	if err != nil {
 		return nil, s.remotePeerID, err
 	}
+
+	s.stage = 0x03
 
 	return p2, s.remotePeerID, nil
 }
