@@ -34,7 +34,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	pubkey := privkey.PublicKey()
 	peerid := rovy.NewPeerID(pubkey)
 
-	fwd := forwarder.NewForwarder(8, logger)
+	fwd := forwarder.NewForwarder(logger)
 
 	node := &Node{
 		pubkey:    pubkey,

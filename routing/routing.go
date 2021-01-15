@@ -62,3 +62,12 @@ func (r *Routing) MustGetRoute(peerid rovy.PeerID) rovy.Route {
 	}
 	return label
 }
+
+func (r *Routing) PrintTable(out *log.Logger) {
+	for peerid, labels := range r.table {
+		out.Printf("/rovy/%s", peerid)
+		for _, l := range labels {
+			out.Printf("  /rovyfwd/%#v", l)
+		}
+	}
+}

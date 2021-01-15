@@ -32,9 +32,14 @@ import (
 	rovy "pkt.dev/go-rovy"
 )
 
+const (
+	NumSlots = 256
+)
+
 var (
 	ErrPrevHopUnknown = errors.New("no slot for previous hop")
 	ErrNextHopUnknown = errors.New("no slot for next hop")
+	ErrSelfUnknown    = errors.New("no slot for ourselves")
 	ErrZeroLenLabel   = errors.New("got zero-length route label")
 	ErrLabelTooLong   = errors.New("label is longer than 255 bytes")
 	ErrLoopLabel      = errors.New("label resulted in loop")
@@ -55,20 +60,18 @@ type sendFunc func(rovy.PeerID, []byte) error
 // TODO: is rovy.PeerID okay as a map index type?
 type Forwarder struct {
 	sync.RWMutex
-	size   int
 	slots  map[int]*slotentry
 	bypeer map[rovy.PeerID]int
 	logger *log.Logger
 }
 
-func NewForwarder(size int, logger *log.Logger) *Forwarder {
+func NewForwarder(logger *log.Logger) *Forwarder {
 	fwd := &Forwarder{
-		size:   size,
-		slots:  make(map[int]*slotentry, size),
-		bypeer: make(map[rovy.PeerID]int, size),
+		slots:  make(map[int]*slotentry, NumSlots),
+		bypeer: make(map[rovy.PeerID]int, NumSlots),
 		logger: logger,
 	}
-	for i := 0; i < fwd.size; i++ {
+	for i := 0; i < NumSlots; i++ {
 		fwd.slots[i] = nullSlotEntry
 	}
 	return fwd
@@ -78,7 +81,7 @@ func (fwd *Forwarder) Attach(peerid rovy.PeerID, send sendFunc) (rovy.Route, err
 	fwd.Lock()
 	defer fwd.Unlock()
 
-	for i := 0; i < fwd.size; i++ {
+	for i := 0; i < NumSlots; i++ {
 		if fwd.slots[i] == nullSlotEntry {
 			fwd.slots[i] = &slotentry{peerid, send}
 			fwd.bypeer[peerid] = i
@@ -92,7 +95,7 @@ func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
 	fwd.Lock()
 	defer fwd.Unlock()
 
-	for i := 0; i < fwd.size; i++ {
+	for i := 0; i < NumSlots; i++ {
 		if fwd.slots[i].peerid.Equal(peerid) {
 			fwd.slots[i] = nullSlotEntry
 			delete(fwd.bypeer, peerid)
@@ -129,6 +132,14 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 	prev, present := fwd.bypeer[from]
 	if !present {
 		return ErrPrevHopUnknown
+	}
+
+	if pos == length {
+		self, present := fwd.slots[0]
+		if !present {
+			return ErrSelfUnknown
+		}
+		return self.send(from, buf)
 	}
 
 	next := buf[2+pos]

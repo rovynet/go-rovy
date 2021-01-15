@@ -15,7 +15,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 	peeridB := newPeerID(b)
 	peeridC := newPeerID(b)
 
-	fwd := forwarder.NewForwarder(16, log.New(ioutil.Discard, "", log.LstdFlags))
+	fwd := forwarder.NewForwarder(log.New(ioutil.Discard, "", log.LstdFlags))
 	fwd.Attach(peeridA, func(_ rovy.PeerID, _ []byte) error { return nil })
 	fwd.Attach(peeridB, func(_ rovy.PeerID, _ []byte) error { return nil })
 	fwd.Attach(peeridC, func(_ rovy.PeerID, _ []byte) error { return nil })

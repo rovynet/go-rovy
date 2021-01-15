@@ -48,8 +48,7 @@ func run() error {
 	}
 
 	amount := 1000000
-	// mtu := rovy.PreliminaryMTU - 100
-	mtu := 16 // XXX gbps calculation is off with small mtu
+	mtu := rovy.PreliminaryMTU - 100
 	done := make(chan bool, 1)
 	start := time.Now()
 
