@@ -107,10 +107,11 @@ func (hs *Handshake) RemotePublicKey() rovy.PublicKey {
 	return hs.remoteStatic
 }
 
-func (hs *Handshake) MakeHello(payload []byte) (hdr HelloHeader, payload2 []byte, err error) {
+func (hs *Handshake) MakeHello(payload []byte) (HelloHeader, []byte, error) {
+	hdr := HelloHeader{}
+
 	if !hs.initiator {
-		err = fmt.Errorf("responder can't send hello")
-		return
+		return hdr, nil, fmt.Errorf("responder can't send hello")
 	}
 
 	mixHash(&hs.hash, &hs.hash, hs.remoteStatic[:])
@@ -121,8 +122,7 @@ func (hs *Handshake) MakeHello(payload []byte) (hdr HelloHeader, payload2 []byte
 
 	ss := sharedSecret(hs.localEphemeral, hs.remoteStatic)
 	if isZero(ss[:]) {
-		err = ErrZeroECDH
-		return
+		return hdr, nil, ErrZeroECDH
 	}
 
 	var key [chacha20poly1305.KeySize]byte
@@ -130,7 +130,7 @@ func (hs *Handshake) MakeHello(payload []byte) (hdr HelloHeader, payload2 []byte
 
 	aead, err := chacha20poly1305.New(key[:])
 	if err != nil {
-		return
+		return hdr, nil, err
 	}
 	aead.Seal(hdr.Static[:0], zeroNonce[:], hs.localStatic.PublicKey().Bytes(), hs.hash[:])
 	mixHash(&hs.hash, &hs.hash, hdr.Static[:])
@@ -140,21 +140,20 @@ func (hs *Handshake) MakeHello(payload []byte) (hdr HelloHeader, payload2 []byte
 	timestamp := tai64n.Now()
 	aead, err = chacha20poly1305.New(key[:])
 	if err != nil {
-		return
+		return hdr, nil, err
 	}
 	aead.Seal(hdr.Timestamp[:0], zeroNonce[:], timestamp[:], hs.hash[:])
 	mixHash(&hs.hash, &hs.hash, hdr.Timestamp[:])
 
-	return
+	return hdr, nil, nil
 }
 
 // TODO: replay protection
 // TODO: flood protection
 // TODO: cookies
-func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) (payload2 []byte, err error) {
+func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) ([]byte, error) {
 	if hs.initiator {
-		err = fmt.Errorf("initiator can't consume hello")
-		return
+		return nil, fmt.Errorf("initiator can't consume hello")
 	}
 
 	var hash [blake2s.Size]byte
@@ -165,8 +164,7 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) (payload2 []b
 
 	ss := sharedSecret(hs.localStatic, hdr.Ephemeral)
 	if isZero(ss[:]) {
-		err = ErrZeroECDH
-		return
+		return nil, ErrZeroECDH
 	}
 
 	var key [chacha20poly1305.KeySize]byte
@@ -175,31 +173,28 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) (payload2 []b
 	var remoteStatic rovy.PublicKey
 	aead, err := chacha20poly1305.New(key[:])
 	if err != nil {
-		return
+		return nil, err
 	}
 	_, err = aead.Open(remoteStatic[:0], zeroNonce[:], hdr.Static[:], hash[:])
 	if err != nil {
-		err = ErrAEADOpen
-		return
+		return nil, ErrAEADOpen
 	}
 	mixHash(&hash, &hash, hdr.Static[:])
 
 	precStaticStatic := sharedSecret(hs.localStatic, remoteStatic)
 	if isZero(precStaticStatic[:]) {
-		err = ErrZeroECDH
-		return
+		return nil, ErrZeroECDH
 	}
 	KDF2(&chainKey, &key, chainKey[:], precStaticStatic[:])
 
 	var timestamp tai64n.Timestamp
 	aead, err = chacha20poly1305.New(key[:])
 	if err != nil {
-		return
+		return nil, err
 	}
 	_, err = aead.Open(timestamp[:0], zeroNonce[:], hdr.Timestamp[:], hash[:])
 	if err != nil {
-		err = ErrAEADOpen
-		return
+		return nil, ErrAEADOpen
 	}
 	mixHash(&hash, &hash, hdr.Timestamp[:])
 
@@ -208,13 +203,14 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) (payload2 []b
 	hs.remoteStatic = remoteStatic
 	hs.remoteEphemeral = hdr.Ephemeral
 
-	return
+	return nil, nil
 }
 
-func (hs *Handshake) MakeResponse(payload []byte) (hdr ResponseHeader, payload2 []byte, err error) {
+func (hs *Handshake) MakeResponse(payload []byte) (ResponseHeader, []byte, error) {
+	hdr := ResponseHeader{}
+
 	if hs.initiator {
-		err = fmt.Errorf("initiator can't send response")
-		return
+		return hdr, nil, fmt.Errorf("initiator can't send response")
 	}
 
 	hdr.Ephemeral = hs.localEphemeral.PublicKey()
@@ -233,7 +229,7 @@ func (hs *Handshake) MakeResponse(payload []byte) (hdr ResponseHeader, payload2 
 
 	aead, err := chacha20poly1305.New(key[:])
 	if err != nil {
-		return
+		return hdr, nil, err
 	}
 	aead.Seal(hdr.Empty[:0], zeroNonce[:], nil, hs.hash[:])
 	mixHash(&hs.hash, &hs.hash, hdr.Empty[:])
@@ -243,20 +239,19 @@ func (hs *Handshake) MakeResponse(payload []byte) (hdr ResponseHeader, payload2 
 	KDF2(&recvKey, &sendKey, hs.chainKey[:], nil)
 	hs.send, err = chacha20poly1305.New(sendKey[:])
 	if err != nil {
-		return
+		return hdr, nil, err
 	}
 	hs.receive, err = chacha20poly1305.New(recvKey[:])
 	if err != nil {
-		return
+		return hdr, nil, err
 	}
 
-	return
+	return hdr, nil, nil
 }
 
-func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payload2 []byte, err error) {
+func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) ([]byte, error) {
 	if !hs.initiator {
-		err = fmt.Errorf("responder can't consume response")
-		return
+		return nil, fmt.Errorf("responder can't consume response")
 	}
 
 	var hash [blake2s.Size]byte
@@ -276,12 +271,12 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payloa
 
 	aead, err := chacha20poly1305.New(key[:])
 	if err != nil {
-		return
+		return nil, err
 	}
 	_, err = aead.Open(nil, zeroNonce[:], hdr.Empty[:], hash[:])
 	if err != nil {
 		err = ErrAEADOpen
-		return
+		return nil, err
 	}
 	mixHash(&hash, &hash, hdr.Empty[:])
 
@@ -293,14 +288,14 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) (payloa
 	KDF2(&sendKey, &recvKey, hs.chainKey[:], nil)
 	hs.send, err = chacha20poly1305.New(sendKey[:])
 	if err != nil {
-		return
+		return nil, err
 	}
 	hs.receive, err = chacha20poly1305.New(recvKey[:])
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	return
+	return nil, nil
 }
 
 func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []byte, err error) {
