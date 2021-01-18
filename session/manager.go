@@ -127,6 +127,8 @@ func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multia
 	}
 	pkt.SenderIndex = idx
 
+	// sm.logger.Printf("Hello: payload %#v", pkt.Payload)
+
 	return pkt, nil
 }
 
@@ -135,6 +137,8 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 	if err != nil {
 		return nil, err
 	}
+
+	// sm.logger.Printf("Hello: payload %#v", pkt.Payload)
 
 	s := newSessionIncoming(hs)
 	idx := sm.Insert(s)
@@ -146,6 +150,8 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 	pkt2.SenderIndex = pkt.SenderIndex
 	pkt2.ReceiverIndex = idx
 
+	// sm.logger.Printf("Response: payload %#v", pkt2.Payload)
+
 	return pkt2, nil
 }
 
@@ -154,6 +160,8 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 	if !present {
 		return UnknownIndexError
 	}
+
+	// sm.logger.Printf("Response: payload %#v", pkt.Payload)
 
 	err := s.HandleHelloResponse(pkt, raddr)
 	if err != nil {

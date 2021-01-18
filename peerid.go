@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	NullPeerID = PeerID([32]byte{})
+	NullPeerID = PeerID([32]byte{}) // XXX unused
 )
 
 func init() {

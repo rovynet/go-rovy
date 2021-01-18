@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -12,15 +13,17 @@ import (
 var (
 	UnknownIndexError = errors.New("unknown session index on packet")
 	SessionStateError = errors.New("invalid session state transition")
+
+	StubHandshakePayload = []byte{0xa, 0xc, 0xa, 0xb}
 )
 
 type Session struct {
 	initiator    bool
 	stage        int
-	writer       func([]byte) error // unused?
+	writer       func([]byte) error // XXX unused?
 	waiters      []chan error
 	handshake    *ikpsk2.Handshake
-	remoteAddr   multiaddr.Multiaddr // unused
+	remoteAddr   multiaddr.Multiaddr // XXX unused?
 	remotePeerID rovy.PeerID
 }
 
@@ -46,7 +49,7 @@ func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) (*H
 		return nil, SessionStateError
 	}
 
-	hdr, _, err := s.handshake.MakeHello(nil)
+	hdr, payload, err := s.handshake.MakeHello(StubHandshakePayload)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +60,7 @@ func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) (*H
 	return &HelloPacket{
 		MsgType:     0x01,
 		HelloHeader: hdr,
+		Payload:     payload,
 	}, nil
 }
 
@@ -65,12 +69,16 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) (*Res
 		return nil, SessionStateError
 	}
 
-	_, err := s.handshake.ConsumeHello(pkt.HelloHeader, nil)
+	payload, err := s.handshake.ConsumeHello(pkt.HelloHeader, pkt.Payload)
 	if err != nil {
 		return nil, err
 	}
 
-	hdr, _, err := s.handshake.MakeResponse(nil)
+	if !bytes.Equal(payload, StubHandshakePayload) {
+		return nil, fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
+	}
+
+	hdr, payload2, err := s.handshake.MakeResponse(StubHandshakePayload)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +89,7 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) (*Res
 	return &ResponsePacket{
 		MsgType:        0x02,
 		ResponseHeader: hdr,
+		Payload:        payload2,
 	}, nil
 }
 
@@ -89,9 +98,13 @@ func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multi
 		return SessionStateError
 	}
 
-	_, err := s.handshake.ConsumeResponse(pkt.ResponseHeader, nil)
+	payload, err := s.handshake.ConsumeResponse(pkt.ResponseHeader, pkt.Payload)
 	if err != nil {
 		return err
+	}
+
+	if !bytes.Equal(payload, StubHandshakePayload) {
+		return fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
 	}
 
 	peerid := rovy.PeerID(s.handshake.RemotePublicKey())

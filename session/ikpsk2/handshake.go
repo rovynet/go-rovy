@@ -145,13 +145,20 @@ func (hs *Handshake) MakeHello(payload []byte) (HelloHeader, []byte, error) {
 	aead.Seal(hdr.Timestamp[:0], zeroNonce[:], timestamp[:], hs.hash[:])
 	mixHash(&hs.hash, &hs.hash, hdr.Timestamp[:])
 
-	return hdr, nil, nil
+	// XXX: no idea if this part is sound
+	// nonce chosen by fair dice roll
+	plNonce := [chacha20poly1305.NonceSize]byte{0x0, 0x0, 0x0, 0x0, 0x42}
+	payload2 := aead.Seal(nil, plNonce[:], payload[:], hs.hash[:])
+	mixHash(&hs.hash, &hs.hash, payload2[:])
+
+	return hdr, payload2, nil
 }
 
 // TODO: replay protection
 // TODO: flood protection
 // TODO: cookies
-func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) ([]byte, error) {
+// TODO: resending / how to handle lost handshake packets
+func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload2 []byte) ([]byte, error) {
 	if hs.initiator {
 		return nil, fmt.Errorf("initiator can't consume hello")
 	}
@@ -177,7 +184,7 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) ([]byte, erro
 	}
 	_, err = aead.Open(remoteStatic[:0], zeroNonce[:], hdr.Static[:], hash[:])
 	if err != nil {
-		return nil, ErrAEADOpen
+		return nil, err
 	}
 	mixHash(&hash, &hash, hdr.Static[:])
 
@@ -198,12 +205,21 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload []byte) ([]byte, erro
 	}
 	mixHash(&hash, &hash, hdr.Timestamp[:])
 
+	// XXX: no idea if this part is sound
+	// nonce chosen by fair dice roll
+	plNonce := [chacha20poly1305.NonceSize]byte{0x0, 0x0, 0x0, 0x0, 0x42}
+	payload, err := aead.Open(nil, plNonce[:], payload2[:], hash[:])
+	if err != nil {
+		return nil, ErrAEADOpen
+	}
+	mixHash(&hash, &hash, payload2[:])
+
 	hs.hash = hash
 	hs.chainKey = chainKey
 	hs.remoteStatic = remoteStatic
 	hs.remoteEphemeral = hdr.Ephemeral
 
-	return nil, nil
+	return payload, nil
 }
 
 func (hs *Handshake) MakeResponse(payload []byte) (ResponseHeader, []byte, error) {
@@ -234,6 +250,12 @@ func (hs *Handshake) MakeResponse(payload []byte) (ResponseHeader, []byte, error
 	aead.Seal(hdr.Empty[:0], zeroNonce[:], nil, hs.hash[:])
 	mixHash(&hs.hash, &hs.hash, hdr.Empty[:])
 
+	// XXX: no idea if this part is sound
+	// nonce chosen by fair dice roll
+	plNonce := [chacha20poly1305.NonceSize]byte{0x0, 0x0, 0x0, 0x0, 0x42}
+	payload2 := aead.Seal(nil, plNonce[:], payload[:], hs.hash[:])
+	mixHash(&hs.hash, &hs.hash, payload2[:])
+
 	var sendKey [chacha20poly1305.KeySize]byte
 	var recvKey [chacha20poly1305.KeySize]byte
 	KDF2(&recvKey, &sendKey, hs.chainKey[:], nil)
@@ -246,10 +268,10 @@ func (hs *Handshake) MakeResponse(payload []byte) (ResponseHeader, []byte, error
 		return hdr, nil, err
 	}
 
-	return hdr, nil, nil
+	return hdr, payload2, nil
 }
 
-func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) ([]byte, error) {
+func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload2 []byte) ([]byte, error) {
 	if !hs.initiator {
 		return nil, fmt.Errorf("responder can't consume response")
 	}
@@ -280,6 +302,15 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) ([]byte
 	}
 	mixHash(&hash, &hash, hdr.Empty[:])
 
+	// XXX: no idea if this part is sound
+	// nonce chosen by fair dice roll
+	plNonce := [chacha20poly1305.NonceSize]byte{0x0, 0x0, 0x0, 0x0, 0x42}
+	payload, err := aead.Open(nil, plNonce[:], payload2[:], hash[:])
+	if err != nil {
+		return nil, ErrAEADOpen
+	}
+	mixHash(&hash, &hash, payload2[:])
+
 	hs.hash = hash
 	hs.chainKey = chainKey
 
@@ -295,7 +326,7 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload []byte) ([]byte
 		return nil, err
 	}
 
-	return nil, nil
+	return payload, nil
 }
 
 func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []byte, err error) {

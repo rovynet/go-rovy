@@ -14,6 +14,7 @@ type HelloPacket struct {
 	MsgType     uint32
 	SenderIndex uint32
 	ikpsk2.HelloHeader
+	Payload []byte
 }
 
 func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
@@ -29,6 +30,14 @@ func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 	}
 
 	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader); err != nil {
+		return buf[:], err
+	}
+
+	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
+	if err := binary.Write(w, binary.BigEndian, payloadSize); err != nil {
+		return buf[:], err
+	}
+	if err := binary.Write(w, binary.BigEndian, pkt.Payload); err != nil {
 		return buf[:], err
 	}
 
@@ -53,6 +62,19 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
+	payloadSize, err := varint.ReadUvarint(r)
+	if err != nil {
+		return err
+	}
+	if payloadSize > rovy.PreliminaryMTU-8 {
+		payloadSize = rovy.PreliminaryMTU - 8
+	}
+	payloadBytes := make([]byte, payloadSize)
+	if err = binary.Read(r, binary.BigEndian, payloadBytes); err != nil {
+		return err
+	}
+	pkt.Payload = payloadBytes
+
 	return nil
 }
 
@@ -61,6 +83,7 @@ type ResponsePacket struct {
 	SenderIndex   uint32
 	ReceiverIndex uint32
 	ikpsk2.ResponseHeader
+	Payload []byte
 }
 
 func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
@@ -80,6 +103,14 @@ func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
 	}
 
 	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader); err != nil {
+		return buf[:], err
+	}
+
+	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
+	if err := binary.Write(w, binary.BigEndian, payloadSize); err != nil {
+		return buf[:], err
+	}
+	if err := binary.Write(w, binary.BigEndian, pkt.Payload); err != nil {
 		return buf[:], err
 	}
 
@@ -107,6 +138,19 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	if err = binary.Read(r, binary.BigEndian, &pkt.ResponseHeader); err != nil {
 		return err
 	}
+
+	payloadSize, err := varint.ReadUvarint(r)
+	if err != nil {
+		return err
+	}
+	if payloadSize > rovy.PreliminaryMTU-8 {
+		payloadSize = rovy.PreliminaryMTU - 8
+	}
+	payloadBytes := make([]byte, payloadSize)
+	if err = binary.Read(r, binary.BigEndian, payloadBytes); err != nil {
+		return err
+	}
+	pkt.Payload = payloadBytes
 
 	return nil
 }
