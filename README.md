@@ -63,6 +63,15 @@ For the time being, check out the `examples/` directory.
 
 ## Notes
 
+Measures to take for higher throughput
+
+- Higher throughput is achieved by spending less time per packet
+- Spend less time allocating memory by reusing buffers
+- Split up and parallelize work, e.g. with per-peer queues
+- Avoid parsing multiaddrs, make custom Multiaddr types backed by net.Addr and PeerID
+- Be more reasonable about pointers
+- Do some profiling to find more hotspots
+
 Lock-free ring buffers:
 
 - https://tanzu.vmware.com/content/blog/a-channel-based-ring-buffer-in-go
@@ -100,3 +109,12 @@ Building blocks benchmarks (Ryzen 9 3900X):
 DNS-facilitated routing:
 
 - TXT bafzqaieveriforqgnk65hpm7sqxqovgzjldb2jv4jybfxy7tiza2otdhk4.00af.fedb.12bc.1312.acab.cafe.bafzqaiaeapxje5ifb2a6mhpdb3epdj6rydwaustcilbztiydymchitopiy.route.rovy.net "routes=00af.fedb.12bc.1234.1234.cafe,00af.fedb.12bc.fcfc.afaf.cafe"
+
+IRR / RPKI:
+
+- http://www.irr.net/
+- http://www.irr.net/docs/list.html
+- https://www.ripe.net/manage-ips-and-asns/db/nrtm-mirroring
+- https://github.com/job/irrexplorer
+- https://ftp.ripe.net/rpki/ripencc.tal/2021/02/15/
+- https://www.ripe.net/manage-ips-and-asns/resource-management/rpki
