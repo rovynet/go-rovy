@@ -10,6 +10,8 @@ import (
 	node "pkt.dev/go-rovy/node"
 )
 
+const EchoCodec = 42001
+
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
@@ -41,14 +43,14 @@ func run() error {
 		return err
 	}
 
-	nodeB.Handle(func(p []byte, peerid rovy.PeerID) {
+	nodeB.Handle(EchoCodec, func(p []byte, peerid rovy.PeerID) {
 		nodeB.Log().Printf("got packet from %s %#v", peerid, p)
 
-		if err := nodeB.Send(peerid, p); err != nil {
+		if err := nodeB.Send(peerid, EchoCodec, p); err != nil {
 			nodeB.Log().Printf("send: %s", err)
 		}
 	})
-	nodeA.Handle(func(p []byte, peerid rovy.PeerID) {
+	nodeA.Handle(EchoCodec, func(p []byte, peerid rovy.PeerID) {
 		nodeA.Log().Printf("got echo %#v", p)
 	})
 
@@ -56,7 +58,7 @@ func run() error {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
 		return err
 	}
-	if err := nodeA.Send(nodeB.PeerID(), []byte{0x42, 0x42, 0x42, 0x42}); err != nil {
+	if err := nodeA.Send(nodeB.PeerID(), EchoCodec, []byte{0x42, 0x42, 0x42, 0x42}); err != nil {
 		nodeA.Log().Printf("failed to send to nodeB: %s", err)
 		return err
 	}

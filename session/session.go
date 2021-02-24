@@ -1,12 +1,12 @@
 package session
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
+	multigram "pkt.dev/go-rovy/multigram"
 	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
@@ -18,13 +18,14 @@ var (
 )
 
 type Session struct {
-	initiator    bool
-	stage        int
-	writer       func([]byte) error // XXX unused?
-	waiters      []chan error
-	handshake    *ikpsk2.Handshake
-	remoteAddr   multiaddr.Multiaddr // XXX unused?
-	remotePeerID rovy.PeerID
+	initiator       bool
+	stage           int
+	writer          func([]byte) error // XXX unused?
+	waiters         []chan error
+	handshake       *ikpsk2.Handshake
+	remoteAddr      multiaddr.Multiaddr // XXX unused?
+	remotePeerID    rovy.PeerID
+	remoteMultigram multigram.Table
 }
 
 func newSession(peerid rovy.PeerID, hs *ikpsk2.Handshake) *Session {
@@ -44,12 +45,12 @@ func newSessionIncoming(hs *ikpsk2.Handshake) *Session {
 	}
 }
 
-func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) (*HelloPacket, error) {
+func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgram multigram.Table) (*HelloPacket, error) {
 	if !s.initiator {
 		return nil, SessionStateError
 	}
 
-	hdr, payload, err := s.handshake.MakeHello(StubHandshakePayload)
+	hdr, payload, err := s.handshake.MakeHello(mgram.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,7 @@ func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) (*H
 	}, nil
 }
 
-func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) (*ResponsePacket, error) {
+func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram multigram.Table) (*ResponsePacket, error) {
 	if s.initiator {
 		return nil, SessionStateError
 	}
@@ -74,17 +75,23 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) (*Res
 		return nil, err
 	}
 
-	if !bytes.Equal(payload, StubHandshakePayload) {
-		return nil, fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
+	// if !bytes.Equal(payload, StubHandshakePayload) {
+	// 	return nil, fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
+	// }
+
+	remoteMgram, err := multigram.NewTableFromBytes(payload)
+	if err != nil {
+		return nil, err
 	}
 
-	hdr, payload2, err := s.handshake.MakeResponse(StubHandshakePayload)
+	hdr, payload2, err := s.handshake.MakeResponse(mgram.Bytes())
 	if err != nil {
 		return nil, err
 	}
 
 	s.remoteAddr = raddr
 	s.remotePeerID = rovy.PeerID(s.handshake.RemotePublicKey())
+	s.remoteMultigram = remoteMgram
 
 	return &ResponsePacket{
 		MsgType:        0x02,
@@ -103,8 +110,13 @@ func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multi
 		return err
 	}
 
-	if !bytes.Equal(payload, StubHandshakePayload) {
-		return fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
+	// if !bytes.Equal(payload, StubHandshakePayload) {
+	// 	return fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
+	// }
+
+	mgram, err := multigram.NewTableFromBytes(payload)
+	if err != nil {
+		return err
 	}
 
 	peerid := rovy.PeerID(s.handshake.RemotePublicKey())
@@ -118,6 +130,7 @@ func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multi
 
 	s.stage = 0x03
 	s.remoteAddr = raddr
+	s.remoteMultigram = mgram
 
 	for _, waiter := range s.waiters {
 		waiter <- nil

@@ -10,6 +10,7 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
+	multigram "pkt.dev/go-rovy/multigram"
 	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
@@ -20,6 +21,7 @@ type SessionManager struct {
 	pubkey        rovy.PublicKey
 	peerid        rovy.PeerID
 	store         map[uint32]*Session
+	multigram     multigram.Table
 	logger        *log.Logger
 	establishedCb EstablishedCb
 }
@@ -33,6 +35,7 @@ func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger, cb Establish
 		pubkey:        pubkey,
 		peerid:        rovy.NewPeerID(pubkey),
 		store:         make(map[uint32]*Session),
+		multigram:     multigram.NewTable(),
 		logger:        logger,
 		establishedCb: cb,
 	}
@@ -49,6 +52,10 @@ func (sm *SessionManager) randUint32() uint32 {
 			return binary.LittleEndian.Uint32(integer[:])
 		}
 	}
+}
+
+func (sm *SessionManager) Multigram() *multigram.Table {
+	return &sm.multigram
 }
 
 func (sm *SessionManager) Insert(s *Session) uint32 {
@@ -121,7 +128,7 @@ func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multia
 	s := newSession(peerid, hs)
 	idx := sm.Insert(s)
 
-	pkt, err := s.CreateHello(peerid, raddr)
+	pkt, err := s.CreateHello(peerid, raddr, sm.multigram)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +150,7 @@ func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiadd
 	s := newSessionIncoming(hs)
 	idx := sm.Insert(s)
 
-	pkt2, err := s.HandleHello(pkt, raddr)
+	pkt2, err := s.HandleHello(pkt, raddr, sm.multigram)
 	if err != nil {
 		return nil, err
 	}

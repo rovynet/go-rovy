@@ -6,6 +6,7 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
+	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
 	routing "pkt.dev/go-rovy/routing"
@@ -25,7 +26,7 @@ type Node struct {
 	logger    *log.Logger
 	listeners []Listener
 	sessions  *session.SessionManager
-	handler   DataHandler
+	handlers  map[uint64]DataHandler
 	forwarder *forwarder.Forwarder
 	routing   *routing.Routing
 }
@@ -40,7 +41,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		pubkey:    pubkey,
 		peerid:    peerid,
 		logger:    logger,
-		handler:   NullDataHandler,
+		handlers:  map[uint64]DataHandler{},
 		forwarder: fwd,
 		routing:   routing.NewRouting(logger),
 	}
@@ -123,8 +124,14 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 	return nil
 }
 
-func (node *Node) Handle(cb DataHandler) {
-	node.handler = cb
+func (node *Node) Handle(codec uint64, cb DataHandler) {
+	_, present := node.handlers[codec]
+	if present {
+		return
+	}
+
+	node.sessions.Multigram().AddCodec(codec)
+	node.handlers[codec] = cb
 }
 
 func (node *Node) handleDataPacket(p []byte, n int, raddr net.Addr) {
@@ -231,7 +238,7 @@ func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 }
 
 func (node *Node) ReceiveLower(p []byte, n int, raddr net.Addr) {
-	// node.logger.Printf("got: %+v", p)
+	// node.logger.Printf("got: %#v", p)
 	switch p[0] {
 	case 0x01:
 		node.handleHelloPacket(p, n, raddr)
@@ -242,20 +249,36 @@ func (node *Node) ReceiveLower(p []byte, n int, raddr net.Addr) {
 	}
 }
 
-func (node *Node) Send(peerid rovy.PeerID, p []byte) error {
-	return node.SendUpper(peerid, p)
+func (node *Node) Send(peerid rovy.PeerID, codec uint64, p []byte) error {
+	return node.SendUpper(peerid, codec, p)
 }
 
-func (node *Node) SendUpper(peerid rovy.PeerID, p []byte) error {
+func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte) error {
 	label, err := node.Routing().GetRoute(peerid)
 	if err != nil {
 		return err
 	}
 
+	hdr := varint.ToUvarint(codec)
+	p = append(hdr, p...) // XXX slowness
+
 	return node.forwarder.SendPacket(p, node.PeerID(), label)
 }
 
 func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte) error {
-	node.handler(node.forwarder.StripHeader(b), from)
+	b = node.forwarder.StripHeader(b) // XXX slowness
+
+	codec, n, err := varint.FromUvarint(b)
+	if err != nil {
+		return err
+	}
+
+	cb, present := node.handlers[codec]
+	if !present {
+		node.logger.Printf("dropping packet with unknown codec %d", codec)
+		return nil
+	}
+
+	cb(b[n:], from)
 	return nil
 }
