@@ -12,7 +12,7 @@ import (
 	node "pkt.dev/go-rovy/node"
 )
 
-const BenchmarkCodec = 42002
+const BenchmarkCodec = 0x42002
 
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
@@ -55,17 +55,18 @@ func run() error {
 	start := time.Now()
 
 	var j int
-	nodeB.Handle(BenchmarkCodec, func(p []byte, peerid rovy.PeerID) {
+	nodeB.Handle(BenchmarkCodec, func(p []byte, peerid rovy.PeerID) error {
 		k, err := binary.ReadVarint(bytes.NewBuffer(p))
 		if err != nil {
 			log.Printf("ReadVarint: %s", err)
-			return
+			return err
 		}
 		j += 1
 		// log.Printf("k = %d", k)
 		if int(k) >= amount {
 			done <- true
 		}
+		return nil
 	})
 
 	nodeA.Log().Printf("sending %d packets, %d bytes each", amount, mtu)

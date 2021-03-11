@@ -29,11 +29,16 @@ import (
 	"log"
 	"sync"
 
+	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
 )
 
 const (
-	NumSlots = 256
+	NumSlots  = 256
+	HopLength = 1
+
+	DataMulticodec  = 0x12345
+	ErrorMulticodec = 0x12346 // XXX call this Ctrl instead
 )
 
 var (
@@ -48,7 +53,15 @@ var (
 		rovy.NullPeerID,
 		func(_ rovy.PeerID, _ []byte) error { return nil },
 	}
+
+	dataVarint  []byte
+	errorVarint []byte
 )
+
+func init() {
+	dataVarint = varint.ToUvarint(DataMulticodec)
+	errorVarint = varint.ToUvarint(ErrorMulticodec)
+}
 
 type slotentry struct {
 	peerid rovy.PeerID
@@ -105,24 +118,41 @@ func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
 	return fmt.Errorf("slot entry not found")
 }
 
-// type stubdatapkt struct {
-// 	pos   uint8
-// 	len   uint8
-// 	label [len]byte
-// 	data  []byte
-// }
+// TODO multicodec header
+func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
+	code, _, err := varint.FromUvarint(buf)
+	if err != nil {
+		fwd.logger.Printf("got broken error reply from %s: %s", from, err)
+		return nil
+	}
+
+	switch code {
+	case 1:
+		fwd.logger.Printf("error reply from %s: unknown slot", from)
+	default:
+		fwd.logger.Printf("error reply from %s: %d", from, code)
+	}
+
+	return nil
+}
 
 func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
-	// fwd.logger.Printf("fwd: %#v", fwd)
+	// fwd.logger.Printf("fwd: %#v", buf)
 	// fwd.logger.Printf("in: %#v", buf)
 
-	length := buf[1]
+	_, n, err := varint.FromUvarint(buf) // XXX double
+	if err != nil {
+		return fmt.Errorf("forwarder: multigram: %s", err)
+	}
+
+	length := buf[n+1]
 	if length == 0 {
 		return ErrZeroLenLabel
 	}
 
-	pos := buf[0]
+	pos := buf[n+0]
 	if pos > length {
+		// XXX send error reply
 		return ErrLoopLabel
 	}
 
@@ -142,13 +172,14 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 		return self.send(from, buf)
 	}
 
-	next := buf[2+pos]
-	buf[2+pos] = byte(prev)
-	buf[0] = pos + 1
+	next := buf[n+2+int(pos)]
+	buf[n+2+int(pos)] = byte(prev)
+	buf[n+0] = pos + 1
 
 	// fwd.logger.Printf("out: %#v", buf)
 
 	// and off the packet goes
+	// XXX send error reply if nexthop isnt present
 	return fwd.slots[int(next)].send(from, buf)
 }
 
@@ -162,15 +193,16 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, label rovy.Route
 		return ErrLabelTooLong
 	}
 
-	buf := make([]byte, 2+length+len(data))
-	buf[0] = 0 // position counter
-	buf[1] = byte(length)
-	copy(buf[2:], label)
-	copy(buf[2+length:], data)
+	buf := make([]byte, len(dataVarint)+2+length+len(data))
+	n := 0
+	copy(buf[n:], dataVarint)
+	n += len(dataVarint)
+	buf[n] = 0 // position counter
+	buf[n+1] = byte(length)
+	n += 2
+	copy(buf[n:], label)
+	n += length
+	copy(buf[n:], data)
 
 	return fwd.HandlePacket(buf, from)
-}
-
-func (fwd *Forwarder) StripHeader(buf []byte) []byte {
-	return buf[2+buf[1]:]
 }

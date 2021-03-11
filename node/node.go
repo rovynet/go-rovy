@@ -2,7 +2,6 @@ package node
 
 import (
 	"log"
-	"net"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
@@ -15,9 +14,7 @@ import (
 
 type Listener multiaddrnet.PacketConn
 
-type DataHandler func([]byte, rovy.PeerID)
-
-var NullDataHandler = func(b []byte, peerid rovy.PeerID) {}
+type DataHandler func([]byte, rovy.PeerID) error
 
 // TODO: move lower connection stuff to a Peering type (Connect, SendLower, Handle*)
 type Node struct {
@@ -48,7 +45,16 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 
 	node.sessions = session.NewSessionManager(privkey, logger, node.ConnectedLower)
 
-	fwd.Attach(peerid, node.ReceiveUpper)
+	fwd.Attach(peerid, func(peerid rovy.PeerID, p []byte) error {
+		_, n, err := varint.FromUvarint(p)
+		if err != nil {
+			return err
+		}
+		return node.ReceiveUpper(peerid, p[2+n+int(p[1+n]):], nil) // XXX sender can crash us :)
+	})
+
+	node.sessions.Multigram().AddCodec(forwarder.DataMulticodec)
+	node.sessions.Multigram().AddCodec(forwarder.ErrorMulticodec)
 
 	return node
 }
@@ -96,12 +102,6 @@ func (node *Node) ConnectedLower(peerid rovy.PeerID) {
 	node.Log().Printf("connected to %s", peerid)
 }
 
-// TODO: implement this and wire it up
-// func (node *Node) DisconnectedLower(peerid rovy.PeerID) {
-// 	// node.forwarder.Detach(peerid)
-// 	// node.routing
-// }
-
 func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 	pktconn, err := multiaddrnet.ListenPacket(lisaddr)
 	if err != nil {
@@ -117,7 +117,9 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 				node.logger.Printf("ReadFrom: %s", err)
 				continue
 			}
-			node.ReceiveLower(p[:], n, raddr)
+
+			maddr, _ := multiaddrnet.FromNetAddr(raddr)
+			node.ReceiveLower(p[:n], maddr)
 		}
 	}()
 
@@ -134,67 +136,58 @@ func (node *Node) Handle(codec uint64, cb DataHandler) {
 	node.handlers[codec] = cb
 }
 
-func (node *Node) handleDataPacket(p []byte, n int, raddr net.Addr) {
+func (node *Node) handleDataPacket(p []byte, maddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
 	pkt := &session.DataPacket{}
-	if err := pkt.UnmarshalBinary(p[:n]); err != nil {
-		node.logger.Printf("UnmarshalBinary: %s %+v", err, p[:n])
-		return
+	if err := pkt.UnmarshalBinary(p); err != nil {
+		// node.logger.Printf("UnmarshalBinary: %s", err)
+		return nil, rovy.NullPeerID, err
 	}
 
-	maddr, _ := multiaddrnet.FromNetAddr(raddr)
 	data, peerid, err := node.sessions.HandleData(pkt, maddr)
 	if err != nil {
-		node.logger.Printf("handleDataPacket: %s: %s", maddr, err)
-		return
+		// node.logger.Printf("handleDataPacket: %s: %s", maddr, err)
+		return nil, rovy.NullPeerID, err
 	}
 
-	if err := node.forwarder.HandlePacket(data, peerid); err != nil {
-		node.Log().Printf("forwarder: %s", err)
-	}
-	return
+	return data, peerid, nil
 }
 
-func (node *Node) handleHelloPacket(p []byte, n int, raddr net.Addr) {
+func (node *Node) handleHelloPacket(p []byte, maddr multiaddr.Multiaddr) ([]byte, error) {
 	pkt := &session.HelloPacket{}
-	if err := pkt.UnmarshalBinary(p[:n]); err != nil {
-		node.logger.Printf("UnmarshalBinary: %s", err)
-		return
+	if err := pkt.UnmarshalBinary(p); err != nil {
+		// node.logger.Printf("UnmarshalBinary: %s", err)
+		return nil, err
 	}
 
-	maddr, _ := multiaddrnet.FromNetAddr(raddr)
 	pkt2, err := node.sessions.HandleHello(pkt, maddr)
 	if err != nil {
-		node.logger.Printf("HandleHello: %s", err)
-		return
+		// node.logger.Printf("HandleHello: %s", err)
+		return nil, err
 	}
 
 	buf, err := pkt2.MarshalBinary()
 	if err != nil {
-		node.logger.Printf("MarshalBinary: %s", err)
-		return
+		// node.logger.Printf("MarshalBinary: %s", err)
+		return nil, err
 	}
 
-	if _, err = node.listeners[0].WriteToMultiaddr(buf, maddr); err != nil {
-		node.logger.Printf("WriteTo: %s", err)
-		return
-	}
-
-	return
+	return buf, nil
 }
 
-func (node *Node) handleResponsePacket(p []byte, n int, raddr net.Addr) {
+func (node *Node) handleResponsePacket(p []byte, maddr multiaddr.Multiaddr) error {
 	pkt := &session.ResponsePacket{}
 
-	if err := pkt.UnmarshalBinary(p[:n]); err != nil {
-		node.logger.Printf("UnmarshalBinary: %s", err)
-		return
+	if err := pkt.UnmarshalBinary(p); err != nil {
+		// node.logger.Printf("UnmarshalBinary: %s", err)
+		return err
 	}
 
-	maddr, _ := multiaddrnet.FromNetAddr(raddr)
 	if err := node.sessions.HandleHelloResponse(pkt, maddr); err != nil {
-		node.logger.Printf("HandleHelloResponse: %s", err)
-		return
+		// node.logger.Printf("HandleHelloResponse: %s", err)
+		return err
 	}
+
+	return nil
 }
 
 // TODO: timeout
@@ -210,6 +203,7 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 		return err
 	}
 
+	// node.logger.Printf("Connect: sending: %#v", buf)
 	if _, err = node.listeners[0].WriteToMultiaddr(buf, raddr); err != nil {
 		node.logger.Printf("WriteTo: %s", err)
 		return err
@@ -229,56 +223,135 @@ func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 		return err
 	}
 
+	// node.logger.Printf("SendLower: pkt=%#v", pkt)
+
 	buf, err := pkt.MarshalBinary()
 	if err != nil {
 		return err
 	}
+	// node.logger.Printf("SendLower: sending: %#v", buf)
 	_, err = node.listeners[0].WriteToMultiaddr(buf, raddr)
 	return err
 }
 
-func (node *Node) ReceiveLower(p []byte, n int, raddr net.Addr) {
-	// node.logger.Printf("got: %#v", p)
+func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
+	// node.logger.Printf("ReceiveLower: got: %#v", p)
+
 	switch p[0] {
 	case 0x01:
-		node.handleHelloPacket(p, n, raddr)
+		buf, err := node.handleHelloPacket(p, maddr)
+		if err != nil {
+			return err
+		}
+		if _, err = node.listeners[0].WriteToMultiaddr(buf, maddr); err != nil {
+			return err
+		}
 	case 0x02:
-		node.handleResponsePacket(p, n, raddr)
+		if err := node.handleResponsePacket(p, maddr); err != nil {
+			return err
+		}
 	case 0x03:
-		node.handleDataPacket(p, n, raddr)
+		data, peerid, err := node.handleDataPacket(p, maddr)
+		if err != nil {
+			return err
+		}
+
+		codec, _, err := varint.FromUvarint(data)
+		if err != nil {
+			// node.logger.Printf("ReceiveLower: multigram: %s", err)
+			return err
+		}
+
+		switch codec {
+		case forwarder.DataMulticodec:
+			return node.forwarder.HandlePacket(data, peerid)
+		case forwarder.ErrorMulticodec:
+			return node.forwarder.HandleError(data, peerid)
+		default:
+			return node.ReceiveUpperDirect(peerid, data, maddr)
+		}
 	}
+
+	return nil
 }
 
 func (node *Node) Send(peerid rovy.PeerID, codec uint64, p []byte) error {
-	return node.SendUpper(peerid, codec, p)
-}
-
-func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte) error {
 	label, err := node.Routing().GetRoute(peerid)
 	if err != nil {
 		return err
 	}
 
-	hdr := varint.ToUvarint(codec)
-	p = append(hdr, p...) // XXX slowness
-
-	return node.forwarder.SendPacket(p, node.PeerID(), label)
+	return node.SendUpper(peerid, codec, p, label)
 }
 
-func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte) error {
-	b = node.forwarder.StripHeader(b) // XXX slowness
+func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, label rovy.Route) error {
+	hdr := varint.ToUvarint(codec) // TODO use multigram table here and everywhere else
+	p = append(hdr, p...)          // XXX slowness
 
-	codec, n, err := varint.FromUvarint(b)
+	if len(label) == forwarder.HopLength {
+		// node.logger.Printf("SendUpper: sending to direct peer")
+		return node.SendLower(peerid, p)
+	}
+
+	pkt, _, err := node.sessions.CreateData(peerid, p)
 	if err != nil {
 		return err
 	}
 
-	cb, present := node.handlers[codec]
-	if !present {
-		node.logger.Printf("dropping packet with unknown codec %d", codec)
-		return nil
+	buf, err := pkt.MarshalBinary()
+	if err != nil {
+		return err
 	}
 
-	cb(b[n:], from)
+	return node.forwarder.SendPacket(buf, node.PeerID(), label)
+}
+
+func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multiaddr.Multiaddr) error {
+	codec, n, err := varint.FromUvarint(data)
+	if err != nil {
+		// node.logger.Printf("ReceiveUpperDirect: multigram: %s", err)
+		return err
+	}
+
+	// node.logger.Printf("ReceiveUpper: codec=0x%x", codec)
+	cb, present := node.handlers[codec]
+	if !present {
+		node.logger.Printf("ReceiveUpperDirect: dropping packet with unknown codec %d", codec)
+		return err
+	}
+
+	// node.logger.Printf("ReceiveUpper: cb=%#v", cb)
+	cb(data[n:], from)
+	return nil
+}
+
+// TODO need to actually send helloResponse packet
+func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, maddr multiaddr.Multiaddr) error {
+	// node.logger.Printf("ReceiveUpper: got: %#v", b)
+	// node.logger.Printf("ReceiveUpper: len=%d", len(b))
+
+	switch b[0] {
+	case 0x01:
+		buf, err := node.handleHelloPacket(b, maddr)
+		if err != nil {
+			return err
+		}
+		_ = buf
+		// if _, err = node.listeners[0].WriteToMultiaddr(buf, maddr); err != nil {
+		// 	return err
+		// }
+	case 0x02:
+		if err := node.handleResponsePacket(b, maddr); err != nil {
+			return err
+		}
+	case 0x03:
+		data, peerid, err := node.handleDataPacket(b, maddr)
+		if err != nil {
+			return err
+		}
+
+		return node.ReceiveUpperDirect(peerid, data, nil)
+	}
+
 	return nil
 }

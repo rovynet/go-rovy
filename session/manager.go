@@ -187,7 +187,7 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 }
 
 func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiaddr.Multiaddr, error) {
-	s, idx, present := sm.Find(peerid)
+	s, idx, present := sm.Find(peerid) // XXX slowness
 	if !present {
 		return nil, nil, fmt.Errorf("no session for %s", peerid)
 	}

@@ -11,7 +11,7 @@ import (
 	node "pkt.dev/go-rovy/node"
 )
 
-const RoutedCodec = 42003
+const RoutedCodec = 0x42003
 
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
@@ -23,8 +23,9 @@ func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 
 	node := node.NewNode(privkey, logger)
 
-	node.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) {
+	node.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) error {
 		node.Log().Printf("got packet from %s: %#v", from, buf)
+		return nil
 	})
 
 	if err = node.Listen(lisaddr); err != nil {

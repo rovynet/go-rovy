@@ -164,7 +164,8 @@ type DataPacket struct {
 }
 
 func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
-	var buf [rovy.PreliminaryMTU]byte
+	// XXX here we make the packet buffer storage
+	buf := make([]byte, 4+4+len(pkt.MessageHeader.Nonce)+len(pkt.Data)+16)
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
