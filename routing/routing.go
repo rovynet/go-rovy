@@ -67,7 +67,7 @@ func (r *Routing) PrintTable(out *log.Logger) {
 	for peerid, labels := range r.table {
 		out.Printf("/rovy/%s", peerid)
 		for _, l := range labels {
-			out.Printf("  /rovyfwd/%#v", l)
+			out.Printf("  /rovyfwd/%s", l)
 		}
 	}
 }

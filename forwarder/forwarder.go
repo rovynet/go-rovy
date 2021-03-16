@@ -51,7 +51,10 @@ var (
 
 	nullSlotEntry = &slotentry{
 		rovy.NullPeerID,
-		func(_ rovy.PeerID, _ []byte) error { return nil },
+		func(p rovy.PeerID, _ []byte) error {
+			fmt.Printf("nullSlotEntry: dropping packet meant for %s\n", p)
+			return nil
+		},
 	}
 
 	dataVarint  []byte
@@ -88,6 +91,17 @@ func NewForwarder(logger *log.Logger) *Forwarder {
 		fwd.slots[i] = nullSlotEntry
 	}
 	return fwd
+}
+
+func (fwd *Forwarder) PrintSlots(logger *log.Logger) {
+	fwd.RLock()
+	defer fwd.RUnlock()
+
+	for i, se := range fwd.slots {
+		if se.peerid != nullSlotEntry.peerid {
+			logger.Printf("fwd: slot /rovyfwd/%.2x => /rovy/%s", i, se.peerid)
+		}
+	}
 }
 
 func (fwd *Forwarder) Attach(peerid rovy.PeerID, send sendFunc) (rovy.Route, error) {
@@ -138,19 +152,20 @@ func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 
 func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 	// fwd.logger.Printf("fwd: %#v", buf)
-	// fwd.logger.Printf("in: %#v", buf)
 
 	_, n, err := varint.FromUvarint(buf) // XXX double
 	if err != nil {
 		return fmt.Errorf("forwarder: multigram: %s", err)
 	}
 
-	length := buf[n+1]
+	length := int(buf[n+1])
 	if length == 0 {
 		return ErrZeroLenLabel
 	}
 
-	pos := buf[n+0]
+	// TODO if n+2+length > len(buf) || n+2+pos > len(buf)
+
+	pos := int(buf[n+0])
 	if pos > length {
 		// XXX send error reply
 		return ErrLoopLabel
@@ -159,27 +174,21 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 	fwd.RLock()
 	defer fwd.RUnlock()
 
+	next := buf[n+2+pos+1]
+
 	prev, present := fwd.bypeer[from]
 	if !present {
 		return ErrPrevHopUnknown
 	}
+	buf[n+2+pos] = byte(prev)
 
-	if pos == length {
-		self, present := fwd.slots[0]
-		if !present {
-			return ErrSelfUnknown
-		}
-		return self.send(from, buf)
+	if pos+1 == length {
+		return fwd.slots[0].send(from, buf)
 	}
-
-	next := buf[n+2+int(pos)]
-	buf[n+2+int(pos)] = byte(prev)
-	buf[n+0] = pos + 1
-
-	// fwd.logger.Printf("out: %#v", buf)
 
 	// and off the packet goes
 	// XXX send error reply if nexthop isnt present
+	buf[n+0] = byte(pos + 1)
 	return fwd.slots[int(next)].send(from, buf)
 }
 
@@ -204,5 +213,5 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, label rovy.Route
 	n += length
 	copy(buf[n:], data)
 
-	return fwd.HandlePacket(buf, from)
+	return fwd.slots[int(label[0])].send(from, buf)
 }

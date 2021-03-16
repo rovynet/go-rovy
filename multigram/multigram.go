@@ -52,6 +52,7 @@ func NewTableFromBytes(buf []byte) (Table, error) {
 	return t, nil
 }
 
+// XXX not sure if this is needed at all
 func (t *Table) Clone() Table {
 	t.RLock()
 	defer t.RUnlock()

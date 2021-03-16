@@ -32,6 +32,12 @@ func init() {
 	mixHash(&initialHash, &initialChainKey, []byte(RovyIdentifier))
 }
 
+const (
+	HelloHeaderSize    = (2 * rovy.PublicKeySize) + (2 * poly1305.TagSize) + tai64n.TimestampSize
+	ResponseHeaderSize = rovy.PublicKeySize + poly1305.TagSize
+	MessageHeaderSize  = 8
+)
+
 type HelloHeader struct {
 	Ephemeral rovy.PublicKey
 	Static    [rovy.PublicKeySize + poly1305.TagSize]byte

@@ -1,6 +1,7 @@
 package node
 
 import (
+	"fmt"
 	"log"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
@@ -46,11 +47,19 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	node.sessions = session.NewSessionManager(privkey, logger, node.ConnectedLower)
 
 	fwd.Attach(peerid, func(peerid rovy.PeerID, p []byte) error {
-		_, n, err := varint.FromUvarint(p)
+		_, clen, err := varint.FromUvarint(p)
 		if err != nil {
 			return err
 		}
-		return node.ReceiveUpper(peerid, p[2+n+int(p[1+n]):], nil) // XXX sender can crash us :)
+		// XXX sender can crash us i guess :)
+		llen := int(p[1+clen])
+		if len(p) < 2+llen+clen {
+			return fmt.Errorf("preReceiveUpper: malformed packet header, length mismatch")
+		}
+
+		label := rovy.Route(p[2+clen : 2+llen+clen]).Reverse()
+		data := p[2+llen+clen:]
+		return node.ReceiveUpper(peerid, data, label)
 	})
 
 	node.sessions.Multigram().AddCodec(forwarder.DataMulticodec)
@@ -86,6 +95,7 @@ func (node *Node) Routing() *routing.Routing {
 	return node.routing
 }
 
+// XXX this shouldn't & mustn't be triggered for Upper sessions
 func (node *Node) ConnectedLower(peerid rovy.PeerID) {
 	send := func(from rovy.PeerID, buf []byte) error {
 		return node.SendLower(peerid, buf)
@@ -119,7 +129,9 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 			}
 
 			maddr, _ := multiaddrnet.FromNetAddr(raddr)
-			node.ReceiveLower(p[:n], maddr)
+			if err = node.ReceiveLower(p[:n], maddr); err != nil {
+				node.logger.Printf("ReceiveLower: %s", err)
+			}
 		}
 	}()
 
@@ -203,10 +215,21 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 		return err
 	}
 
-	// node.logger.Printf("Connect: sending: %#v", buf)
-	if _, err = node.listeners[0].WriteToMultiaddr(buf, raddr); err != nil {
-		node.logger.Printf("WriteTo: %s", err)
-		return err
+	if raddr != nil {
+		if _, err = node.listeners[0].WriteToMultiaddr(buf, raddr); err != nil {
+			node.logger.Printf("Connect: WriteTo: %s", err)
+			return err
+		}
+	} else {
+		label, err := node.Routing().GetRoute(peerid)
+		if err != nil {
+			return err
+		}
+
+		if err = node.forwarder.SendPacket(buf, node.PeerID(), label); err != nil {
+			node.logger.Printf("Connect: SendPacket: %s", err)
+			return err
+		}
 	}
 
 	if err = <-node.sessions.WaitFor(peerid); err != nil {
@@ -229,13 +252,13 @@ func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 	if err != nil {
 		return err
 	}
-	// node.logger.Printf("SendLower: sending: %#v", buf)
+	// node.logger.Printf("SendLower: sending: %s len=%d %#v", raddr, len(buf), buf)
 	_, err = node.listeners[0].WriteToMultiaddr(buf, raddr)
 	return err
 }
 
 func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
-	// node.logger.Printf("ReceiveLower: got: %#v", p)
+	// node.logger.Printf("ReceiveLower: got from %s: %#v", maddr, p)
 
 	switch p[0] {
 	case 0x01:
@@ -270,6 +293,8 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 		default:
 			return node.ReceiveUpperDirect(peerid, data, maddr)
 		}
+	default:
+		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", p[0])
 	}
 
 	return nil
@@ -321,36 +346,37 @@ func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multia
 	}
 
 	// node.logger.Printf("ReceiveUpper: cb=%#v", cb)
-	cb(data[n:], from)
-	return nil
+	return cb(data[n:], from)
 }
 
 // TODO need to actually send helloResponse packet
-func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, maddr multiaddr.Multiaddr) error {
-	// node.logger.Printf("ReceiveUpper: got: %#v", b)
-	// node.logger.Printf("ReceiveUpper: len=%d", len(b))
+func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, label rovy.Route) error {
+	// node.logger.Printf("ReceiveUpper: got from /rovyfwd/%s: %#v", label, b)
 
 	switch b[0] {
 	case 0x01:
-		buf, err := node.handleHelloPacket(b, maddr)
+		buf, err := node.handleHelloPacket(b, nil)
 		if err != nil {
 			return err
 		}
-		_ = buf
-		// if _, err = node.listeners[0].WriteToMultiaddr(buf, maddr); err != nil {
-		// 	return err
-		// }
+
+		if err = node.forwarder.SendPacket(buf, from, label); err != nil {
+			node.logger.Printf("ReceiveUpper: SendPacket: %s", err)
+			return err
+		}
 	case 0x02:
-		if err := node.handleResponsePacket(b, maddr); err != nil {
+		if err := node.handleResponsePacket(b, nil); err != nil {
 			return err
 		}
 	case 0x03:
-		data, peerid, err := node.handleDataPacket(b, maddr)
+		data, peerid, err := node.handleDataPacket(b, nil)
 		if err != nil {
 			return err
 		}
 
 		return node.ReceiveUpperDirect(peerid, data, nil)
+	default:
+		node.logger.Printf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", b[0])
 	}
 
 	return nil

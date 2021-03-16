@@ -10,6 +10,8 @@ import (
 	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
+const HelloPacketSize = 4 + 4 + ikpsk2.HelloHeaderSize
+
 type HelloPacket struct {
 	MsgType     uint32
 	SenderIndex uint32
@@ -18,7 +20,10 @@ type HelloPacket struct {
 }
 
 func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
-	var buf [rovy.PreliminaryMTU]byte
+	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
+
+	// XXX here we make the packet buffer storage
+	buf := make([]byte, HelloPacketSize+len(payloadSize)+len(pkt.Payload))
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
@@ -33,7 +38,6 @@ func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
 	if err := binary.Write(w, binary.BigEndian, payloadSize); err != nil {
 		return buf[:], err
 	}
@@ -78,6 +82,8 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 	return nil
 }
 
+const ResponsePacketSize = 4 + 4 + 4 + ikpsk2.ResponseHeaderSize
+
 type ResponsePacket struct {
 	MsgType       uint32
 	SenderIndex   uint32
@@ -87,7 +93,10 @@ type ResponsePacket struct {
 }
 
 func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
-	var buf [rovy.PreliminaryMTU]byte
+	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
+
+	// XXX here we make the packet buffer storage
+	buf := make([]byte, ResponsePacketSize+len(payloadSize)+len(pkt.Payload))
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
@@ -106,7 +115,6 @@ func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
 	if err := binary.Write(w, binary.BigEndian, payloadSize); err != nil {
 		return buf[:], err
 	}
@@ -155,6 +163,8 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	return nil
 }
 
+const DataPacketSize = 4 + 4 + ikpsk2.MessageHeaderSize
+
 // TODO: remove that length-prefix and mtu business
 type DataPacket struct {
 	MsgType       uint32
@@ -164,8 +174,9 @@ type DataPacket struct {
 }
 
 func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
-	// XXX here we make the packet buffer storage
-	buf := make([]byte, 4+4+len(pkt.MessageHeader.Nonce)+len(pkt.Data)+16)
+	dataSize := varint.ToUvarint(uint64(binary.Size(pkt.Data)))
+
+	buf := make([]byte, DataPacketSize+len(dataSize)+len(pkt.Data))
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
@@ -180,7 +191,6 @@ func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	dataSize := varint.ToUvarint(uint64(binary.Size(pkt.Data)))
 	if err := binary.Write(w, binary.BigEndian, dataSize); err != nil {
 		return buf[:], err
 	}

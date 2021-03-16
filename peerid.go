@@ -35,14 +35,14 @@ const (
 	// TODO: officially register the multicodec number
 	RovyMultiaddrCodec = 0x1a6
 
-	PreliminaryMTU = 1500
-	// PreliminaryMTU = 500
+	PreliminaryMTU = 1468
+	// PreliminaryMTU = 512
 
 	MaxPeerIDSize = 128
 )
 
 var (
-	NullPeerID = PeerID([32]byte{}) // XXX unused
+	NullPeerID = PeerID([32]byte{}) // XXX unused? nope
 )
 
 func init() {

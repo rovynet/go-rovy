@@ -200,12 +200,13 @@ func run() error {
 
 	time.Sleep(250 * time.Millisecond)
 
-	// actual routes
+	// peerings
 	// A     <-> B/C/D
 	// B/C/D <-> E/F/G
 	// E/F/G <-> H/I/J
 	// H/I/J <-> K
 
+	// route
 	// A->B->F->J->K
 	nodeA.Routing().AddRoute(nodeK.PeerID(),
 		nodeA.Routing().MustGetRoute(nodeB.PeerID()).
@@ -213,7 +214,11 @@ func run() error {
 			Join(nodeF.Routing().MustGetRoute(nodeJ.PeerID())).
 			Join(nodeJ.Routing().MustGetRoute(nodeK.PeerID())))
 
-	nodeA.Routing().PrintTable(nodeA.Log())
+	// nodeA.Routing().PrintTable(nodeA.Log())
+
+	if err := nodeA.Connect(nodeK.PeerID(), nil); err != nil {
+		return err
+	}
 
 	if err := nodeA.Send(nodeK.PeerID(), RoutedCodec, []byte{0x42, 0x42, 0x42, 0x42}); err != nil {
 		nodeA.Log().Printf("failed to send nodeA -> nodeK: %s", err)

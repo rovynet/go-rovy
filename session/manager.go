@@ -211,7 +211,9 @@ func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr)
 		return nil, rovy.NullPeerID, err
 	}
 
-	if stage == 0x02 {
+	// With raddr = nil we signal that this session is only via the forwarder
+	// and mustn't have the ConnectedLower callback called.
+	if stage == 0x02 && raddr != nil {
 		sm.establishedCb(s.remotePeerID)
 		for _, waiter := range s.waiters {
 			waiter <- nil
