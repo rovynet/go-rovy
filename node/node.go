@@ -57,9 +57,9 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 			return fmt.Errorf("preReceiveUpper: malformed packet header, length mismatch")
 		}
 
-		label := rovy.Route(p[2+clen : 2+llen+clen]).Reverse()
+		route := rovy.Route(p[2+clen : 2+llen+clen]).Reverse()
 		data := p[2+llen+clen:]
-		return node.ReceiveUpper(peerid, data, label)
+		return node.ReceiveUpper(peerid, data, route)
 	})
 
 	node.sessions.Multigram().AddCodec(forwarder.DataMulticodec)
@@ -95,7 +95,8 @@ func (node *Node) Routing() *routing.Routing {
 	return node.routing
 }
 
-// XXX this shouldn't & mustn't be triggered for Upper sessions
+// XXX this shouldn't & mustn't be triggered for Upper sessions,
+//     otherwise forwarder.Attach deadlocks.
 func (node *Node) ConnectedLower(peerid rovy.PeerID) {
 	send := func(from rovy.PeerID, buf []byte) error {
 		return node.SendLower(peerid, buf)
@@ -221,12 +222,12 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 			return err
 		}
 	} else {
-		label, err := node.Routing().GetRoute(peerid)
+		route, err := node.Routing().GetRoute(peerid)
 		if err != nil {
 			return err
 		}
 
-		if err = node.forwarder.SendPacket(buf, node.PeerID(), label); err != nil {
+		if err = node.forwarder.SendPacket(buf, node.PeerID(), route); err != nil {
 			node.logger.Printf("Connect: SendPacket: %s", err)
 			return err
 		}
@@ -301,19 +302,19 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 }
 
 func (node *Node) Send(peerid rovy.PeerID, codec uint64, p []byte) error {
-	label, err := node.Routing().GetRoute(peerid)
+	route, err := node.Routing().GetRoute(peerid)
 	if err != nil {
 		return err
 	}
 
-	return node.SendUpper(peerid, codec, p, label)
+	return node.SendUpper(peerid, codec, p, route)
 }
 
-func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, label rovy.Route) error {
+func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route rovy.Route) error {
 	hdr := varint.ToUvarint(codec) // TODO use multigram table here and everywhere else
 	p = append(hdr, p...)          // XXX slowness
 
-	if len(label) == forwarder.HopLength {
+	if len(route) == forwarder.HopLength {
 		// node.logger.Printf("SendUpper: sending to direct peer")
 		return node.SendLower(peerid, p)
 	}
@@ -328,7 +329,7 @@ func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, label ro
 		return err
 	}
 
-	return node.forwarder.SendPacket(buf, node.PeerID(), label)
+	return node.forwarder.SendPacket(buf, node.PeerID(), route)
 }
 
 func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multiaddr.Multiaddr) error {
@@ -350,8 +351,8 @@ func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multia
 }
 
 // TODO need to actually send helloResponse packet
-func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, label rovy.Route) error {
-	// node.logger.Printf("ReceiveUpper: got from /rovyfwd/%s: %#v", label, b)
+func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) error {
+	// node.logger.Printf("ReceiveUpper: got from /rovyrt/%s: %#v", route, b)
 
 	switch b[0] {
 	case 0x01:
@@ -360,7 +361,7 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, label rovy.Route) err
 			return err
 		}
 
-		if err = node.forwarder.SendPacket(buf, from, label); err != nil {
+		if err = node.forwarder.SendPacket(buf, from, route); err != nil {
 			node.logger.Printf("ReceiveUpper: SendPacket: %s", err)
 			return err
 		}

@@ -1,25 +1,56 @@
-// Package forwarder implements a simple label-shifting packet switch.
+// Package forwarder implements a simple packet switch with route labels on every packet.
 //
-// It provides the Forwarder type, which packet sending functions can be attached to.
-// Each function gets assigned a slot number. For each incoming packet, the function
-// corresponding to the packet route label's next hop will be called.
+// Packet forwarding in Rovy puts a route label on every packet.
+// This label describes the route the packet should traverse.
+// At any hop this label also describes the reverse route,
+// so that reply or error packets can be sent without any further lookups.
+//
+// ```
+// [codec][len][pos][route][data...]
+// ```
+//
+// - `codec` is the multicodec header for forwarder data packets,
+//   usually negotiated using multigram during session establishment.
+//   This is how the receiving end knows that they're dealing with a forwarder packet.
+//
+// - `len` is the byte length of `route`.
+//   This is only one byte, so `route`'s length is limited to 255 bytes.
+//   Also, one route byte equals one hop, because for now every forwarder has only 256 slots.
+//   The are plans for how this limit can be elegantly lifted.
+//
+// - `pos` is the byte position within `route`
+//   representing the position of the receiving forwarder on the route.
+//   For the sending forwarder, the byte at `pos` is their slot number for the next hop,
+//   and for the receiving forwarder, the byte at `pos - 1` is what
+//   they'll overwrite with their own slot number for the previous hop.
+//
+// - `route` is the bytes representing the route, the length being determined by `len`.
+//   The receiving forwarder takes the byte at `route[pos]`, treating it as the next hop,
+//   and sends the packet to the peer identified by that slot number.
+//   Before sending the packet, the `pos` counter is incremented by one.
+//   If `pos` is equal to `len`, the receiving forwarder is the last hop,
+//   and consume the received packet into its upper layer.
+//   One way or the other, the byte at `route[pos - 1]` is replaced
+//   by the slot number for the peer which the packet was received from.
+//   That way we have the reverse route handy at every hop.
+//
+// - `data` is the actual payload of the packet, usually expected to be a Rovy session packet.
 //
 // All slot numbers of a forwarder must be of the same length (i.e. 1-byte, 2-byte, ...)
 // so that route labels don't change in length while the packet passes through the forwarder.
 // This is important for forwarding performance since it avoids realigning the packet buffer,
 // but also helps with future Path MTU stuff. Rule of thumb: a forwarder's slot number length
-// is known only to itself, not to other forwarders. Each forwarder knows how many bytes
-// (or maybe even bits) to pop from and push to the route label, for everybody else that
-// forwarder's part of the route label is opaque data. Each forwarder can pick its own
+// is known only to itself, not to other forwarders. Each forwarder can pick its own
 // number of slot numbers, for example based on the expected number of peerings.
+// Nevertheless towards other nodes, it needs to act as if each slot number was 1 byte,
+// so it must for example increase the `pos` by 2 if it has 256^2 slots.
 //
-// The libp2p-trained mind would point to varints to encode each hop's slot number as
-// well as the total lenght of the route label, which would be pretty nice and convenient.
-// However, there are a few good reason for a more compact approach. Instead of compressing
-// individual numbers, we'll try to compress the whole, so the speak. [...]
-//
-// TODO: label should be bunch of varints (no, instead )
-// TODO: length should be a varint (no, routes > 255 byte are absolutely fine for v0)
+// Q: Why is "self" not represented in the route and the route rotated by one byte at every hop?
+// A: We trade for a nicer human-readable representation of the route here.
+//    We don't even save a byte because without the rotation and "self" as the end-marker,
+//    we instead need to track the position in addition to the route.
+//    It also means we can't just hand outgoing packets to `HandlePacket` because
+//    it would add "self" as the previous hop.
 
 package forwarder
 
@@ -45,14 +76,15 @@ var (
 	ErrPrevHopUnknown = errors.New("no slot for previous hop")
 	ErrNextHopUnknown = errors.New("no slot for next hop")
 	ErrSelfUnknown    = errors.New("no slot for ourselves")
-	ErrZeroLenLabel   = errors.New("got zero-length route label")
-	ErrLabelTooLong   = errors.New("label is longer than 255 bytes")
-	ErrLoopLabel      = errors.New("label resulted in loop")
+	ErrZeroLenRoute   = errors.New("got zero-length route route")
+	ErrRouteTooLong   = errors.New("route is longer than 255 bytes")
+	ErrLoopRoute      = errors.New("route resulted in loop")
 
 	nullSlotEntry = &slotentry{
 		rovy.NullPeerID,
-		func(p rovy.PeerID, _ []byte) error {
-			fmt.Printf("nullSlotEntry: dropping packet meant for %s\n", p)
+		func(from rovy.PeerID, _ []byte) error {
+			// XXX send error reply
+			fmt.Printf("nullSlotEntry: dropping packet for unknown destination from %s\n", from)
 			return nil
 		},
 	}
@@ -99,7 +131,7 @@ func (fwd *Forwarder) PrintSlots(logger *log.Logger) {
 
 	for i, se := range fwd.slots {
 		if se.peerid != nullSlotEntry.peerid {
-			logger.Printf("fwd: slot /rovyfwd/%.2x => /rovy/%s", i, se.peerid)
+			logger.Printf("fwd: slot /rovyrt/%.2x => /rovy/%s", i, se.peerid)
 		}
 	}
 }
@@ -132,7 +164,6 @@ func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
 	return fmt.Errorf("slot entry not found")
 }
 
-// TODO multicodec header
 func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 	code, _, err := varint.FromUvarint(buf)
 	if err != nil {
@@ -150,25 +181,22 @@ func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 	return nil
 }
 
+// TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)
 func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
-	// fwd.logger.Printf("fwd: %#v", buf)
-
-	_, n, err := varint.FromUvarint(buf) // XXX double
+	_, n, err := varint.FromUvarint(buf)
 	if err != nil {
 		return fmt.Errorf("forwarder: multigram: %s", err)
 	}
 
 	length := int(buf[n+1])
 	if length == 0 {
-		return ErrZeroLenLabel
+		return ErrZeroLenRoute
 	}
-
-	// TODO if n+2+length > len(buf) || n+2+pos > len(buf)
 
 	pos := int(buf[n+0])
 	if pos > length {
 		// XXX send error reply
-		return ErrLoopLabel
+		return ErrLoopRoute
 	}
 
 	fwd.RLock()
@@ -178,6 +206,7 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 
 	prev, present := fwd.bypeer[from]
 	if !present {
+		// XXX send error reply
 		return ErrPrevHopUnknown
 	}
 	buf[n+2+pos] = byte(prev)
@@ -186,20 +215,18 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 		return fwd.slots[0].send(from, buf)
 	}
 
-	// and off the packet goes
-	// XXX send error reply if nexthop isnt present
 	buf[n+0] = byte(pos + 1)
 	return fwd.slots[int(next)].send(from, buf)
 }
 
-func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, label rovy.Route) error {
-	length := len(label)
+func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route) error {
+	length := len(route)
 
 	if length == 0 {
-		return ErrZeroLenLabel
+		return ErrZeroLenRoute
 	}
 	if length > 255 {
-		return ErrLabelTooLong
+		return ErrRouteTooLong
 	}
 
 	buf := make([]byte, len(dataVarint)+2+length+len(data))
@@ -209,9 +236,9 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, label rovy.Route
 	buf[n] = 0 // position counter
 	buf[n+1] = byte(length)
 	n += 2
-	copy(buf[n:], label)
+	copy(buf[n:], route)
 	n += length
 	copy(buf[n:], data)
 
-	return fwd.slots[int(label[0])].send(from, buf)
+	return fwd.slots[int(route[0])].send(from, buf)
 }

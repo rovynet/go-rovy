@@ -26,20 +26,20 @@ func NewRouting(logger *log.Logger) *Routing {
 	}
 }
 
-func (r *Routing) AddRoute(peerid rovy.PeerID, label rovy.Route) {
+func (r *Routing) AddRoute(peerid rovy.PeerID, route rovy.Route) {
 	r.Lock()
 	defer r.Unlock()
 
-	labels, present := r.table[peerid]
+	routes, present := r.table[peerid]
 	if present {
-		for _, l := range labels {
-			if l.Equal(label) {
+		for _, l := range routes {
+			if l.Equal(route) {
 				return
 			}
 		}
-		r.table[peerid] = append(labels, label)
+		r.table[peerid] = append(routes, route)
 	} else {
-		r.table[peerid] = []rovy.Route{label}
+		r.table[peerid] = []rovy.Route{route}
 	}
 }
 
@@ -47,27 +47,27 @@ func (r *Routing) GetRoute(peerid rovy.PeerID) (rovy.Route, error) {
 	r.RLock()
 	defer r.RUnlock()
 
-	labels, present := r.table[peerid]
-	if !present || len(labels) == 0 {
+	routes, present := r.table[peerid]
+	if !present || len(routes) == 0 {
 		return nil, ErrUnknownPeerID
 	}
 
-	return labels[0], nil
+	return routes[0], nil
 }
 
 func (r *Routing) MustGetRoute(peerid rovy.PeerID) rovy.Route {
-	label, err := r.GetRoute(peerid)
+	route, err := r.GetRoute(peerid)
 	if err != nil {
 		panic(err)
 	}
-	return label
+	return route
 }
 
 func (r *Routing) PrintTable(out *log.Logger) {
-	for peerid, labels := range r.table {
+	for peerid, routes := range r.table {
 		out.Printf("/rovy/%s", peerid)
-		for _, l := range labels {
-			out.Printf("  /rovyfwd/%s", l)
+		for _, l := range routes {
+			out.Printf("  /rovyrt/%s", l)
 		}
 	}
 }
