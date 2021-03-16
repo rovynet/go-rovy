@@ -274,7 +274,7 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 		if err := node.handleResponsePacket(p, maddr); err != nil {
 			return err
 		}
-	case 0x03:
+	case 0x04:
 		data, peerid, err := node.handleDataPacket(p, maddr)
 		if err != nil {
 			return err
@@ -369,7 +369,7 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 		if err := node.handleResponsePacket(b, nil); err != nil {
 			return err
 		}
-	case 0x03:
+	case 0x04:
 		data, peerid, err := node.handleDataPacket(b, nil)
 		if err != nil {
 			return err

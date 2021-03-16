@@ -1,0 +1,21 @@
+# Rovy packet headers
+#
+# For use with http://luismg.com/protocol/
+#
+# protocol -f doc/headers.txt
+#
+
+# IKpsk2 Initiation (MsgType = 1)
+MsgType = 0x1:8,(reserved):24,Sender Index:32,Ephemeral Key:256,Static Key:256,Timestamp:96,Key MAC:128,Cookie MAC:128,Sender Multigram Table ...:64
+
+# IKpsk2 Response (MsgType = 2)
+MsgType = 0x2:8,(reserved):24,Sender Index:32,Receiver Index:32,Ephemeral Key:256,Encrypted Nothing:16,Key MAC:128,Cookie MAC:128,(nothing):16,Receiver Multigram Table ...:64
+
+# IKpsk2 Cookie Reply (MsgType = 3)
+#MsgType = 0x3:8,(reserved):24,Receiver Index:32,Nonce:192,Cookie:144,(nothing):16
+
+# IKpsk2 Transport (MsgType = 4)
+MsgType = 0x4:8,(reserved):24,Receiver Index:32,Nonce:64,Data ...:64
+
+
+0x4 (outer):8,(reserved):24,Receiver Index (outer):32,Nonce (outer):64,Multigram ... (outer):32,Forwarder Header...:64,0x4 (inner):8,(reserved):24,Receiver Index (inner):32,Nonce (inner):64,Multigram ... (inner):32,Data ...:128,Poly1305 Tag (inner):128,Poly1305 Tag (outer):128

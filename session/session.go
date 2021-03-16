@@ -146,7 +146,7 @@ func (s *Session) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiad
 	}
 
 	pkt := &DataPacket{
-		MsgType:       0x03,
+		MsgType:       0x04,
 		MessageHeader: hdr,
 		Data:          p2,
 	}

@@ -79,22 +79,38 @@ Lock-free ring buffers:
 
 Rovy packet headers:
 
+- 0x4 (outer):8
+- (reserved):24
+- Receiver Index (outer):32
+- Nonce (outer):64
+- Multigram ... (outer):32
+- Forwarder Header...:64
+- 0x4 (inner):8
+- (reserved):24
+- Receiver Index (inner):32
+- Nonce (inner):64
+- Multigram ... (inner):32
+- Data ...:128
+- Poly1305 Tag (inner):128
+- Poly1305 Tag (outer):128
+- 32+mgram+1+1+label+32+mgram = 68+label
+- ---
 - IPv4 header = 24 bytes
 - IPv6 header = 40 bytes
 - UDP header = 8 bytes
-- At MTU=1500, an IPv4 UDP packet is 1468 bytes
 - At MTU=1500, an IPv6 UDP packet is 1452 bytes
-- Rovy header = 28 bytes
-- Rovy footer = 16 bytes
-- Rovy MTU = 1452 - 44 - 44 = 1364 bytes
+- At MTU=1500, an IPv4 UDP packet is 1468 bytes
+- Rovy outer = 34+label bytes
+- Rovy inner = 34 bytes
+- Rovy MTU = 1468 - 34 - 8 - 34 = 1392 bytes
 
 Per-packet efficiency:
 
-- UDP IPv6: 96.8%
-- UDP IPv4: 97.9%
-- Rovy IPv6: 90.9%
-- Rovy IPv4: 92.0%
-- Rovy Ethernet: 97.1%
+- UDP IPv6: 96.8% (1452/1500)
+- UDP IPv4: 97.9% (1468/1500)
+- Rovy IPv6: 91.7% (1376/1500)
+- Rovy IPv4: 92.8% (1392/1500)
+- Rovy Ethernet: 94.9% (1424/1500)
 
 Building blocks benchmarks (Ryzen 9 3900X):
 
@@ -118,3 +134,11 @@ IRR / RPKI:
 - https://github.com/job/irrexplorer
 - https://ftp.ripe.net/rpki/ripencc.tal/2021/02/15/
 - https://www.ripe.net/manage-ips-and-asns/resource-management/rpki
+
+How to handle double encryption when sending to peers:
+
+- When upper layer gets a packet to send, if the route is single-hop, we'll skip the upper layer and directly send on the lower layer
+- When lower layer receives a packet and it's not a forwarder packet, we'll skip the lower layer and directly receive on the upper layer
+- This also means we want a combined multigram table for upper and lower layer
+- Different packet overhead should be taken into account when calculating MTU
+- We'll use a single active session per peer at a time, no matter if in upper or lower layer. If a packet from a peer can suddenly come from a different internet address because of roaming, then a packet can also suddenly come from a different peer by means of forwarding.
