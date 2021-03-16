@@ -1,13 +1,13 @@
 # Rovy
 
-Rovy is a (work-in-progress) permissionless routed peer-to-peer network. Rovy aims to tear down artifical barriers in internetworking, make routing and transit secure against attacks, and be backward-compatible by smoothly integrating with existing Internet infrastructure.
+Rovy is a (work-in-progress) permissionless (routed peer-to-peer)|(encrypted packet) network. Rovy aims to tear down artifical barriers in internetworking, make routing and transit secure against certain attacks, and be backward-compatible by smoothly integrating with existing Internet infrastructure.
 
 Rovy is pretty closely related to [libp2p](https://libp2p.io) and [cjdns](https://github.com/cjdelisle/cjdns), so you'll recognize many of their ideas and techniques here.
 
 Rovy addresses are [multiaddrs](https://multiformats.io) and look like this:
 
 - `/rovy/bafzqaicfbypxj4o5vk2d5k2jxueq62zhfhmhdhihsspndgjswdft74eehe` is the permanent address of a Rovy node which also contains its long-term public key. It is case-insensitive Base32 so it can be used in DNS domain names. It can also be encoded in other bases because it's simply a [CID](https://github.com/multiformats/cid).
-- `/rovyfwd/7c37.e53a.0fb2.2800` is a label describing a route from one Rovy node to another, through 6 hops of Rovy nodes in between. These routes are relative to the respective nodes.
+- `/rovyrt/7c37.e53a.0fb2.2800` is an address describing a route from one Rovy node to another, through 6 hops of Rovy nodes in between. These routes are relative to the respective nodes.
 - `/ip6/fc6b:1f34:574e:837a:937f:317c:b280:0fb5` is the address in the optional fc00::/8 network for backward-compatibility with applications supporting IPv6 networking. This address is derived from the `/rovy` address above, and its public key is used to encrypt and sign every packet.
 
 This repository will eventually contain:
@@ -23,14 +23,16 @@ For the time being, check out the `examples/` directory.
 ## Roadmap
 
 - [x] [IKpsk2](https://noiseprotocol.org/noise.html) handshake
-- [x] 1 Gbps between two direct peers
-- [ ] Forwarding/Switching using route labels
+- [ ] 1 Gbps routed throughput
+- [x] Forwarding/Switching using route labels
 - [ ] Minimum-viable routing
 - [ ] fc00::/8 network via TUN interface
 - [ ] ICMP traceroutes for fc00::/8
 - [ ] DNS server for global routing lookups (this is technically cheating)
 - [ ] Local peer discovery
+- ---
 - [ ] 1 Gbps on fc00::/8
+- [ ] 1 Gbps on fc00::/8 on a cheap ARM board
 - [ ] 10 Gbps on fc00::/8
 - [ ] 40 Gbps switching throughput on commodity hardware
 - [ ] 100 Gbps switching throughput on commodity hardware
@@ -43,13 +45,21 @@ For the time being, check out the `examples/` directory.
 
 ## Immediate TODOs
 
+- [ ] actually use multigram table
 - [ ] double-check SessionManager state transitions
 - [ ] decouple Session.state and MsgType
-- [ ] combine MsgType and Nonce into one header field to save bytes
-- [ ] forwarder v0
-- [ ] multigram
-- [ ] forwarder error replies
-
+- [ ] remove Session.remoteAddr?
+- [ ] don't use aliasing for core types, wrap value instead
+- [ ] packet object, its lack is biting us left and right
+- [-] combine MsgType and Nonce into one header field to save bytes
+- [x] forwarder v0
+- [x] multigram
+- [-] forwarder error replies
+- [x] upper session
+- ---
+- [ ] benchmark: goroutine throughput, large routing table, udp read pps, udp write pps
+- [x] establish upper session
+- [x] rename label to route everywhere, and /rovyrt
 
 ## Project TODOs
 
@@ -59,6 +69,7 @@ For the time being, check out the `examples/` directory.
 - [ ] CI for performance
 - [ ] Squat twitter account
 - [ ] ASN + IP addrs
+- [ ] Multicodec registrations
 
 
 ## Notes
@@ -71,6 +82,7 @@ Measures to take for higher throughput
 - Avoid parsing multiaddrs, make custom Multiaddr types backed by net.Addr and PeerID
 - Be more reasonable about pointers
 - Do some profiling to find more hotspots
+- Use net.af/netaddr for IP addresses
 
 Lock-free ring buffers:
 
@@ -111,6 +123,10 @@ Per-packet efficiency:
 - Rovy IPv6: 91.7% (1376/1500)
 - Rovy IPv4: 92.8% (1392/1500)
 - Rovy Ethernet: 94.9% (1424/1500)
+
+UDP performance tuning:
+
+- https://www.slideshare.net/lfevents/boost-udp-transaction-performance
 
 Building blocks benchmarks (Ryzen 9 3900X):
 
