@@ -62,6 +62,7 @@ import (
 
 	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
+	multigram "pkt.dev/go-rovy/multigram"
 )
 
 const (
@@ -88,15 +89,7 @@ var (
 			return nil
 		},
 	}
-
-	dataVarint  []byte
-	errorVarint []byte
 )
-
-func init() {
-	dataVarint = varint.ToUvarint(DataMulticodec)
-	errorVarint = varint.ToUvarint(ErrorMulticodec)
-}
 
 type slotentry struct {
 	peerid rovy.PeerID
@@ -110,13 +103,18 @@ type Forwarder struct {
 	sync.RWMutex
 	slots  map[int]*slotentry
 	bypeer map[rovy.PeerID]int
+	mgram  *multigram.Table
 	logger *log.Logger
 }
 
-func NewForwarder(logger *log.Logger) *Forwarder {
+func NewForwarder(mgram *multigram.Table, logger *log.Logger) *Forwarder {
+	mgram.AddCodec(DataMulticodec)
+	mgram.AddCodec(ErrorMulticodec)
+
 	fwd := &Forwarder{
 		slots:  make(map[int]*slotentry, NumSlots),
 		bypeer: make(map[rovy.PeerID]int, NumSlots),
+		mgram:  mgram,
 		logger: logger,
 	}
 	for i := 0; i < NumSlots; i++ {
@@ -182,18 +180,13 @@ func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 }
 
 // TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)
-func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
-	_, n, err := varint.FromUvarint(buf)
-	if err != nil {
-		return fmt.Errorf("forwarder: multigram: %s", err)
-	}
-
-	length := int(buf[n+1])
+func (fwd *Forwarder) HandlePacket(buf []byte, cn int, from rovy.PeerID) error {
+	length := int(buf[cn+1])
 	if length == 0 {
 		return ErrZeroLenRoute
 	}
 
-	pos := int(buf[n+0])
+	pos := int(buf[cn+0])
 	if pos > length {
 		// XXX send error reply
 		return ErrLoopRoute
@@ -202,20 +195,20 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 	fwd.RLock()
 	defer fwd.RUnlock()
 
-	next := buf[n+2+pos+1]
+	next := buf[cn+2+pos+1]
 
 	prev, present := fwd.bypeer[from]
 	if !present {
 		// XXX send error reply
 		return ErrPrevHopUnknown
 	}
-	buf[n+2+pos] = byte(prev)
+	buf[cn+2+pos] = byte(prev)
 
 	if pos+1 == length {
 		return fwd.slots[0].send(from, buf)
 	}
 
-	buf[n+0] = byte(pos + 1)
+	buf[cn+0] = byte(pos + 1)
 	return fwd.slots[int(next)].send(from, buf)
 }
 
@@ -229,10 +222,12 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route
 		return ErrRouteTooLong
 	}
 
-	buf := make([]byte, len(dataVarint)+2+length+len(data))
+	codec := fwd.mgram.ToUvarint(DataMulticodec)
+
+	buf := make([]byte, len(codec)+2+length+len(data))
 	n := 0
-	copy(buf[n:], dataVarint)
-	n += len(dataVarint)
+	copy(buf[n:], codec)
+	n += len(codec)
 	buf[n] = 0 // position counter
 	buf[n+1] = byte(length)
 	n += 2

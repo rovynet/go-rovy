@@ -33,20 +33,19 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	pubkey := privkey.PublicKey()
 	peerid := rovy.NewPeerID(pubkey)
 
-	fwd := forwarder.NewForwarder(logger)
-
 	node := &Node{
-		pubkey:    pubkey,
-		peerid:    peerid,
-		logger:    logger,
-		handlers:  map[uint64]DataHandler{},
-		forwarder: fwd,
-		routing:   routing.NewRouting(logger),
+		pubkey:   pubkey,
+		peerid:   peerid,
+		logger:   logger,
+		handlers: map[uint64]DataHandler{},
+		routing:  routing.NewRouting(logger),
 	}
 
 	node.sessions = session.NewSessionManager(privkey, logger, node.ConnectedLower)
 
-	fwd.Attach(peerid, func(peerid rovy.PeerID, p []byte) error {
+	node.forwarder = forwarder.NewForwarder(node.sessions.Multigram(), logger)
+
+	node.forwarder.Attach(peerid, func(peerid rovy.PeerID, p []byte) error {
 		_, clen, err := varint.FromUvarint(p)
 		if err != nil {
 			return err
@@ -61,9 +60,6 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		data := p[2+llen+clen:]
 		return node.ReceiveUpper(peerid, data, route)
 	})
-
-	node.sessions.Multigram().AddCodec(forwarder.DataMulticodec)
-	node.sessions.Multigram().AddCodec(forwarder.ErrorMulticodec)
 
 	return node
 }
@@ -280,7 +276,7 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 			return err
 		}
 
-		codec, _, err := varint.FromUvarint(data)
+		codec, cn, err := node.sessions.Multigram().FromUvarint(data)
 		if err != nil {
 			// node.logger.Printf("ReceiveLower: multigram: %s", err)
 			return err
@@ -288,7 +284,7 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 
 		switch codec {
 		case forwarder.DataMulticodec:
-			return node.forwarder.HandlePacket(data, peerid)
+			return node.forwarder.HandlePacket(data, cn, peerid)
 		case forwarder.ErrorMulticodec:
 			return node.forwarder.HandleError(data, peerid)
 		default:
@@ -311,8 +307,8 @@ func (node *Node) Send(peerid rovy.PeerID, codec uint64, p []byte) error {
 }
 
 func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route rovy.Route) error {
-	hdr := varint.ToUvarint(codec) // TODO use multigram table here and everywhere else
-	p = append(hdr, p...)          // XXX slowness
+	hdr := node.sessions.Multigram().ToUvarint(codec)
+	p = append(hdr, p...) // XXX slowness
 
 	if len(route) == forwarder.HopLength {
 		// node.logger.Printf("SendUpper: sending to direct peer")
@@ -333,13 +329,19 @@ func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route ro
 }
 
 func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multiaddr.Multiaddr) error {
-	codec, n, err := varint.FromUvarint(data)
+	sess, _, present := node.SessionManager().Find(from)
+	if !present {
+		node.logger.Printf("lost track of session while handling packet from %s", from)
+		return nil // XXX return error instead?
+	}
+
+	codec, n, err := sess.Multigram().FromUvarint(data)
 	if err != nil {
 		// node.logger.Printf("ReceiveUpperDirect: multigram: %s", err)
 		return err
 	}
 
-	// node.logger.Printf("ReceiveUpper: codec=0x%x", codec)
+	// node.logger.Printf("ReceiveUpperDirect: codec=0x%x n=%d data=%#v", codec, n, data[:])
 	cb, present := node.handlers[codec]
 	if !present {
 		node.logger.Printf("ReceiveUpperDirect: dropping packet with unknown codec %d", codec)

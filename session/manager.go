@@ -21,7 +21,7 @@ type SessionManager struct {
 	pubkey        rovy.PublicKey
 	peerid        rovy.PeerID
 	store         map[uint32]*Session
-	multigram     multigram.Table
+	multigram     *multigram.Table
 	logger        *log.Logger
 	establishedCb EstablishedCb
 }
@@ -55,7 +55,7 @@ func (sm *SessionManager) randUint32() uint32 {
 }
 
 func (sm *SessionManager) Multigram() *multigram.Table {
-	return &sm.multigram
+	return sm.multigram
 }
 
 func (sm *SessionManager) Insert(s *Session) uint32 {

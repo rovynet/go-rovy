@@ -45,12 +45,15 @@ func run() error {
 		return err
 	}
 
+	nodeA.SessionManager().Multigram().AddCodec(BenchmarkCodec)
+	nodeB.SessionManager().Multigram().AddCodec(BenchmarkCodec)
+
 	if err = nodeA.Connect(nodeB.PeerID(), addrB); err != nil {
 		return err
 	}
 
 	amount := 1000000
-	mtu := rovy.PreliminaryMTU - 100
+	mtu := rovy.PreliminaryMTU - 100 // XXX max currently seems to be 1433
 	done := make(chan bool, 1)
 	start := time.Now()
 

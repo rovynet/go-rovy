@@ -25,7 +25,7 @@ type Session struct {
 	handshake       *ikpsk2.Handshake
 	remoteAddr      multiaddr.Multiaddr // XXX unused?
 	remotePeerID    rovy.PeerID
-	remoteMultigram multigram.Table
+	remoteMultigram *multigram.Table
 }
 
 func newSession(peerid rovy.PeerID, hs *ikpsk2.Handshake) *Session {
@@ -45,7 +45,11 @@ func newSessionIncoming(hs *ikpsk2.Handshake) *Session {
 	}
 }
 
-func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgram multigram.Table) (*HelloPacket, error) {
+func (s *Session) Multigram() *multigram.Table {
+	return s.remoteMultigram
+}
+
+func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgram *multigram.Table) (*HelloPacket, error) {
 	if !s.initiator {
 		return nil, SessionStateError
 	}
@@ -65,7 +69,7 @@ func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgr
 	}, nil
 }
 
-func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram multigram.Table) (*ResponsePacket, error) {
+func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram *multigram.Table) (*ResponsePacket, error) {
 	if s.initiator {
 		return nil, SessionStateError
 	}

@@ -45,7 +45,10 @@ For the time being, check out the `examples/` directory.
 
 ## Immediate TODOs
 
-- [ ] actually use multigram table
+- [x] actually use multigram table
+- [ ] special handling for self in forwarder
+- [ ] fix forwarder benchmark
+- [ ] put a multigram codec on hello and response payloads
 - [ ] double-check SessionManager state transitions
 - [ ] decouple Session.state and MsgType
 - [ ] remove Session.remoteAddr?

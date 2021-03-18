@@ -1,6 +1,7 @@
 package multigram
 
 import (
+	"log"
 	"sync"
 
 	varint "github.com/multiformats/go-varint"
@@ -13,15 +14,15 @@ type Table struct {
 	next uint64
 }
 
-func NewTable() Table {
-	return Table{
+func NewTable() *Table {
+	return &Table{
 		c2n:  map[uint64]uint64{},
 		n2c:  map[uint64]uint64{},
 		next: uint64(1),
 	}
 }
 
-func NewTableFromBytes(buf []byte) (Table, error) {
+func NewTableFromBytes(buf []byte) (*Table, error) {
 	t := NewTable()
 
 	i := 0
@@ -53,11 +54,11 @@ func NewTableFromBytes(buf []byte) (Table, error) {
 }
 
 // XXX not sure if this is needed at all
-func (t *Table) Clone() Table {
+func (t *Table) Clone() *Table {
 	t.RLock()
 	defer t.RUnlock()
 
-	t2 := Table{
+	t2 := &Table{
 		c2n:  map[uint64]uint64{},
 		n2c:  map[uint64]uint64{},
 		next: t.next,
@@ -78,25 +79,28 @@ func (t *Table) Bytes() []byte {
 	return buf
 }
 
-func (t *Table) AddCodec(code uint64) {
+func (t *Table) AddCodec(code uint64) uint64 {
 	t.Lock()
 	defer t.Unlock()
 
-	_, present := t.c2n[code]
+	number, present := t.c2n[code]
 	if present {
-		return
+		return number
 	}
 
-	t.n2c[t.next] = code
+	number = t.next
+	t.n2c[number] = code
 	t.c2n[code] = t.next
+
 	t.next += 1
+	return number
 }
 
 func (t *Table) LookupCodec(number uint64) uint64 {
 	t.RLock()
 	defer t.RUnlock()
 
-	code, present := t.c2n[number]
+	code, present := t.n2c[number]
 	if !present {
 		return uint64(0)
 	}
@@ -112,4 +116,22 @@ func (t *Table) LookupNumber(code uint64) uint64 {
 		return uint64(0)
 	}
 	return number
+}
+
+func (t *Table) FromUvarint(buf []byte) (uint64, int, error) {
+	number, n, err := varint.FromUvarint(buf)
+	if err != nil {
+		return uint64(0), 0, err
+	}
+
+	return t.LookupCodec(number), n, nil
+}
+
+func (t *Table) ToUvarint(code uint64) []byte {
+	number := t.LookupNumber(code)
+	if number == uint64(0) {
+		log.Panicf("unknown multigram codec %d (0x%x)", code, code)
+	}
+
+	return varint.ToUvarint(number)
 }

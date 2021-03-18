@@ -23,11 +23,6 @@ func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 
 	node := node.NewNode(privkey, logger)
 
-	node.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) error {
-		node.Log().Printf("got packet from %s: %#v", from, buf)
-		return nil
-	})
-
 	if err = node.Listen(lisaddr); err != nil {
 		return nil, err
 	}
@@ -197,6 +192,19 @@ func run() error {
 		nodeA.Log().Printf("failed to connect nodeJ to nodeK: %s", err)
 		return err
 	}
+
+	nodeA.SessionManager().Multigram().AddCodec(0x42010)
+	nodeA.SessionManager().Multigram().AddCodec(0x42011)
+	nodeA.SessionManager().Multigram().AddCodec(0x42012)
+
+	nodeA.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) error {
+		nodeA.Log().Printf("got packet from %s: %#v", from, buf)
+		return nil
+	})
+	nodeK.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) error {
+		nodeK.Log().Printf("got packet from %s: %#v", from, buf)
+		return nil
+	})
 
 	time.Sleep(250 * time.Millisecond)
 
