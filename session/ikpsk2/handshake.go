@@ -53,6 +53,10 @@ type MessageHeader struct {
 	Nonce [8]byte
 }
 
+// TODO: replay protection
+// TODO: flood protection
+// TODO: cookies
+// TODO: resending / how to handle lost handshake packets
 type Handshake struct {
 	hash             [blake2s.Size]byte
 	chainKey         [blake2s.Size]byte
@@ -160,10 +164,6 @@ func (hs *Handshake) MakeHello(payload []byte) (HelloHeader, []byte, error) {
 	return hdr, payload2, nil
 }
 
-// TODO: replay protection
-// TODO: flood protection
-// TODO: cookies
-// TODO: resending / how to handle lost handshake packets
 func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload2 []byte) ([]byte, error) {
 	if hs.initiator {
 		return nil, fmt.Errorf("initiator can't consume hello")

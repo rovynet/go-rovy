@@ -19,7 +19,6 @@ type DataHandler func([]byte, rovy.PeerID) error
 
 // TODO: move lower connection stuff to a Peering type (Connect, SendLower, Handle*)
 type Node struct {
-	pubkey    rovy.PublicKey // XXX unused
 	peerid    rovy.PeerID
 	logger    *log.Logger
 	listeners []Listener
@@ -34,7 +33,6 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	peerid := rovy.NewPeerID(pubkey)
 
 	node := &Node{
-		pubkey:   pubkey,
 		peerid:   peerid,
 		logger:   logger,
 		handlers: map[uint64]DataHandler{},
@@ -148,13 +146,11 @@ func (node *Node) Handle(codec uint64, cb DataHandler) {
 func (node *Node) handleDataPacket(p []byte, maddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
 	pkt := &session.DataPacket{}
 	if err := pkt.UnmarshalBinary(p); err != nil {
-		// node.logger.Printf("UnmarshalBinary: %s", err)
 		return nil, rovy.NullPeerID, err
 	}
 
 	data, peerid, err := node.sessions.HandleData(pkt, maddr)
 	if err != nil {
-		// node.logger.Printf("handleDataPacket: %s: %s", maddr, err)
 		return nil, rovy.NullPeerID, err
 	}
 
@@ -164,19 +160,16 @@ func (node *Node) handleDataPacket(p []byte, maddr multiaddr.Multiaddr) ([]byte,
 func (node *Node) handleHelloPacket(p []byte, maddr multiaddr.Multiaddr) ([]byte, error) {
 	pkt := &session.HelloPacket{}
 	if err := pkt.UnmarshalBinary(p); err != nil {
-		// node.logger.Printf("UnmarshalBinary: %s", err)
 		return nil, err
 	}
 
 	pkt2, err := node.sessions.HandleHello(pkt, maddr)
 	if err != nil {
-		// node.logger.Printf("HandleHello: %s", err)
 		return nil, err
 	}
 
 	buf, err := pkt2.MarshalBinary()
 	if err != nil {
-		// node.logger.Printf("MarshalBinary: %s", err)
 		return nil, err
 	}
 
@@ -187,12 +180,10 @@ func (node *Node) handleResponsePacket(p []byte, maddr multiaddr.Multiaddr) erro
 	pkt := &session.ResponsePacket{}
 
 	if err := pkt.UnmarshalBinary(p); err != nil {
-		// node.logger.Printf("UnmarshalBinary: %s", err)
 		return err
 	}
 
 	if err := node.sessions.HandleHelloResponse(pkt, maddr); err != nil {
-		// node.logger.Printf("HandleHelloResponse: %s", err)
 		return err
 	}
 
@@ -243,20 +234,15 @@ func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 		return err
 	}
 
-	// node.logger.Printf("SendLower: pkt=%#v", pkt)
-
 	buf, err := pkt.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	// node.logger.Printf("SendLower: sending: %s len=%d %#v", raddr, len(buf), buf)
 	_, err = node.listeners[0].WriteToMultiaddr(buf, raddr)
 	return err
 }
 
 func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
-	// node.logger.Printf("ReceiveLower: got from %s: %#v", maddr, p)
-
 	switch p[0] {
 	case 0x01:
 		buf, err := node.handleHelloPacket(p, maddr)
@@ -278,7 +264,6 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 
 		codec, cn, err := node.sessions.Multigram().FromUvarint(data)
 		if err != nil {
-			// node.logger.Printf("ReceiveLower: multigram: %s", err)
 			return err
 		}
 
@@ -311,7 +296,6 @@ func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route ro
 	p = append(hdr, p...) // XXX slowness
 
 	if len(route) == forwarder.HopLength {
-		// node.logger.Printf("SendUpper: sending to direct peer")
 		return node.SendLower(peerid, p)
 	}
 
@@ -337,25 +321,19 @@ func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multia
 
 	codec, n, err := sess.Multigram().FromUvarint(data)
 	if err != nil {
-		// node.logger.Printf("ReceiveUpperDirect: multigram: %s", err)
 		return err
 	}
 
-	// node.logger.Printf("ReceiveUpperDirect: codec=0x%x n=%d data=%#v", codec, n, data[:])
 	cb, present := node.handlers[codec]
 	if !present {
 		node.logger.Printf("ReceiveUpperDirect: dropping packet with unknown codec %d", codec)
 		return err
 	}
 
-	// node.logger.Printf("ReceiveUpper: cb=%#v", cb)
 	return cb(data[n:], from)
 }
 
-// TODO need to actually send helloResponse packet
 func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) error {
-	// node.logger.Printf("ReceiveUpper: got from /rovyrt/%s: %#v", route, b)
-
 	switch b[0] {
 	case 0x01:
 		buf, err := node.handleHelloPacket(b, nil)

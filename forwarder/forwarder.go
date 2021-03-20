@@ -51,6 +51,8 @@
 //    we instead need to track the position in addition to the route.
 //    It also means we can't just hand outgoing packets to `HandlePacket` because
 //    it would add "self" as the previous hop.
+//
+// TODO: send error reply packets
 
 package forwarder
 
@@ -70,7 +72,7 @@ const (
 	HopLength = 1
 
 	DataMulticodec  = 0x12345
-	ErrorMulticodec = 0x12346 // XXX call this Ctrl instead
+	ErrorMulticodec = 0x12346
 )
 
 var (
@@ -84,7 +86,6 @@ var (
 	nullSlotEntry = &slotentry{
 		rovy.NullPeerID,
 		func(from rovy.PeerID, _ []byte) error {
-			// XXX send error reply
 			fmt.Printf("nullSlotEntry: dropping packet for unknown destination from %s\n", from)
 			return nil
 		},
@@ -98,7 +99,7 @@ type slotentry struct {
 
 type sendFunc func(rovy.PeerID, []byte) error
 
-// TODO: is rovy.PeerID okay as a map index type?
+// XXX: is rovy.PeerID okay as a map index type?
 type Forwarder struct {
 	sync.RWMutex
 	slots  map[int]*slotentry
@@ -188,7 +189,6 @@ func (fwd *Forwarder) HandlePacket(buf []byte, cn int, from rovy.PeerID) error {
 
 	pos := int(buf[cn+0])
 	if pos > length {
-		// XXX send error reply
 		return ErrLoopRoute
 	}
 
@@ -199,7 +199,6 @@ func (fwd *Forwarder) HandlePacket(buf []byte, cn int, from rovy.PeerID) error {
 
 	prev, present := fwd.bypeer[from]
 	if !present {
-		// XXX send error reply
 		return ErrPrevHopUnknown
 	}
 	buf[cn+2+pos] = byte(prev)
@@ -228,7 +227,7 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route
 	n := 0
 	copy(buf[n:], codec)
 	n += len(codec)
-	buf[n] = 0 // position counter
+	buf[n] = 0 // pos
 	buf[n+1] = byte(length)
 	n += 2
 	copy(buf[n:], route)

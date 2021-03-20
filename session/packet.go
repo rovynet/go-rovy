@@ -22,7 +22,6 @@ type HelloPacket struct {
 func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
 
-	// XXX here we make the packet buffer storage
 	buf := make([]byte, HelloPacketSize+len(payloadSize)+len(pkt.Payload))
 	w := bytes.NewBuffer(buf[:0])
 
@@ -95,7 +94,6 @@ type ResponsePacket struct {
 func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
 	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
 
-	// XXX here we make the packet buffer storage
 	buf := make([]byte, ResponsePacketSize+len(payloadSize)+len(pkt.Payload))
 	w := bytes.NewBuffer(buf[:0])
 
@@ -165,7 +163,6 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 
 const DataPacketSize = 4 + 4 + ikpsk2.MessageHeaderSize
 
-// TODO: remove that length-prefix and mtu business
 type DataPacket struct {
 	MsgType       uint32
 	ReceiverIndex uint32

@@ -104,7 +104,6 @@ func Buf2PeerID(r *bytes.Buffer) (pid PeerID, err error) {
 	return NewPeerIDFromCid(c)
 }
 
-// TODO: double-check the size calculation
 func PeerID2Buf(pid PeerID, w *bytes.Buffer) (err error) {
 	bytes := pid.Bytes()
 	size := varint.ToUvarint(uint64(binary.Size(bytes)))

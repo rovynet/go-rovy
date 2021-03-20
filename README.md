@@ -7,7 +7,7 @@ Rovy is pretty closely related to [libp2p](https://libp2p.io) and [cjdns](https:
 Rovy addresses are [multiaddrs](https://multiformats.io) and look like this:
 
 - `/rovy/bafzqaicfbypxj4o5vk2d5k2jxueq62zhfhmhdhihsspndgjswdft74eehe` is the permanent address of a Rovy node which also contains its long-term public key. It is case-insensitive Base32 so it can be used in DNS domain names. It can also be encoded in other bases because it's simply a [CID](https://github.com/multiformats/cid).
-- `/rovyrt/7c37.e53a.0fb2.2800` is an address describing a route from one Rovy node to another, through 6 hops of Rovy nodes in between. These routes are relative to the respective nodes.
+- `/rovyrt/7c-37-e5-3a-0f-b2-28` is an address describing a route from one Rovy node to another, through 6 hops of Rovy nodes in between. These routes are relative to the respective nodes.
 - `/ip6/fc6b:1f34:574e:837a:937f:317c:b280:0fb5` is the address in the optional fc00::/8 network for backward-compatibility with applications supporting IPv6 networking. This address is derived from the `/rovy` address above, and its public key is used to encrypt and sign every packet.
 
 This repository will eventually contain:
@@ -45,24 +45,25 @@ For the time being, check out the `examples/` directory.
 
 ## Immediate TODOs
 
-- [x] actually use multigram table
-- [ ] special handling for self in forwarder
-- [ ] fix forwarder benchmark
-- [ ] put a multigram codec on hello and response payloads
-- [ ] double-check SessionManager state transitions
-- [ ] decouple Session.state and MsgType
-- [ ] remove Session.remoteAddr?
-- [ ] don't use aliasing for core types, wrap value instead
-- [ ] packet object, its lack is biting us left and right
-- [-] combine MsgType and Nonce into one header field to save bytes
 - [x] forwarder v0
 - [x] multigram
 - [-] forwarder error replies
-- [x] upper session
-- ---
-- [ ] benchmark: goroutine throughput, large routing table, udp read pps, udp write pps
 - [x] establish upper session
 - [x] rename label to route everywhere, and /rovyrt
+- [x] actually use multigram table
+- [-] special handling for self in forwarder
+- [ ] fix forwarder benchmark
+- [-] put a multigram codec on hello and response payloads
+- [ ] double-check SessionManager state transitions
+- [ ] decouple Session.state and MsgType
+- [-] remove Session.remoteAddr?
+- [ ] don't use aliasing for core types, wrap value instead
+- [ ] packet object (state machine), its lack is biting us left and right
+- [ ] node management, modifying, shutting down
+- [-] combine MsgType and Nonce into one header field to save bytes
+- ---
+- [ ] check out wireguard-go/conn, why does it exist? sticky sockets, perf?
+- [ ] benchmark: goroutine throughput, large routing table, udp read pps, udp write pps
 
 ## Project TODOs
 

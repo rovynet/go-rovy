@@ -20,7 +20,6 @@ var (
 type Session struct {
 	initiator       bool
 	stage           int
-	writer          func([]byte) error // XXX unused?
 	waiters         []chan error
 	handshake       *ikpsk2.Handshake
 	remoteAddr      multiaddr.Multiaddr // XXX unused?
@@ -49,6 +48,7 @@ func (s *Session) Multigram() *multigram.Table {
 	return s.remoteMultigram
 }
 
+// TODO prepend multigram header to payload
 func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgram *multigram.Table) (*HelloPacket, error) {
 	if !s.initiator {
 		return nil, SessionStateError
@@ -69,6 +69,8 @@ func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgr
 	}, nil
 }
 
+// TODO prepend multigram header to payload
+// TODO handle multigram header in front of payload
 func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram *multigram.Table) (*ResponsePacket, error) {
 	if s.initiator {
 		return nil, SessionStateError
@@ -78,10 +80,6 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram
 	if err != nil {
 		return nil, err
 	}
-
-	// if !bytes.Equal(payload, StubHandshakePayload) {
-	// 	return nil, fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
-	// }
 
 	remoteMgram, err := multigram.NewTableFromBytes(payload)
 	if err != nil {
@@ -104,6 +102,7 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram
 	}, nil
 }
 
+// TODO handle multigram header in front of payload
 func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multiaddr) error {
 	if !s.initiator || s.stage != 0x01 {
 		return SessionStateError
@@ -113,10 +112,6 @@ func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multi
 	if err != nil {
 		return err
 	}
-
-	// if !bytes.Equal(payload, StubHandshakePayload) {
-	// 	return fmt.Errorf("expected handshake payload %#v, got %#v", StubHandshakePayload, payload)
-	// }
 
 	mgram, err := multigram.NewTableFromBytes(payload)
 	if err != nil {

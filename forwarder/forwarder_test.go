@@ -5,11 +5,11 @@ import (
 	"log"
 	"testing"
 
-	// forwarder "go.rovy.net/forwarder"
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
 )
 
+// TODO: eeh fix this maybe?
 func BenchmarkHandlePacket(b *testing.B) {
 	peeridA := newPeerID(b)
 	peeridB := newPeerID(b)
