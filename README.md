@@ -95,38 +95,25 @@ Lock-free ring buffers:
 
 Rovy packet headers:
 
-- 0x4 (outer):8
-- (reserved):24
-- Receiver Index (outer):32
-- Nonce (outer):64
-- Multigram ... (outer):32
-- Forwarder Header...:64
-- 0x4 (inner):8
-- (reserved):24
-- Receiver Index (inner):32
-- Nonce (inner):64
-- Multigram ... (inner):32
-- Data ...:128
-- Poly1305 Tag (inner):128
-- Poly1305 Tag (outer):128
-- 32+mgram+1+1+label+32+mgram = 68+label
-- ---
-- IPv4 header = 24 bytes
-- IPv6 header = 40 bytes
-- UDP header = 8 bytes
-- At MTU=1500, an IPv6 UDP packet is 1452 bytes
-- At MTU=1500, an IPv4 UDP packet is 1468 bytes
-- Rovy outer = 34+label bytes
-- Rovy inner = 34 bytes
-- Rovy MTU = 1468 - 34 - 8 - 34 = 1392 bytes
+- Message header (outer) -- 20 bytes, minimum 18
+- Forwarder header       --  8 bytes, more if route longer than 5 hops
+- Message header (inner) -- 20 bytes, minimum 18
+- Data
+- Message footer (inner) -- 16 bytes
+- Message footer (outer) -- 16 bytes
 
 Per-packet efficiency:
 
-- UDP IPv6: 96.8% (1452/1500)
-- UDP IPv4: 97.9% (1468/1500)
-- Rovy IPv6: 91.7% (1376/1500)
-- Rovy IPv4: 92.8% (1392/1500)
-- Rovy Ethernet: 94.9% (1424/1500)
+- IPv4 header = 24 bytes
+- IPv6 header = 40 bytes
+- UDP header = 8 bytes
+- Rovy routed = 80+ bytes
+- Rovy direct = 36 bytes
+- UDPv6:                96.8% -- 1452/1500
+- UDPv4:                97.9% -- 1468/1500
+- Rovy routed UDPv6:    91.5% -- 1372/1500
+- Rovy routed UDPv4:    92.5% -- 1388/1500
+- Rovy routed Ethernet: 94.7% -- 1420/1500
 
 UDP performance tuning:
 

@@ -15,7 +15,7 @@ MsgType = 0x2:8,(reserved):24,Sender Index:32,Receiver Index:32,Ephemeral Key:25
 #MsgType = 0x3:8,(reserved):24,Receiver Index:32,Nonce:192,Cookie:144,(nothing):16
 
 # IKpsk2 Transport (MsgType = 4)
-MsgType = 0x4:8,(reserved):24,Receiver Index:32,Nonce:64,Data ...:64
+MsgType = 0x4:8,(reserved):24,Receiver Index:32,Nonce:64,Message ...:64
 
 
-0x4 (outer):8,(reserved):24,Receiver Index (outer):32,Nonce (outer):64,Multigram ... (outer):32,Forwarder Header...:64,0x4 (inner):8,(reserved):24,Receiver Index (inner):32,Nonce (inner):64,Multigram ... (inner):32,Data ...:128,Poly1305 Tag (inner):128,Poly1305 Tag (outer):128
+0x4 (outer):8,(reserved):24,Receiver Index (outer):32,Nonce (outer):64,Msg Length ... (outer):16,Multigram ... (outer):16,Forwarder Header...:64,0x4 (inner):8,(reserved):24,Receiver Index (inner):32,Nonce (inner):64,Msg Length ... (inner):16,Multigram ... (inner):16,Data ...:128,Poly1305 Tag (inner):128,Poly1305 Tag (outer):128
