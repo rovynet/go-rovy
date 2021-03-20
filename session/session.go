@@ -17,6 +17,12 @@ var (
 	StubHandshakePayload = []byte{0xa, 0xc, 0xa, 0xb}
 )
 
+const (
+	HelloMsgType         = 0x1
+	HelloResponseMsgType = 0x2
+	DataMsgType          = 0x4
+)
+
 type Session struct {
 	initiator       bool
 	stage           int
@@ -63,7 +69,7 @@ func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgr
 	s.remotePeerID = peerid
 
 	return &HelloPacket{
-		MsgType:     0x01,
+		MsgType:     HelloMsgType,
 		HelloHeader: hdr,
 		Payload:     payload,
 	}, nil
@@ -96,7 +102,7 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram
 	s.remoteMultigram = remoteMgram
 
 	return &ResponsePacket{
-		MsgType:        0x02,
+		MsgType:        HelloResponseMsgType,
 		ResponseHeader: hdr,
 		Payload:        payload2,
 	}, nil
@@ -145,7 +151,7 @@ func (s *Session) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiad
 	}
 
 	pkt := &DataPacket{
-		MsgType:       0x04,
+		MsgType:       DataMsgType,
 		MessageHeader: hdr,
 		Data:          p2,
 	}

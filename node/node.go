@@ -244,7 +244,7 @@ func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 
 func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 	switch p[0] {
-	case 0x01:
+	case session.HelloMsgType:
 		buf, err := node.handleHelloPacket(p, maddr)
 		if err != nil {
 			return err
@@ -252,11 +252,11 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 		if _, err = node.listeners[0].WriteToMultiaddr(buf, maddr); err != nil {
 			return err
 		}
-	case 0x02:
+	case session.HelloResponseMsgType:
 		if err := node.handleResponsePacket(p, maddr); err != nil {
 			return err
 		}
-	case 0x04:
+	case session.DataMsgType:
 		data, peerid, err := node.handleDataPacket(p, maddr)
 		if err != nil {
 			return err
@@ -335,7 +335,7 @@ func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multia
 
 func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) error {
 	switch b[0] {
-	case 0x01:
+	case session.HelloMsgType:
 		buf, err := node.handleHelloPacket(b, nil)
 		if err != nil {
 			return err
@@ -345,11 +345,11 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 			node.logger.Printf("ReceiveUpper: SendPacket: %s", err)
 			return err
 		}
-	case 0x02:
+	case session.HelloResponseMsgType:
 		if err := node.handleResponsePacket(b, nil); err != nil {
 			return err
 		}
-	case 0x04:
+	case session.DataMsgType:
 		data, peerid, err := node.handleDataPacket(b, nil)
 		if err != nil {
 			return err
