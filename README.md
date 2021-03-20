@@ -45,24 +45,15 @@ For the time being, check out the `examples/` directory.
 
 ## Immediate TODOs
 
-- [x] forwarder v0
-- [x] multigram
-- [-] forwarder error replies
-- [x] establish upper session
-- [x] rename label to route everywhere, and /rovyrt
-- [x] actually use multigram table
-- [-] special handling for self in forwarder
-- [ ] fix forwarder benchmark
-- [-] put a multigram codec on hello and response payloads
-- [ ] double-check SessionManager state transitions
-- [ ] decouple Session.state and MsgType
-- [-] remove Session.remoteAddr?
-- [ ] don't use aliasing for core types, wrap value instead
-- [ ] packet object (state machine), its lack is biting us left and right
-- [ ] node management, modifying, shutting down
-- [-] combine MsgType and Nonce into one header field to save bytes
+- [ ] Get the session stages in order
+- [ ] Fix the forwarder benchmark
+- [ ] fc00 tun interface and forwarder ping
+- [ ] Packet object (state machine), its lack is biting us left and right
+- [ ] Node management, modifying the node, shutting down
+- [ ] Don't use aliasing for core types, wrap the value instead
 - ---
 - [ ] check out wireguard-go/conn, why does it exist? sticky sockets, perf?
+- [ ] check out x/sys
 - [ ] benchmark: goroutine throughput, large routing table, udp read pps, udp write pps
 
 ## Project TODOs
