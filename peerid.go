@@ -35,8 +35,7 @@ const (
 	// TODO: officially register the multicodec number
 	RovyMultiaddrCodec = 0x1a6
 
-	PreliminaryMTU = 1468 // UDPv4 at 1500 MTU
-	// PreliminaryMTU = 512
+	PreliminaryMTU = 1500 - 48 - 36 // UDPv6 is 40+8 bytes, Rovy direct is 20+16 bytes
 
 	MaxPeerIDSize = 128
 )
