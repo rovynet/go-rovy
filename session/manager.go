@@ -170,7 +170,12 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 
 	sm.Swap(pkt.SenderIndex, pkt.ReceiverIndex)
 
-	sm.establishedCb(s.remotePeerID)
+	// With raddr = nil we signal that this session is only via the forwarder
+	// and mustn't have the ConnectedLower callback called.
+	if raddr != nil {
+		sm.establishedCb(s.remotePeerID)
+	}
+
 	for _, waiter := range s.waiters {
 		waiter <- nil
 	}

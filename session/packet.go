@@ -231,3 +231,90 @@ func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
 
 	return nil
 }
+
+const PlaintextPacketSize = 4 + SignatureSize + RandomizerSize + rovy.PublicKeySize
+
+const SignatureSize = 8
+const RandomizerSize = 8
+
+// XXX who knows if this is makes any sense lol
+type PlaintextPacket struct {
+	MsgType   uint32
+	Signature [SignatureSize]byte
+	Random    [RandomizerSize]byte
+	Sender    rovy.PeerID
+	Data      []byte
+}
+
+func (pkt *PlaintextPacket) MarshalBinary() ([]byte, error) {
+	pkt.MsgType = PlaintextMsgType
+
+	dataSize := varint.ToUvarint(uint64(binary.Size(pkt.Data)))
+
+	buf := make([]byte, PlaintextPacketSize+len(dataSize)+len(pkt.Data))
+	w := bytes.NewBuffer(buf[:0])
+
+	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.Signature); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.Random); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.Sender); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, dataSize); err != nil {
+		return buf[:], err
+	}
+	if err := binary.Write(w, binary.BigEndian, pkt.Data); err != nil {
+		return buf[:], err
+	}
+
+	return buf[:], nil
+}
+
+func (pkt *PlaintextPacket) UnmarshalBinary(buf []byte) error {
+	if len(buf) > rovy.PreliminaryMTU {
+		buf = buf[:rovy.PreliminaryMTU]
+	}
+	r := bytes.NewBuffer(buf)
+
+	if err := binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
+		return err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &pkt.Signature); err != nil {
+		return err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &pkt.Random); err != nil {
+		return err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &pkt.Sender); err != nil {
+		return err
+	}
+
+	dataSize, err := varint.ReadUvarint(r)
+	if err != nil {
+		return err
+	}
+	if dataSize > rovy.PreliminaryMTU-8 {
+		dataSize = rovy.PreliminaryMTU - 8
+	}
+	dataBytes := make([]byte, dataSize)
+	if err = binary.Read(r, binary.BigEndian, dataBytes); err != nil {
+		return err
+	}
+	pkt.Data = dataBytes
+
+	pkt.MsgType = PlaintextMsgType
+	return nil
+}

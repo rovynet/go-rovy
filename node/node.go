@@ -15,7 +15,7 @@ import (
 
 type Listener multiaddrnet.PacketConn
 
-type DataHandler func([]byte, rovy.PeerID) error
+type DataHandler func([]byte, rovy.PeerID, rovy.Route) error
 
 // TODO: move lower connection stuff to a Peering type (Connect, SendLower, Handle*)
 type Node struct {
@@ -123,7 +123,7 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 				continue
 			}
 
-			maddr, _ := multiaddrnet.FromNetAddr(raddr)
+			maddr, _ := multiaddrnet.FromNetAddr(raddr) // TODO handle error
 			if err = node.ReceiveLower(p[:n], maddr); err != nil {
 				node.logger.Printf("ReceiveLower: %s", err)
 			}
@@ -273,7 +273,7 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 		case forwarder.ErrorMulticodec:
 			return node.forwarder.HandleError(data, peerid)
 		default:
-			return node.ReceiveUpperDirect(peerid, data, maddr)
+			return node.ReceiveUpperDirect(peerid, data, nil)
 		}
 	default:
 		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", p[0])
@@ -312,7 +312,7 @@ func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route ro
 	return node.forwarder.SendPacket(buf, node.PeerID(), route)
 }
 
-func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multiaddr.Multiaddr) error {
+func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, route rovy.Route) error {
 	sess, _, present := node.SessionManager().Find(from)
 	if !present {
 		node.logger.Printf("lost track of session while handling packet from %s", from)
@@ -330,7 +330,7 @@ func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, maddr multia
 		return err
 	}
 
-	return cb(data[n:], from)
+	return cb(data[n:], from, route)
 }
 
 func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) error {
@@ -355,10 +355,51 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 			return err
 		}
 
-		return node.ReceiveUpperDirect(peerid, data, nil)
+		node.Routing().AddRoute(peerid, route) // XXX slowness
+
+		return node.ReceiveUpperDirect(peerid, data, route)
+	case session.PlaintextMsgType:
+		return node.ReceiveUpperPlaintext(b, route)
 	default:
 		node.logger.Printf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", b[0])
 	}
 
 	return nil
+}
+
+// TODO actually sign the thing
+func (node *Node) SendPlaintext(route rovy.Route, codec uint64, b []byte) error {
+	b = append(varint.ToUvarint(codec), b...) // XXX slowness
+
+	pkt := &session.PlaintextPacket{
+		Sender: node.peerid,
+		Data:   b,
+	}
+	buf, err := pkt.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	return node.forwarder.SendPacket(buf, node.PeerID(), route)
+}
+
+// TODO actually verify signature
+func (node *Node) ReceiveUpperPlaintext(b []byte, route rovy.Route) error {
+	pkt := &session.PlaintextPacket{}
+	if err := pkt.UnmarshalBinary(b); err != nil {
+		return err
+	}
+
+	codec, n, err := varint.FromUvarint(pkt.Data)
+	if err != nil {
+		return err
+	}
+
+	cb, present := node.handlers[codec]
+	if !present {
+		node.logger.Printf("ReceiveUpperPlaintext: dropping packet with unknown codec 0x%x", codec)
+		return err
+	}
+
+	return cb(pkt.Data[n:], pkt.Sender, route)
 }

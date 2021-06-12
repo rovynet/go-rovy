@@ -14,6 +14,10 @@ func (r Route) Bytes() []byte {
 	return []byte(r)
 }
 
+func (r Route) Len() int {
+	return len(r)
+}
+
 func (r Route) Equal(other Route) bool {
 	return bytes.Equal(r.Bytes(), other.Bytes())
 }

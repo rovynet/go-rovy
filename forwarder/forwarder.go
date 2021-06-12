@@ -83,6 +83,7 @@ var (
 	ErrRouteTooLong   = errors.New("route is longer than 255 bytes")
 	ErrLoopRoute      = errors.New("route resulted in loop")
 
+	// TODO: move into NewForwarder so we can use logger
 	nullSlotEntry = &slotentry{
 		rovy.NullPeerID,
 		func(from rovy.PeerID, _ []byte) error {
@@ -180,7 +181,7 @@ func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 	return nil
 }
 
-// TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)
+// TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)+2
 func (fwd *Forwarder) HandlePacket(buf []byte, cn int, from rovy.PeerID) error {
 	length := int(buf[cn+1])
 	if length == 0 {

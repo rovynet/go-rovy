@@ -13,14 +13,13 @@ import (
 var (
 	UnknownIndexError = errors.New("unknown session index on packet")
 	SessionStateError = errors.New("invalid session state transition")
-
-	StubHandshakePayload = []byte{0xa, 0xc, 0xa, 0xb}
 )
 
 const (
 	HelloMsgType         = 0x1
 	HelloResponseMsgType = 0x2
 	DataMsgType          = 0x4
+	PlaintextMsgType     = 0x5
 )
 
 type Session struct {

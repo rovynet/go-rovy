@@ -45,25 +45,30 @@ For the time being, check out the `examples/` directory.
 
 ## Immediate TODOs
 
+- [x] fc00 ipv6 echo through tun
+- [ ] fc00 traceroute plain
+- [ ] fc00 signatures on ping/pong
+- [ ] fc00 multicast ping
+- [ ] fix max packet size (ping -s >1292)
 - [ ] Get the session stages in order
 - [ ] Fix the forwarder benchmark
-- [ ] fc00 tun interface and forwarder ping
-- [ ] Packet object (state machine), its lack is biting us left and right
+- [ ] Packet object (state machine?), its lack is biting us left and right
 - [ ] Node management, modifying the node, shutting down
 - [ ] Don't use aliasing for core types, wrap the value instead
 - ---
 - [ ] check out wireguard-go/conn, why does it exist? sticky sockets, perf?
 - [ ] check out x/sys
 - [ ] benchmark: goroutine throughput, large routing table, udp read pps, udp write pps
+- [ ] security: check noise-protocol application responsibilities and security considerations
 
 ## Project TODOs
 
+- [ ] ASN + IP addrs
 - [ ] Basic website
 - [ ] Git repo and issue tracker
 - [ ] CI for tests
 - [ ] CI for performance
 - [ ] Squat twitter account
-- [ ] ASN + IP addrs
 - [ ] Multicodec registrations
 
 
@@ -78,6 +83,7 @@ Measures to take for higher throughput
 - Be more reasonable about pointers
 - Do some profiling to find more hotspots
 - Use net.af/netaddr for IP addresses
+- Profiling: https://github.com/pyroscope-io/pyroscope
 
 Lock-free ring buffers:
 
@@ -86,12 +92,17 @@ Lock-free ring buffers:
 
 Rovy packet headers:
 
-- Message header (outer) -- 20 bytes, minimum 18
-- Forwarder header       --  8 bytes, more if route longer than 5 hops
-- Message header (inner) -- 20 bytes, minimum 18
-- Data
-- Message footer (inner) -- 16 bytes
-- Message footer (outer) -- 16 bytes
+- IPv4 header                -- 24 bytes
+- UDP header                 --  8 bytes
+  - Message header (outer)   -- 20 bytes, minimum 18
+  - Forwarder header         --  2 bytes + len(route)
+    - Message header (inner) -- 20 bytes, minimum 18
+      - IPv6 header          -- 40 bytes
+      - ICMP echo header     --  8 bytes
+        - Payload (-s)
+    - Message footer (inner) -- 16 bytes
+  - Message footer (outer)   -- 16 bytes
+                             -- 152 bytes + forwarder header
 
 Per-packet efficiency:
 
@@ -132,6 +143,7 @@ IRR / RPKI:
 - https://github.com/job/irrexplorer
 - https://ftp.ripe.net/rpki/ripencc.tal/2021/02/15/
 - https://www.ripe.net/manage-ips-and-asns/resource-management/rpki
+- https://www.arin.net/resources/manage/rpki/roa_request/#submitting-a-manually-signed-roa
 
 How to handle double encryption when sending to peers:
 
@@ -140,3 +152,16 @@ How to handle double encryption when sending to peers:
 - This also means we want a combined multigram table for upper and lower layer
 - Different packet overhead should be taken into account when calculating MTU
 - We'll use a single active session per peer at a time, no matter if in upper or lower layer. If a packet from a peer can suddenly come from a different internet address because of roaming, then a packet can also suddenly come from a different peer by means of forwarding.
+
+Other relevant networking software:
+
+- cjdns
+- Tailscale
+- Innernet
+- Nebula
+- Tinc
+- ZeroTier
+- gVisor
+- Pinecone https://matrix.org/blog/2021/05/06/introducing-the-pinecone-overlay-network
+- SCION https://www.scion-architecture.net/ https://labs.ripe.net/author/hausheer/scion-a-novel-internet-architecture/
+- frp https://github.com/fatedier/frp
