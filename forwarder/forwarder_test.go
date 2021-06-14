@@ -7,6 +7,7 @@ import (
 
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
+	multigram "pkt.dev/go-rovy/multigram"
 )
 
 // TODO: eeh fix this maybe?
@@ -15,7 +16,10 @@ func BenchmarkHandlePacket(b *testing.B) {
 	peeridB := newPeerID(b)
 	peeridC := newPeerID(b)
 
-	fwd := forwarder.NewForwarder(log.New(ioutil.Discard, "", log.LstdFlags))
+	mgram := multigram.NewTable()
+	mgram.AddCodec(forwarder.DataMulticodec)
+
+	fwd := forwarder.NewForwarder(mgram, log.New(ioutil.Discard, "", log.LstdFlags))
 	fwd.Attach(peeridA, func(_ rovy.PeerID, _ []byte) error { return nil })
 	fwd.Attach(peeridB, func(_ rovy.PeerID, _ []byte) error { return nil })
 	fwd.Attach(peeridC, func(_ rovy.PeerID, _ []byte) error { return nil })
@@ -29,7 +33,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		copy(buf, pkt)
-		err = fwd.HandlePacket(buf, peeridA)
+		err = fwd.HandlePacket(buf, 0, peeridA)
 		if err != nil {
 			b.Fatalf("HandlePacket: %s", err)
 		}

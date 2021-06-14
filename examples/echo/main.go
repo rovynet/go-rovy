@@ -43,7 +43,7 @@ func run() error {
 		return err
 	}
 
-	nodeB.Handle(EchoMulticodec, func(p []byte, peerid rovy.PeerID) error {
+	nodeB.Handle(EchoMulticodec, func(p []byte, peerid rovy.PeerID, route rovy.Route) error {
 		nodeB.Log().Printf("got packet from %s %#v", peerid, p)
 
 		if err := nodeB.Send(peerid, EchoMulticodec, p); err != nil {
@@ -52,7 +52,7 @@ func run() error {
 
 		return nil
 	})
-	nodeA.Handle(EchoMulticodec, func(p []byte, peerid rovy.PeerID) error {
+	nodeA.Handle(EchoMulticodec, func(p []byte, peerid rovy.PeerID, route rovy.Route) error {
 		nodeA.Log().Printf("got echo %#v", p)
 		return nil
 	})

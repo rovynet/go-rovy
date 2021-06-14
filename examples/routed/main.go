@@ -197,11 +197,11 @@ func run() error {
 	nodeA.SessionManager().Multigram().AddCodec(0x42011)
 	nodeA.SessionManager().Multigram().AddCodec(0x42012)
 
-	nodeA.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) error {
+	nodeA.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID, route rovy.Route) error {
 		nodeA.Log().Printf("got packet from %s: %#v", from, buf)
 		return nil
 	})
-	nodeK.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID) error {
+	nodeK.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID, route rovy.Route) error {
 		nodeK.Log().Printf("got packet from %s: %#v", from, buf)
 		return nil
 	})

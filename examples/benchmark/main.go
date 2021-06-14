@@ -58,7 +58,7 @@ func run() error {
 	start := time.Now()
 
 	var j int
-	nodeB.Handle(BenchmarkCodec, func(p []byte, peerid rovy.PeerID) error {
+	nodeB.Handle(BenchmarkCodec, func(p []byte, peerid rovy.PeerID, route rovy.Route) error {
 		k, err := binary.ReadVarint(bytes.NewBuffer(p))
 		if err != nil {
 			log.Printf("ReadVarint: %s", err)
