@@ -139,7 +139,8 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 
 	// icmp with ttl that'd exceed in transit
 	if nexthdr == byte(58) {
-		return fc.node.SendPlaintext(route[0:hops], PingMulticodec, pkt)
+		rt := rovy.NewRoute(route.Bytes()[0:hops]...)
+		return fc.node.SendPlaintext(rt, PingMulticodec, pkt)
 		// if err != nil {
 		// 	return fmt.Errorf("tun: failed to send: %s", err)
 		// }

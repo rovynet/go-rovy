@@ -54,7 +54,7 @@ func (r *Routing) GetRoute(peerid rovy.PeerID) (rovy.Route, error) {
 
 	routes, present := r.table[peerid]
 	if !present || len(routes) == 0 {
-		return nil, ErrUnknownPeerID
+		return rovy.NewRoute(), ErrUnknownPeerID
 	}
 
 	return routes[0], nil

@@ -8,14 +8,24 @@ import (
 
 const RouteSeparator = "."
 
-type Route []byte
+type Route struct {
+	hops []byte
+}
+
+func NewRoute(hops ...byte) Route {
+	return Route{hops}
+}
 
 func (r Route) Bytes() []byte {
-	return []byte(r)
+	return r.hops[:]
 }
 
 func (r Route) Len() int {
-	return len(r)
+	return len(r.hops)
+}
+
+func (r Route) Empty() bool {
+	return len(r.hops) == 0
 }
 
 func (r Route) Equal(other Route) bool {
@@ -23,12 +33,12 @@ func (r Route) Equal(other Route) bool {
 }
 
 func (r Route) Join(other Route) Route {
-	return Route(append(r, other...))
+	return NewRoute(append(r.Bytes(), other.Bytes()...)...)
 }
 
 func (r Route) String() string {
 	var str []string
-	for _, b := range r {
+	for _, b := range r.hops {
 		str = append(str, fmt.Sprintf("%.2x", b))
 	}
 	return strings.Join(str, RouteSeparator)
@@ -36,8 +46,8 @@ func (r Route) String() string {
 
 func (r Route) Reverse() Route {
 	var rev []byte
-	for i := len(r) - 1; i >= 0; i-- {
-		rev = append(rev, r[i])
+	for i := len(r.hops) - 1; i >= 0; i-- {
+		rev = append(rev, r.hops[i])
 	}
-	return rev
+	return NewRoute(rev...)
 }

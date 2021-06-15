@@ -54,7 +54,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 			return fmt.Errorf("preReceiveUpper: malformed packet header, length mismatch")
 		}
 
-		route := rovy.Route(p[2+clen : 2+llen+clen]).Reverse()
+		route := rovy.NewRoute(p[2+clen : 2+llen+clen]...).Reverse()
 		data := p[2+llen+clen:]
 		return node.ReceiveUpper(peerid, data, route)
 	})
@@ -273,7 +273,7 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 		case forwarder.ErrorMulticodec:
 			return node.forwarder.HandleError(data, peerid)
 		default:
-			return node.ReceiveUpperDirect(peerid, data, nil)
+			return node.ReceiveUpperDirect(peerid, data, rovy.NewRoute())
 		}
 	default:
 		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", p[0])
@@ -295,7 +295,7 @@ func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route ro
 	hdr := node.sessions.Multigram().ToUvarint(codec)
 	p = append(hdr, p...) // XXX slowness
 
-	if len(route) == forwarder.HopLength {
+	if route.Len() == forwarder.HopLength {
 		return node.SendLower(peerid, p)
 	}
 

@@ -144,10 +144,10 @@ func (fwd *Forwarder) Attach(peerid rovy.PeerID, send sendFunc) (rovy.Route, err
 		if fwd.slots[i] == nullSlotEntry {
 			fwd.slots[i] = &slotentry{peerid, send}
 			fwd.bypeer[peerid] = i
-			return rovy.Route([]byte{byte(i)}), nil
+			return rovy.NewRoute(byte(i)), nil
 		}
 	}
-	return nil, fmt.Errorf("no free slots")
+	return rovy.NewRoute(), fmt.Errorf("no free slots")
 }
 
 func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
@@ -213,7 +213,7 @@ func (fwd *Forwarder) HandlePacket(buf []byte, cn int, from rovy.PeerID) error {
 }
 
 func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route) error {
-	length := len(route)
+	length := route.Len()
 
 	if length == 0 {
 		return ErrZeroLenRoute
@@ -231,9 +231,9 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route
 	buf[n] = 0 // pos
 	buf[n+1] = byte(length)
 	n += 2
-	copy(buf[n:], route)
+	copy(buf[n:], route.Bytes())
 	n += length
 	copy(buf[n:], data)
 
-	return fwd.slots[int(route[0])].send(from, buf)
+	return fwd.slots[int(route.Bytes()[0])].send(from, buf)
 }
