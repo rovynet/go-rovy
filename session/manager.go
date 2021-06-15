@@ -198,14 +198,14 @@ func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket,
 func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
 	s, present := sm.Get(pkt.ReceiverIndex)
 	if !present {
-		return nil, rovy.PeerID{}, UnknownIndexError
+		return nil, rovy.EmptyPeerID, UnknownIndexError
 	}
 
 	stage := s.stage
 
 	p, peerid, err := s.HandleData(pkt, raddr)
 	if err != nil {
-		return nil, rovy.NullPeerID, err
+		return nil, rovy.EmptyPeerID, err
 	}
 
 	// With raddr = nil we signal that this session is only via the forwarder

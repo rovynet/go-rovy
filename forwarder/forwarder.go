@@ -85,7 +85,7 @@ var (
 
 	// TODO: move into NewForwarder so we can use logger
 	nullSlotEntry = &slotentry{
-		rovy.NullPeerID,
+		rovy.EmptyPeerID,
 		func(from rovy.PeerID, _ []byte) error {
 			fmt.Printf("nullSlotEntry: dropping packet for unknown destination from %s\n", from)
 			return nil

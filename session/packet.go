@@ -298,9 +298,11 @@ func (pkt *PlaintextPacket) UnmarshalBinary(buf []byte) error {
 		return err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &pkt.Sender); err != nil {
+	pubkey := rovy.PublicKey{}
+	if err := binary.Read(r, binary.BigEndian, &pubkey); err != nil {
 		return err
 	}
+	pkt.Sender = rovy.NewPeerID(pubkey)
 
 	dataSize, err := varint.ReadUvarint(r)
 	if err != nil {

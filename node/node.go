@@ -146,12 +146,12 @@ func (node *Node) Handle(codec uint64, cb DataHandler) {
 func (node *Node) handleDataPacket(p []byte, maddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
 	pkt := &session.DataPacket{}
 	if err := pkt.UnmarshalBinary(p); err != nil {
-		return nil, rovy.NullPeerID, err
+		return nil, rovy.EmptyPeerID, err
 	}
 
 	data, peerid, err := node.sessions.HandleData(pkt, maddr)
 	if err != nil {
-		return nil, rovy.NullPeerID, err
+		return nil, rovy.EmptyPeerID, err
 	}
 
 	return data, peerid, nil

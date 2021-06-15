@@ -71,7 +71,7 @@ func (r *Routing) MustGetRoute(peerid rovy.PeerID) rovy.Route {
 func (r *Routing) LookupIPv6(ipaddr net.IP) (rovy.PeerID, error) {
 	pid, present := r.ipv6[ipaddr.String()]
 	if !present {
-		return rovy.NullPeerID, errors.New("address unknown: " + ipaddr.String())
+		return rovy.EmptyPeerID, errors.New("address unknown: " + ipaddr.String())
 	}
 	return pid, nil
 }

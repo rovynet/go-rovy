@@ -2,13 +2,11 @@ package rovy
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	cid "github.com/ipfs/go-cid"
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multihash "github.com/multiformats/go-multihash"
-	varint "github.com/multiformats/go-varint"
 )
 
 const (
@@ -41,7 +39,7 @@ const (
 )
 
 var (
-	NullPeerID = PeerID([32]byte{}) // XXX unused? nope
+	EmptyPeerID = PeerID{[32]byte{}} // XXX unused? nope
 )
 
 func init() {
@@ -57,13 +55,15 @@ func init() {
 	})
 }
 
-type PeerID PublicKey
-
-func NewPeerID(pubkey PublicKey) PeerID {
-	return PeerID(pubkey)
+type PeerID struct {
+	pubkey PublicKey
 }
 
-func NewPeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
+func NewPeerID(pubkey PublicKey) PeerID {
+	return PeerID{pubkey}
+}
+
+func PeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
 	if c.Type() != RovyKeyMulticodec {
 		err = fmt.Errorf("peerid can't be cid with type %O", c.Type())
 		return
@@ -79,50 +79,25 @@ func NewPeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
 		return
 	}
 
-	copy(pid[:], mhash.Digest)
+	copy(pid.pubkey[:], mhash.Digest)
 	return
 }
 
-func Buf2PeerID(r *bytes.Buffer) (pid PeerID, err error) {
-	size, err := varint.ReadUvarint(r)
-	if err != nil {
-		return
-	}
-	if size > MaxPeerIDSize {
-		err = fmt.Errorf("PeerID too long")
-		return
-	}
-	bytes := make([]byte, size)
-	if err = binary.Read(r, binary.BigEndian, bytes); err != nil {
-		return
-	}
-	_, c, err := cid.CidFromBytes(bytes[:size])
-	if err != nil {
-		return
-	}
-	return NewPeerIDFromCid(c)
+func (pid PeerID) Empty() bool {
+	return pid.pubkey == EmptyPeerID.pubkey
 }
 
-func PeerID2Buf(pid PeerID, w *bytes.Buffer) (err error) {
-	bytes := pid.Bytes()
-	size := varint.ToUvarint(uint64(binary.Size(bytes)))
-	if err = binary.Write(w, binary.BigEndian, size); err != nil {
-		return
-	}
-	return binary.Write(w, binary.BigEndian, bytes)
-}
-
-func (pid PeerID) cid() cid.Cid {
-	mhash, _ := multihash.Sum(pid[:], multihash.IDENTITY, PublicKeySize)
+func (pid PeerID) Cid() cid.Cid {
+	mhash, _ := multihash.Sum(pid.pubkey[:], multihash.IDENTITY, PublicKeySize)
 	return cid.NewCidV1(RovyKeyMulticodec, mhash)
 }
 
 func (pid PeerID) Bytes() []byte {
-	return pid.cid().Bytes()
+	return pid.Cid().Bytes()
 }
 
 func (pid PeerID) String() string {
-	return pid.cid().String()
+	return pid.Cid().String()
 }
 
 func (pid PeerID) Equal(other PeerID) bool {
@@ -130,7 +105,7 @@ func (pid PeerID) Equal(other PeerID) bool {
 }
 
 func (pid PeerID) PublicKey() PublicKey {
-	return PublicKey(pid)
+	return pid.pubkey
 }
 
 func maddrStr2b(s string) ([]byte, error) {
@@ -151,7 +126,7 @@ func maddrB2Str(b []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	pid, err := NewPeerIDFromCid(c)
+	pid, err := PeerIDFromCid(c)
 	if err != nil {
 		return "", err
 	}

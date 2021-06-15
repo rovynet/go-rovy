@@ -97,7 +97,7 @@ func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram
 	}
 
 	s.remoteAddr = raddr
-	s.remotePeerID = rovy.PeerID(s.handshake.RemotePublicKey())
+	s.remotePeerID = rovy.NewPeerID(s.handshake.RemotePublicKey())
 	s.remoteMultigram = remoteMgram
 
 	return &ResponsePacket{
@@ -123,7 +123,7 @@ func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multi
 		return err
 	}
 
-	peerid := rovy.PeerID(s.handshake.RemotePublicKey())
+	peerid := rovy.NewPeerID(s.handshake.RemotePublicKey())
 	if peerid != s.remotePeerID {
 		err = fmt.Errorf("expected PeerID %s, got %s", s.remotePeerID, peerid)
 		for _, waiter := range s.waiters {
