@@ -32,14 +32,10 @@ const (
 
 	// TODO: officially register the multicodec number
 	RovyMultiaddrCodec = 0x1a6
-
-	PreliminaryMTU = 1500 - 48 - 36 // UDPv6 is 40+8 bytes, Rovy direct is 20+16 bytes
-
-	MaxPeerIDSize = 128
 )
 
 var (
-	EmptyPeerID = PeerID{PublicKey{[32]byte{}}} // XXX unused? nope
+	EmptyPeerID = PeerID{PublicKey{[32]byte{}}}
 )
 
 func init() {
@@ -63,28 +59,25 @@ func NewPeerID(pubkey PublicKey) PeerID {
 	return PeerID{pubkey}
 }
 
-func PeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
+func PeerIDFromCid(c cid.Cid) (PeerID, error) {
 	if c.Type() != RovyKeyMulticodec {
-		err = fmt.Errorf("peerid can't be cid with type %O", c.Type())
-		return
+		return EmptyPeerID, fmt.Errorf("peerid can't be cid with type %O", c.Type())
 	}
 
 	mhash, err := multihash.Decode(c.Hash())
 	if err != nil {
-		return
+		return EmptyPeerID, err
 	}
 
 	if mhash.Length != PublicKeySize {
-		err = fmt.Errorf("invalid public key size: %d", mhash.Length)
-		return
+		return EmptyPeerID, fmt.Errorf("invalid public key size: %d", mhash.Length)
 	}
 
-	copy(pid.pubkey.Bytes(), mhash.Digest)
-	return
+	return NewPeerID(NewPublicKey(mhash.Digest)), nil
 }
 
 func (pid PeerID) Empty() bool {
-	return pid.pubkey == EmptyPeerID.pubkey
+	return pid.Equal(EmptyPeerID)
 }
 
 func (pid PeerID) Cid() cid.Cid {

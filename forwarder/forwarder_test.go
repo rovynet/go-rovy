@@ -10,7 +10,6 @@ import (
 	multigram "pkt.dev/go-rovy/multigram"
 )
 
-// TODO: eeh fix this maybe?
 func BenchmarkHandlePacket(b *testing.B) {
 	peeridA := newPeerID(b)
 	peeridB := newPeerID(b)

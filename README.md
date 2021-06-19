@@ -46,10 +46,10 @@ For the time being, check out the `examples/` directory.
 ## Immediate TODOs
 
 - [x] fc00 ipv6 echo through tun
-- [ ] fc00 traceroute plain
+- [x] fc00 traceroute plain
 - [ ] fc00 signatures on ping/pong
 - [ ] fc00 multicast ping
-- [ ] fix max packet size (ping -s >1292)
+- [ ] fix max packet size (ping -s >1293)
 - [ ] Get the session stages in order
 - [ ] Fix the forwarder benchmark
 - [ ] Packet object (state machine?), its lack is biting us left and right
