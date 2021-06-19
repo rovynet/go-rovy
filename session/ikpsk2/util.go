@@ -6,17 +6,7 @@ import (
 	"hash"
 
 	"golang.org/x/crypto/blake2s"
-	"golang.org/x/crypto/curve25519"
-
-	rovy "pkt.dev/go-rovy"
 )
-
-func sharedSecret(local rovy.PrivateKey, remote rovy.PublicKey) (ss [rovy.PublicKeySize]byte) {
-	l := (*[rovy.PrivateKeySize]byte)(&local)
-	r := (*[rovy.PublicKeySize]byte)(&remote)
-	curve25519.ScalarMult(&ss, l, r)
-	return
-}
 
 func isZero(val []byte) bool {
 	acc := 1

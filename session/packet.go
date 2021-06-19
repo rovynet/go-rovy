@@ -33,7 +33,15 @@ func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader); err != nil {
+	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader.Ephemeral); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader.Static); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader.Timestamp); err != nil {
 		return buf[:], err
 	}
 
@@ -61,7 +69,17 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
-	if err = binary.Read(r, binary.BigEndian, &pkt.HelloHeader); err != nil {
+	ephkey := make([]byte, rovy.PublicKeySize)
+	if err = binary.Read(r, binary.BigEndian, ephkey); err != nil {
+		return err
+	}
+	pkt.Ephemeral = rovy.NewPublicKey(ephkey)
+
+	if err = binary.Read(r, binary.BigEndian, &pkt.HelloHeader.Static); err != nil {
+		return err
+	}
+
+	if err = binary.Read(r, binary.BigEndian, &pkt.HelloHeader.Timestamp); err != nil {
 		return err
 	}
 
@@ -109,7 +127,11 @@ func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader); err != nil {
+	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader.Ephemeral); err != nil {
+		return buf[:], err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader.Empty); err != nil {
 		return buf[:], err
 	}
 
@@ -141,7 +163,13 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
-	if err = binary.Read(r, binary.BigEndian, &pkt.ResponseHeader); err != nil {
+	ephkey := make([]byte, rovy.PublicKeySize)
+	if err = binary.Read(r, binary.BigEndian, ephkey); err != nil {
+		return err
+	}
+	pkt.Ephemeral = rovy.NewPublicKey(ephkey)
+
+	if err = binary.Read(r, binary.BigEndian, &pkt.ResponseHeader.Empty); err != nil {
 		return err
 	}
 
@@ -184,7 +212,7 @@ func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, pkt.MessageHeader); err != nil {
+	if err := binary.Write(w, binary.BigEndian, pkt.MessageHeader.Nonce); err != nil {
 		return buf[:], err
 	}
 
@@ -212,7 +240,7 @@ func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
-	if err = binary.Read(r, binary.BigEndian, &pkt.MessageHeader); err != nil {
+	if err = binary.Read(r, binary.BigEndian, &pkt.MessageHeader.Nonce); err != nil {
 		return err
 	}
 
@@ -298,11 +326,11 @@ func (pkt *PlaintextPacket) UnmarshalBinary(buf []byte) error {
 		return err
 	}
 
-	pubkey := rovy.PublicKey{}
-	if err := binary.Read(r, binary.BigEndian, &pubkey); err != nil {
+	sender := make([]byte, rovy.PublicKeySize)
+	if err := binary.Read(r, binary.BigEndian, sender); err != nil {
 		return err
 	}
-	pkt.Sender = rovy.NewPeerID(pubkey)
+	pkt.Sender = rovy.NewPeerID(rovy.NewPublicKey(sender))
 
 	dataSize, err := varint.ReadUvarint(r)
 	if err != nil {

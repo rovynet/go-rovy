@@ -16,7 +16,7 @@ const RoutedCodec = 0x42003
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
-	privkey, err := rovy.NewPrivateKey()
+	privkey, err := rovy.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
 	}

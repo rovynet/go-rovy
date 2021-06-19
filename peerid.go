@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	EmptyPeerID = PeerID{[32]byte{}} // XXX unused? nope
+	EmptyPeerID = PeerID{PublicKey{[32]byte{}}} // XXX unused? nope
 )
 
 func init() {
@@ -79,7 +79,7 @@ func PeerIDFromCid(c cid.Cid) (pid PeerID, err error) {
 		return
 	}
 
-	copy(pid.pubkey[:], mhash.Digest)
+	copy(pid.pubkey.Bytes(), mhash.Digest)
 	return
 }
 
@@ -88,12 +88,12 @@ func (pid PeerID) Empty() bool {
 }
 
 func (pid PeerID) Cid() cid.Cid {
-	mhash, _ := multihash.Sum(pid.pubkey[:], multihash.IDENTITY, PublicKeySize)
+	mhash, _ := multihash.Sum(pid.pubkey.Bytes(), multihash.IDENTITY, PublicKeySize)
 	return cid.NewCidV1(RovyKeyMulticodec, mhash)
 }
 
 func (pid PeerID) Bytes() []byte {
-	return pid.Cid().Bytes()
+	return pid.Cid().Bytes()[:]
 }
 
 func (pid PeerID) String() string {

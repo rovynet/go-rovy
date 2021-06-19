@@ -73,7 +73,7 @@ type Handshake struct {
 }
 
 func NewHandshakeInitiator(localStatic rovy.PrivateKey, remoteStatic rovy.PublicKey) (*Handshake, error) {
-	epriv, err := rovy.NewPrivateKey()
+	epriv, err := rovy.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func NewHandshakeInitiator(localStatic rovy.PrivateKey, remoteStatic rovy.Public
 		localStatic:      localStatic,
 		localEphemeral:   epriv,
 		remoteStatic:     remoteStatic,
-		precStaticStatic: sharedSecret(localStatic, remoteStatic),
+		precStaticStatic: localStatic.SharedSecret(remoteStatic),
 	}
 
 	if isZero(hs.precStaticStatic[:]) {
@@ -97,7 +97,7 @@ func NewHandshakeInitiator(localStatic rovy.PrivateKey, remoteStatic rovy.Public
 
 // TODO: create our ephemeral key only after we've successfully consumed the hello
 func NewHandshakeResponder(localStatic rovy.PrivateKey) (*Handshake, error) {
-	epriv, err := rovy.NewPrivateKey()
+	epriv, err := rovy.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -124,13 +124,13 @@ func (hs *Handshake) MakeHello(payload []byte) (HelloHeader, []byte, error) {
 		return hdr, nil, fmt.Errorf("responder can't send hello")
 	}
 
-	mixHash(&hs.hash, &hs.hash, hs.remoteStatic[:])
+	mixHash(&hs.hash, &hs.hash, hs.remoteStatic.Bytes())
 
 	hdr.Ephemeral = hs.localEphemeral.PublicKey()
-	mixKey(&hs.chainKey, &hs.chainKey, hdr.Ephemeral[:])
-	mixHash(&hs.hash, &hs.hash, hdr.Ephemeral[:])
+	mixKey(&hs.chainKey, &hs.chainKey, hdr.Ephemeral.Bytes())
+	mixHash(&hs.hash, &hs.hash, hdr.Ephemeral.Bytes())
 
-	ss := sharedSecret(hs.localEphemeral, hs.remoteStatic)
+	ss := hs.localEphemeral.SharedSecret(hs.remoteStatic)
 	if isZero(ss[:]) {
 		return hdr, nil, ErrZeroECDH
 	}
@@ -172,10 +172,10 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload2 []byte) ([]byte, err
 	var hash [blake2s.Size]byte
 	var chainKey [blake2s.Size]byte
 	mixHash(&hash, &initialHash, hs.localStatic.PublicKey().Bytes())
-	mixHash(&hash, &hash, hdr.Ephemeral[:])
-	mixKey(&chainKey, &initialChainKey, hdr.Ephemeral[:])
+	mixHash(&hash, &hash, hdr.Ephemeral.Bytes())
+	mixKey(&chainKey, &initialChainKey, hdr.Ephemeral.Bytes())
 
-	ss := sharedSecret(hs.localStatic, hdr.Ephemeral)
+	ss := hs.localStatic.SharedSecret(hdr.Ephemeral)
 	if isZero(ss[:]) {
 		return nil, ErrZeroECDH
 	}
@@ -183,18 +183,20 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload2 []byte) ([]byte, err
 	var key [chacha20poly1305.KeySize]byte
 	KDF2(&chainKey, &key, chainKey[:], ss[:])
 
-	var remoteStatic rovy.PublicKey
 	aead, err := chacha20poly1305.New(key[:])
 	if err != nil {
 		return nil, err
 	}
-	_, err = aead.Open(remoteStatic[:0], zeroNonce[:], hdr.Static[:], hash[:])
+
+	var rsBuf [rovy.PublicKeySize]byte
+	_, err = aead.Open(rsBuf[:0], zeroNonce[:], hdr.Static[:], hash[:])
 	if err != nil {
 		return nil, err
 	}
 	mixHash(&hash, &hash, hdr.Static[:])
+	remoteStatic := rovy.NewPublicKey(rsBuf[:])
 
-	precStaticStatic := sharedSecret(hs.localStatic, remoteStatic)
+	precStaticStatic := hs.localStatic.SharedSecret(remoteStatic)
 	if isZero(precStaticStatic[:]) {
 		return nil, ErrZeroECDH
 	}
@@ -236,12 +238,12 @@ func (hs *Handshake) MakeResponse(payload []byte) (ResponseHeader, []byte, error
 	}
 
 	hdr.Ephemeral = hs.localEphemeral.PublicKey()
-	mixHash(&hs.hash, &hs.hash, hdr.Ephemeral[:])
-	mixKey(&hs.chainKey, &hs.chainKey, hdr.Ephemeral[:])
+	mixHash(&hs.hash, &hs.hash, hdr.Ephemeral.Bytes())
+	mixKey(&hs.chainKey, &hs.chainKey, hdr.Ephemeral.Bytes())
 
-	sse := sharedSecret(hs.localEphemeral, hs.remoteEphemeral)
+	sse := hs.localEphemeral.SharedSecret(hs.remoteEphemeral)
 	mixKey(&hs.chainKey, &hs.chainKey, sse[:])
-	sss := sharedSecret(hs.localEphemeral, hs.remoteStatic)
+	sss := hs.localEphemeral.SharedSecret(hs.remoteStatic)
 	mixKey(&hs.chainKey, &hs.chainKey, sss[:])
 
 	var tau [blake2s.Size]byte
@@ -284,12 +286,12 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload2 []byte) ([]byt
 
 	var hash [blake2s.Size]byte
 	var chainKey [blake2s.Size]byte
-	mixHash(&hash, &hs.hash, hdr.Ephemeral[:])
-	mixKey(&chainKey, &hs.chainKey, hdr.Ephemeral[:])
+	mixHash(&hash, &hs.hash, hdr.Ephemeral.Bytes())
+	mixKey(&chainKey, &hs.chainKey, hdr.Ephemeral.Bytes())
 
-	sse := sharedSecret(hs.localEphemeral, hdr.Ephemeral)
+	sse := hs.localEphemeral.SharedSecret(hdr.Ephemeral)
 	mixKey(&chainKey, &chainKey, sse[:])
-	sss := sharedSecret(hs.localStatic, hdr.Ephemeral)
+	sss := hs.localStatic.SharedSecret(hdr.Ephemeral)
 	mixKey(&chainKey, &chainKey, sss[:])
 
 	var tau [blake2s.Size]byte

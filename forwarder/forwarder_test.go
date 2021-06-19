@@ -41,7 +41,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 }
 
 func newPeerID(b *testing.B) rovy.PeerID {
-	privkey, err := rovy.NewPrivateKey()
+	privkey, err := rovy.GeneratePrivateKey()
 	if err != nil {
 		b.Fatalf("NewPrivateKey: %s", err)
 	}

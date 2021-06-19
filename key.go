@@ -16,41 +16,69 @@ const (
 
 var prefix = []byte{0xfc}
 
-type (
-	PrivateKey [PrivateKeySize]byte
-	PublicKey  [PublicKeySize]byte
-)
+type PrivateKey struct {
+	bytes [PrivateKeySize]byte
+}
 
-func NewPrivateKey() (PrivateKey, error) {
+func NewPrivateKey(b []byte) PrivateKey {
+	pk := PrivateKey{}
+	copy(pk.bytes[:0], b)
+	return pk
+}
+
+func GeneratePrivateKey() (PrivateKey, error) {
 	var privkey PrivateKey
-	_, err := rand.Read(privkey[:])
-	privkey.clamp()
-	ipv6 := privkey.PublicKey().Addr()
-	if err != nil || bytes.Equal(ipv6[:len(prefix)], prefix) {
-		return privkey, err
+	_, err := rand.Read(privkey.bytes[:])
+	if err != nil {
+		return PrivateKey{}, err
 	}
-	return NewPrivateKey()
+
+	privkey.clamp()
+
+	ipv6 := privkey.PublicKey().Addr()
+	if err != nil {
+		return PrivateKey{}, err
+	}
+	if bytes.Equal(ipv6[:len(prefix)], prefix) {
+		return privkey, nil
+	}
+
+	return GeneratePrivateKey()
 }
 
-func (privkey *PrivateKey) clamp() {
-	privkey[0] &= 248
-	privkey[31] = (privkey[31] & 127) | 64
+func (privkey PrivateKey) clamp() {
+	privkey.bytes[0] &= 248
+	privkey.bytes[31] = (privkey.bytes[31] & 127) | 64
 }
 
-func (privkey *PrivateKey) PublicKey() PublicKey {
+func (privkey PrivateKey) PublicKey() PublicKey {
 	var pubkey PublicKey
-	apubk := (*[PublicKeySize]byte)(&pubkey)
-	aprivk := (*[PrivateKeySize]byte)(privkey)
-	curve25519.ScalarBaseMult(apubk, aprivk)
+	curve25519.ScalarBaseMult(&pubkey.bytes, &privkey.bytes)
+	return pubkey
+}
+
+func (privkey PrivateKey) SharedSecret(remote PublicKey) [PublicKeySize]byte {
+	var ss [PublicKeySize]byte
+	curve25519.ScalarMult(&ss, &privkey.bytes, &remote.bytes)
+	return ss
+}
+
+type PublicKey struct {
+	bytes [PublicKeySize]byte
+}
+
+func NewPublicKey(b []byte) PublicKey {
+	pubkey := PublicKey{}
+	copy(pubkey.bytes[:], b)
 	return pubkey
 }
 
 func (pubkey PublicKey) Bytes() []byte {
-	return pubkey[:]
+	return pubkey.bytes[:]
 }
 
 func (pubkey PublicKey) Addr() net.IP {
-	hash := blake2s.Sum256(pubkey[:])
+	hash := blake2s.Sum256(pubkey.bytes[:])
 	h := blake2s.Sum256(hash[:])
 	return net.IP(h[16:32])
 }
