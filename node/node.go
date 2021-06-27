@@ -123,8 +123,10 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 				continue
 			}
 
-			maddr, _ := multiaddrnet.FromNetAddr(raddr) // TODO handle error
-			if err = node.ReceiveLower(p[:n], maddr); err != nil {
+			pkt := rovy.Packet{Bytes: p[:n]}
+			pkt.TptSrc, _ = multiaddrnet.FromNetAddr(raddr) // TODO handle error
+
+			if err = node.ReceiveLower(pkt); err != nil {
 				node.logger.Printf("ReceiveLower: %s", err)
 			}
 		}
@@ -204,8 +206,9 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 	}
 
 	if raddr != nil {
-		if _, err = node.listeners[0].WriteToMultiaddr(buf, raddr); err != nil {
-			node.logger.Printf("Connect: WriteTo: %s", err)
+		pkt := rovy.Packet{TptDst: raddr, Bytes: buf}
+		if err = node.sendTransport(pkt); err != nil {
+			node.logger.Printf("Connect: sendTransport: %s", err)
 			return err
 		}
 	} else {
@@ -229,35 +232,44 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 }
 
 func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
-	pkt, raddr, err := node.sessions.CreateData(pid, p)
+	oldpkt, raddr, err := node.sessions.CreateData(pid, p)
 	if err != nil {
 		return err
 	}
 
-	buf, err := pkt.MarshalBinary()
+	buf, err := oldpkt.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	_, err = node.listeners[0].WriteToMultiaddr(buf, raddr)
+
+	pkt := rovy.Packet{TptDst: raddr, Bytes: buf}
+	return node.sendTransport(pkt)
+}
+
+func (node *Node) sendTransport(pkt rovy.Packet) error {
+	_, err := node.listeners[0].WriteToMultiaddr(pkt.Bytes, pkt.TptDst)
 	return err
 }
 
-func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
-	switch p[0] {
+func (node *Node) ReceiveLower(pkt rovy.Packet) error {
+	msgtype := pkt.MsgType()
+	switch msgtype {
 	case session.HelloMsgType:
-		buf, err := node.handleHelloPacket(p, maddr)
+		buf, err := node.handleHelloPacket(pkt.Bytes, pkt.TptSrc)
 		if err != nil {
 			return err
 		}
-		if _, err = node.listeners[0].WriteToMultiaddr(buf, maddr); err != nil {
+
+		pkt2 := rovy.Packet{TptDst: pkt.TptSrc, Bytes: buf}
+		if err = node.sendTransport(pkt2); err != nil {
 			return err
 		}
 	case session.HelloResponseMsgType:
-		if err := node.handleResponsePacket(p, maddr); err != nil {
+		if err := node.handleResponsePacket(pkt.Bytes, pkt.TptSrc); err != nil {
 			return err
 		}
 	case session.DataMsgType:
-		data, peerid, err := node.handleDataPacket(p, maddr)
+		data, peerid, err := node.handleDataPacket(pkt.Bytes, pkt.TptSrc)
 		if err != nil {
 			return err
 		}
@@ -276,7 +288,7 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 			return node.ReceiveUpperDirect(peerid, data, rovy.EmptyRoute)
 		}
 	default:
-		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", p[0])
+		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", msgtype)
 	}
 
 	return nil
