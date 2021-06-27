@@ -262,18 +262,18 @@ func (node *Node) ReceiveLower(p []byte, maddr multiaddr.Multiaddr) error {
 			return err
 		}
 
-		codec, cn, err := node.sessions.Multigram().FromUvarint(data)
+		codec, _, err := node.sessions.Multigram().FromUvarint(data)
 		if err != nil {
 			return err
 		}
 
 		switch codec {
 		case forwarder.DataMulticodec:
-			return node.forwarder.HandlePacket(data, cn, peerid)
+			return node.forwarder.HandlePacket(data, peerid)
 		case forwarder.ErrorMulticodec:
 			return node.forwarder.HandleError(data, peerid)
 		default:
-			return node.ReceiveUpperDirect(peerid, data, rovy.NewRoute())
+			return node.ReceiveUpperDirect(peerid, data, rovy.EmptyRoute)
 		}
 	default:
 		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", p[0])

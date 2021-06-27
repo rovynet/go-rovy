@@ -182,7 +182,12 @@ func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 }
 
 // TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)+2
-func (fwd *Forwarder) HandlePacket(buf []byte, cn int, from rovy.PeerID) error {
+func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
+	_, cn, err := varint.FromUvarint(buf)
+	if err != nil {
+		return err
+	}
+
 	length := int(buf[cn+1])
 	if length == 0 {
 		return ErrZeroLenRoute

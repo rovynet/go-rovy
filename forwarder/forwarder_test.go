@@ -32,7 +32,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		copy(buf, pkt)
-		err = fwd.HandlePacket(buf, 0, peeridA)
+		err = fwd.HandlePacket(buf, peeridA)
 		if err != nil {
 			b.Fatalf("HandlePacket: %s", err)
 		}

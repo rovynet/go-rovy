@@ -8,6 +8,8 @@ import (
 
 const RouteSeparator = "."
 
+var EmptyRoute = Route{}
+
 type Route struct {
 	hops []byte
 }
