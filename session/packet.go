@@ -56,9 +56,6 @@ func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
 }
 
 func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
-	if len(buf) > rovy.PreliminaryMTU {
-		buf = buf[:rovy.PreliminaryMTU]
-	}
 	r := bytes.NewBuffer(buf)
 
 	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
@@ -86,9 +83,6 @@ func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
 	payloadSize, err := varint.ReadUvarint(r)
 	if err != nil {
 		return err
-	}
-	if payloadSize > rovy.PreliminaryMTU-8 {
-		payloadSize = rovy.PreliminaryMTU - 8
 	}
 	payloadBytes := make([]byte, payloadSize)
 	if err = binary.Read(r, binary.BigEndian, payloadBytes); err != nil {
@@ -146,9 +140,6 @@ func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
 }
 
 func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
-	if len(buf) > rovy.PreliminaryMTU {
-		buf = buf[:rovy.PreliminaryMTU]
-	}
 	r := bytes.NewBuffer(buf)
 
 	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
@@ -177,9 +168,6 @@ func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	if payloadSize > rovy.PreliminaryMTU-8 {
-		payloadSize = rovy.PreliminaryMTU - 8
-	}
 	payloadBytes := make([]byte, payloadSize)
 	if err = binary.Read(r, binary.BigEndian, payloadBytes); err != nil {
 		return err
@@ -199,9 +187,7 @@ type DataPacket struct {
 }
 
 func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
-	dataSize := varint.ToUvarint(uint64(binary.Size(pkt.Data)))
-
-	buf := make([]byte, DataPacketSize+len(dataSize)+len(pkt.Data))
+	buf := make([]byte, DataPacketSize+len(pkt.Data))
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
@@ -216,9 +202,6 @@ func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, dataSize); err != nil {
-		return buf[:], err
-	}
 	if err := binary.Write(w, binary.BigEndian, pkt.Data); err != nil {
 		return buf[:], err
 	}
@@ -227,9 +210,6 @@ func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
 }
 
 func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
-	if len(buf) > rovy.PreliminaryMTU {
-		buf = buf[:rovy.PreliminaryMTU]
-	}
 	r := bytes.NewBuffer(buf)
 
 	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
@@ -244,18 +224,10 @@ func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
 		return err
 	}
 
-	dataSize, err := varint.ReadUvarint(r)
-	if err != nil {
+	pkt.Data = make([]byte, len(buf)-DataPacketSize)
+	if err = binary.Read(r, binary.BigEndian, &pkt.Data); err != nil {
 		return err
 	}
-	if dataSize > rovy.PreliminaryMTU-8 {
-		dataSize = rovy.PreliminaryMTU - 8
-	}
-	dataBytes := make([]byte, dataSize)
-	if err = binary.Read(r, binary.BigEndian, dataBytes); err != nil {
-		return err
-	}
-	pkt.Data = dataBytes
 
 	return nil
 }
@@ -277,9 +249,7 @@ type PlaintextPacket struct {
 func (pkt *PlaintextPacket) MarshalBinary() ([]byte, error) {
 	pkt.MsgType = PlaintextMsgType
 
-	dataSize := varint.ToUvarint(uint64(binary.Size(pkt.Data)))
-
-	buf := make([]byte, PlaintextPacketSize+len(dataSize)+len(pkt.Data))
+	buf := make([]byte, PlaintextPacketSize+len(pkt.Data))
 	w := bytes.NewBuffer(buf[:0])
 
 	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
@@ -298,9 +268,6 @@ func (pkt *PlaintextPacket) MarshalBinary() ([]byte, error) {
 		return buf[:], err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, dataSize); err != nil {
-		return buf[:], err
-	}
 	if err := binary.Write(w, binary.BigEndian, pkt.Data); err != nil {
 		return buf[:], err
 	}
@@ -309,9 +276,6 @@ func (pkt *PlaintextPacket) MarshalBinary() ([]byte, error) {
 }
 
 func (pkt *PlaintextPacket) UnmarshalBinary(buf []byte) error {
-	if len(buf) > rovy.PreliminaryMTU {
-		buf = buf[:rovy.PreliminaryMTU]
-	}
 	r := bytes.NewBuffer(buf)
 
 	if err := binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
@@ -332,18 +296,10 @@ func (pkt *PlaintextPacket) UnmarshalBinary(buf []byte) error {
 	}
 	pkt.Sender = rovy.NewPeerID(rovy.NewPublicKey(sender))
 
-	dataSize, err := varint.ReadUvarint(r)
-	if err != nil {
+	pkt.Data = make([]byte, len(buf)-PlaintextPacketSize)
+	if err := binary.Read(r, binary.BigEndian, &pkt.Data); err != nil {
 		return err
 	}
-	if dataSize > rovy.PreliminaryMTU-8 {
-		dataSize = rovy.PreliminaryMTU - 8
-	}
-	dataBytes := make([]byte, dataSize)
-	if err = binary.Read(r, binary.BigEndian, dataBytes); err != nil {
-		return err
-	}
-	pkt.Data = dataBytes
 
 	pkt.MsgType = PlaintextMsgType
 	return nil
