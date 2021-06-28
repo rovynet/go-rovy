@@ -86,6 +86,7 @@ func run() error {
 	duration := time.Now().Sub(start)
 	gbps := float64(j*mtu) * 8 / 1024 / 1024 / 1024 / duration.Seconds()
 	nodeB.Log().Printf("received %d packets, took %s, %.2f Gbps", j, duration, gbps)
+	nodeB.Log().Printf("RxTpt=%d RxLower=%d RxUpper=%d", nodeB.RxTpt, nodeB.RxLower, nodeB.RxUpper)
 
 	return nil
 }

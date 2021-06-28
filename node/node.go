@@ -26,6 +26,9 @@ type Node struct {
 	handlers  map[uint64]DataHandler
 	forwarder *forwarder.Forwarder
 	routing   *routing.Routing
+	RxTpt     uint64
+	RxLower   uint64
+	RxUpper   uint64
 }
 
 func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
@@ -122,6 +125,8 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 				node.logger.Printf("ReadFrom: %s", err)
 				continue
 			}
+
+			node.RxTpt += 1
 
 			pkt := rovy.Packet{Bytes: p[:n]}
 			pkt.TptSrc, _ = multiaddrnet.FromNetAddr(raddr) // TODO handle error
@@ -279,6 +284,8 @@ func (node *Node) ReceiveLower(pkt rovy.Packet) error {
 			return err
 		}
 
+		node.RxLower += 1
+
 		switch codec {
 		case forwarder.DataMulticodec:
 			return node.forwarder.HandlePacket(data, peerid)
@@ -330,6 +337,8 @@ func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, route rovy.R
 		node.logger.Printf("lost track of session while handling packet from %s", from)
 		return nil // XXX return error instead?
 	}
+
+	node.RxUpper += 1
 
 	codec, n, err := sess.Multigram().FromUvarint(data)
 	if err != nil {
