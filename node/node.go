@@ -266,13 +266,9 @@ func (node *Node) ReceiveLower(pkt rovy.Packet) error {
 		}
 
 		pkt2 := rovy.Packet{TptDst: pkt.TptSrc, Bytes: buf}
-		if err = node.sendTransport(pkt2); err != nil {
-			return err
-		}
+		return node.sendTransport(pkt2)
 	case session.HelloResponseMsgType:
-		if err := node.handleResponsePacket(pkt.Bytes, pkt.TptSrc); err != nil {
-			return err
-		}
+		return node.handleResponsePacket(pkt.Bytes, pkt.TptSrc)
 	case session.DataMsgType:
 		data, peerid, err := node.handleDataPacket(pkt.Bytes, pkt.TptSrc)
 		if err != nil {
@@ -291,14 +287,12 @@ func (node *Node) ReceiveLower(pkt rovy.Packet) error {
 			return node.forwarder.HandlePacket(data, peerid)
 		case forwarder.ErrorMulticodec:
 			return node.forwarder.HandleError(data, peerid)
-		default:
-			return node.ReceiveUpperDirect(peerid, data, rovy.EmptyRoute)
 		}
-	default:
-		node.logger.Printf("ReceiveLower: dropping packet with unknown MsgType 0x%x", msgtype)
+
+		return node.ReceiveUpperDirect(peerid, data, rovy.EmptyRoute)
 	}
 
-	return nil
+	return fmt.Errorf("ReceiveLower: dropping packet with unknown MsgType 0x%x", msgtype)
 }
 
 func (node *Node) Send(peerid rovy.PeerID, codec uint64, p []byte) error {
@@ -362,14 +356,9 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 			return err
 		}
 
-		if err = node.forwarder.SendPacket(buf, from, route); err != nil {
-			node.logger.Printf("ReceiveUpper: SendPacket: %s", err)
-			return err
-		}
+		return node.forwarder.SendPacket(buf, from, route)
 	case session.HelloResponseMsgType:
-		if err := node.handleResponsePacket(b, nil); err != nil {
-			return err
-		}
+		return node.handleResponsePacket(b, nil)
 	case session.DataMsgType:
 		data, peerid, err := node.handleDataPacket(b, nil)
 		if err != nil {
@@ -381,11 +370,9 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 		return node.ReceiveUpperDirect(peerid, data, route)
 	case session.PlaintextMsgType:
 		return node.ReceiveUpperPlaintext(b, route)
-	default:
-		node.logger.Printf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", b[0])
 	}
 
-	return nil
+	return fmt.Errorf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", b[0])
 }
 
 // TODO actually sign the thing
