@@ -226,6 +226,7 @@ func (hs *Handshake) ConsumeHello(hdr HelloHeader, payload2 []byte) ([]byte, err
 	hs.chainKey = chainKey
 	hs.remoteStatic = remoteStatic
 	hs.remoteEphemeral = hdr.Ephemeral
+	hs.precStaticStatic = precStaticStatic // probably not used from here on
 
 	return payload, nil
 }
@@ -363,6 +364,7 @@ func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []
 	return
 }
 
+// TODO: why is first byte of ciphertext always 0x15
 func (hs *Handshake) ConsumeMessage(hdr MessageHeader, payload []byte) (payload2 []byte, err error) {
 	var nonce [chacha20poly1305.NonceSize]byte
 	nonce[0x4] = hdr.Nonce[0x0]

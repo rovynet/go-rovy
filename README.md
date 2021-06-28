@@ -155,6 +155,8 @@ How to handle double encryption when sending to peers:
 
 Other relevant networking software:
 
+- Yggdrasil
+- Pinecone https://matrix.org/blog/2021/05/06/introducing-the-pinecone-overlay-network
 - cjdns
 - Tailscale
 - Innernet
@@ -162,6 +164,5 @@ Other relevant networking software:
 - Tinc
 - ZeroTier
 - gVisor
-- Pinecone https://matrix.org/blog/2021/05/06/introducing-the-pinecone-overlay-network
 - SCION https://www.scion-architecture.net/ https://labs.ripe.net/author/hausheer/scion-a-novel-internet-architecture/
 - frp https://github.com/fatedier/frp
