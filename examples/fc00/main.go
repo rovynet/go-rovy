@@ -34,10 +34,10 @@ func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 }
 
 func run() error {
-	addrA := multiaddr.StringCast("/ip4/127.0.0.1/udp/12345")
-	addrB := multiaddr.StringCast("/ip4/127.0.0.1/udp/12346")
-	addrC := multiaddr.StringCast("/ip4/127.0.0.1/udp/12347")
-	addrD := multiaddr.StringCast("/ip4/127.0.0.1/udp/12348")
+	addrA := multiaddr.StringCast("/ip6/::1/udp/12345")
+	addrB := multiaddr.StringCast("/ip6/::1/udp/12346")
+	addrC := multiaddr.StringCast("/ip6/::1/udp/12347")
+	addrD := multiaddr.StringCast("/ip6/::1/udp/12348")
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {
