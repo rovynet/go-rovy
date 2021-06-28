@@ -4,240 +4,254 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	varint "github.com/multiformats/go-varint"
-
 	rovy "pkt.dev/go-rovy"
-	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
-const HelloPacketSize = 4 + 4 + ikpsk2.HelloHeaderSize
+var emptyTag [16]byte
 
+//  4 bytes - msg type (0x1)
+//  4 bytes - sender index
+// 32 bytes - ephemeral key
+// 48 bytes - static key + tag
+// 28 bytes - timestamp + tag
+//  .       - payload
+// 16 bytes - payload tag
+// = 132+ bytes
 type HelloPacket struct {
-	MsgType     uint32
-	SenderIndex uint32
-	ikpsk2.HelloHeader
-	Payload []byte
+	Offset int
+	rovy.Packet
 }
 
-func (pkt *HelloPacket) MarshalBinary() ([]byte, error) {
-	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
-
-	buf := make([]byte, HelloPacketSize+len(payloadSize)+len(pkt.Payload))
-	w := bytes.NewBuffer(buf[:0])
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.SenderIndex); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader.Ephemeral); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader.Static); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.HelloHeader.Timestamp); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, payloadSize); err != nil {
-		return buf[:], err
-	}
-	if err := binary.Write(w, binary.BigEndian, pkt.Payload); err != nil {
-		return buf[:], err
-	}
-
-	return buf[:], nil
+func NewHelloPacket(basepkt rovy.Packet, offset int) HelloPacket {
+	pkt := HelloPacket{Packet: basepkt, Offset: offset}
+	pkt.SetMsgType(HelloMsgType)
+	return pkt
 }
 
-func (pkt *HelloPacket) UnmarshalBinary(buf []byte) (err error) {
-	r := bytes.NewBuffer(buf)
-
-	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.SenderIndex); err != nil {
-		return err
-	}
-
-	ephkey := make([]byte, rovy.PublicKeySize)
-	if err = binary.Read(r, binary.BigEndian, ephkey); err != nil {
-		return err
-	}
-	pkt.Ephemeral = rovy.NewPublicKey(ephkey)
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.HelloHeader.Static); err != nil {
-		return err
-	}
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.HelloHeader.Timestamp); err != nil {
-		return err
-	}
-
-	payloadSize, err := varint.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-	payloadBytes := make([]byte, payloadSize)
-	if err = binary.Read(r, binary.BigEndian, payloadBytes); err != nil {
-		return err
-	}
-	pkt.Payload = payloadBytes
-
-	return nil
+func (pkt HelloPacket) MsgType() uint32 {
+	return binary.LittleEndian.Uint32(pkt.Buf[pkt.Offset+0 : pkt.Offset+4])
 }
 
-const ResponsePacketSize = 4 + 4 + 4 + ikpsk2.ResponseHeaderSize
+func (pkt HelloPacket) SetMsgType(msgt uint32) {
+	binary.LittleEndian.PutUint32(pkt.Buf[pkt.Offset+0:pkt.Offset+4], msgt)
+}
 
+func (pkt HelloPacket) SenderIndex() uint32 {
+	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+4 : pkt.Offset+8])
+}
+
+func (pkt HelloPacket) SetSenderIndex(idx uint32) {
+	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+4:pkt.Offset+8], idx)
+}
+
+func (pkt HelloPacket) EphemeralKey() rovy.PublicKey {
+	return rovy.NewPublicKey(pkt.Buf[pkt.Offset+8 : pkt.Offset+40])
+}
+
+func (pkt HelloPacket) SetEphemeralKey(key rovy.PublicKey) {
+	copy(pkt.Buf[pkt.Offset+8:pkt.Offset+40], key.Bytes())
+}
+
+func (pkt HelloPacket) StaticKey() [48]byte {
+	var key [48]byte
+	copy(key[:], pkt.Buf[pkt.Offset+40:pkt.Offset+88])
+	return key
+}
+
+func (pkt HelloPacket) SetStaticKey(empty [48]byte) {
+	copy(pkt.Buf[pkt.Offset+40:pkt.Offset+88], empty[:])
+}
+
+func (pkt HelloPacket) Timestamp() [28]byte {
+	var ts [28]byte
+	copy(ts[:], pkt.Buf[pkt.Offset+88:pkt.Offset+116])
+	return ts
+}
+
+func (pkt HelloPacket) SetTimestamp(empty [28]byte) {
+	copy(pkt.Buf[pkt.Offset+88:pkt.Offset+116], empty[:])
+}
+
+func (pkt HelloPacket) Plaintext() []byte {
+	return pkt.Buf[pkt.Offset+116 : pkt.Length-16]
+}
+
+func (pkt HelloPacket) SetPlaintext(pt []byte) HelloPacket {
+	pkt.Length = pkt.Offset + 116 + len(pt) + 16
+	copy(pkt.Buf[pkt.Offset+116:pkt.Length], pt)
+	copy(pkt.Buf[pkt.Length-16:pkt.Length], emptyTag[:])
+	return pkt
+}
+
+func (pkt HelloPacket) Ciphertext() []byte {
+	return pkt.Buf[pkt.Offset+116 : pkt.Length]
+}
+
+func (pkt HelloPacket) SetCiphertext(ct []byte) HelloPacket {
+	pkt.Length = pkt.Offset + 116 + len(ct)
+	copy(pkt.Buf[pkt.Offset+116:pkt.Length], ct)
+	return pkt
+}
+
+//  4 bytes - msg type (0x2)
+//  4 bytes - sender index
+//  4 bytes - session index
+// 32 bytes - ephemeral key
+// 16 bytes - empty + tag
+//  .       - payload
+// 16 bytes - payload tag
+// = 76+ bytes
 type ResponsePacket struct {
-	MsgType       uint32
-	SenderIndex   uint32
-	ReceiverIndex uint32
-	ikpsk2.ResponseHeader
-	Payload []byte
+	Offset int
+	rovy.Packet
 }
 
-func (pkt *ResponsePacket) MarshalBinary() ([]byte, error) {
-	payloadSize := varint.ToUvarint(uint64(binary.Size(pkt.Payload)))
-
-	buf := make([]byte, ResponsePacketSize+len(payloadSize)+len(pkt.Payload))
-	w := bytes.NewBuffer(buf[:0])
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.SenderIndex); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.ReceiverIndex); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader.Ephemeral); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.ResponseHeader.Empty); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, payloadSize); err != nil {
-		return buf[:], err
-	}
-	if err := binary.Write(w, binary.BigEndian, pkt.Payload); err != nil {
-		return buf[:], err
-	}
-
-	return buf[:], nil
+func NewResponsePacket(basepkt rovy.Packet, offset int) ResponsePacket {
+	pkt := ResponsePacket{Packet: basepkt, Offset: offset}
+	pkt.SetMsgType(ResponseMsgType)
+	return pkt
 }
 
-func (pkt *ResponsePacket) UnmarshalBinary(buf []byte) (err error) {
-	r := bytes.NewBuffer(buf)
-
-	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.SenderIndex); err != nil {
-		return err
-	}
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.ReceiverIndex); err != nil {
-		return err
-	}
-
-	ephkey := make([]byte, rovy.PublicKeySize)
-	if err = binary.Read(r, binary.BigEndian, ephkey); err != nil {
-		return err
-	}
-	pkt.Ephemeral = rovy.NewPublicKey(ephkey)
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.ResponseHeader.Empty); err != nil {
-		return err
-	}
-
-	payloadSize, err := varint.ReadUvarint(r)
-	if err != nil {
-		return err
-	}
-	payloadBytes := make([]byte, payloadSize)
-	if err = binary.Read(r, binary.BigEndian, payloadBytes); err != nil {
-		return err
-	}
-	pkt.Payload = payloadBytes
-
-	return nil
+func (pkt ResponsePacket) MsgType() uint32 {
+	return binary.LittleEndian.Uint32(pkt.Buf[pkt.Offset+0 : pkt.Offset+4])
 }
 
-const DataPacketSize = 4 + 4 + ikpsk2.MessageHeaderSize
+func (pkt ResponsePacket) SetMsgType(msgt uint32) {
+	binary.LittleEndian.PutUint32(pkt.Buf[pkt.Offset+0:pkt.Offset+4], msgt)
+}
 
+func (pkt ResponsePacket) SenderIndex() uint32 {
+	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+4 : pkt.Offset+8])
+}
+
+func (pkt ResponsePacket) SetSenderIndex(idx uint32) {
+	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+4:pkt.Offset+8], idx)
+}
+
+func (pkt ResponsePacket) SessionIndex() uint32 {
+	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+8 : pkt.Offset+12])
+}
+
+func (pkt ResponsePacket) SetSessionIndex(idx uint32) {
+	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+8:pkt.Offset+12], idx)
+}
+
+func (pkt ResponsePacket) EphemeralKey() rovy.PublicKey {
+	return rovy.NewPublicKey(pkt.Buf[pkt.Offset+12 : pkt.Offset+44])
+}
+
+func (pkt ResponsePacket) SetEphemeralKey(key rovy.PublicKey) {
+	copy(pkt.Buf[pkt.Offset+12:pkt.Offset+44], key.Bytes())
+}
+
+func (pkt ResponsePacket) Empty() [16]byte {
+	var empty [16]byte
+	copy(empty[:], pkt.Buf[pkt.Offset+44:pkt.Offset+60])
+	return empty
+}
+
+func (pkt ResponsePacket) SetEmpty(empty [16]byte) {
+	copy(pkt.Buf[pkt.Offset+44:pkt.Offset+60], empty[:])
+}
+
+func (pkt ResponsePacket) Plaintext() []byte {
+	return pkt.Buf[pkt.Offset+60 : pkt.Length-16]
+}
+
+func (pkt ResponsePacket) SetPlaintext(pt []byte) ResponsePacket {
+	pkt.Length = pkt.Offset + 60 + len(pt) + 16
+	copy(pkt.Buf[pkt.Offset+60:pkt.Length], pt)
+	copy(pkt.Buf[pkt.Length-16:pkt.Length], emptyTag[:])
+	return pkt
+}
+
+func (pkt ResponsePacket) Ciphertext() []byte {
+	return pkt.Buf[pkt.Offset+60 : pkt.Length]
+}
+
+func (pkt ResponsePacket) SetCiphertext(ct []byte) ResponsePacket {
+	pkt.Length = pkt.Offset + 60 + len(ct)
+	copy(pkt.Buf[pkt.Offset+60:pkt.Length], ct)
+	return pkt
+}
+
+//  4 bytes - msg type (0x4)
+//  4 bytes - session index
+//  8 bytes - nonce
+//  .       - payload
+// 16 bytes - payload tag
+// = 32+ bytes
 type DataPacket struct {
-	MsgType       uint32
-	ReceiverIndex uint32
-	ikpsk2.MessageHeader
-	Data []byte
+	Offset int
+	rovy.Packet
 }
 
-func (pkt *DataPacket) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, DataPacketSize+len(pkt.Data))
-	w := bytes.NewBuffer(buf[:0])
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.ReceiverIndex); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.MessageHeader.Nonce); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.Data); err != nil {
-		return buf[:], err
-	}
-
-	return buf[:], nil
+func NewDataPacket(basepkt rovy.Packet, offset int) DataPacket {
+	pkt := DataPacket{Packet: basepkt, Offset: offset}
+	pkt.SetMsgType(DataMsgType)
+	return pkt
 }
 
-func (pkt *DataPacket) UnmarshalBinary(buf []byte) (err error) {
-	r := bytes.NewBuffer(buf)
-
-	if err = binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.ReceiverIndex); err != nil {
-		return err
-	}
-
-	if err = binary.Read(r, binary.BigEndian, &pkt.MessageHeader.Nonce); err != nil {
-		return err
-	}
-
-	pkt.Data = make([]byte, len(buf)-DataPacketSize)
-	if err = binary.Read(r, binary.BigEndian, &pkt.Data); err != nil {
-		return err
-	}
-
-	return nil
+func (pkt DataPacket) MsgType() uint32 {
+	return binary.LittleEndian.Uint32(pkt.Buf[pkt.Offset+0 : pkt.Offset+4])
 }
+
+func (pkt DataPacket) SetMsgType(msgt uint32) {
+	binary.LittleEndian.PutUint32(pkt.Buf[pkt.Offset+0:pkt.Offset+4], msgt)
+}
+
+func (pkt DataPacket) SessionIndex() uint32 {
+	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+4 : pkt.Offset+8])
+}
+
+func (pkt DataPacket) SetSessionIndex(idx uint32) {
+	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+4:pkt.Offset+8], idx)
+}
+
+func (pkt DataPacket) Nonce() [8]byte {
+	var nonce [8]byte
+	copy(nonce[:], pkt.Buf[pkt.Offset+8:pkt.Offset+16])
+	return nonce
+}
+
+func (pkt DataPacket) SetNonce(nonce [8]byte) {
+	copy(pkt.Buf[pkt.Offset+8:pkt.Offset+16], nonce[:])
+}
+
+func (pkt DataPacket) Plaintext() []byte {
+	return pkt.Buf[pkt.Offset+16 : pkt.Length-16]
+}
+
+func (pkt DataPacket) SetPlaintext(pt []byte) DataPacket {
+	pkt.Length = pkt.Offset + 16 + len(pt) + 16
+	copy(pkt.Buf[pkt.Offset+16:pkt.Length], pt)
+	copy(pkt.Buf[pkt.Length-16:pkt.Length], emptyTag[:])
+	return pkt
+}
+
+func (pkt DataPacket) Ciphertext() []byte {
+	return pkt.Buf[pkt.Offset+16 : pkt.Length]
+}
+
+func (pkt DataPacket) SetCiphertext(ct []byte) DataPacket {
+	pkt.Length = pkt.Offset + 16 + len(ct)
+	copy(pkt.Buf[pkt.Offset+16:pkt.Length], ct)
+	return pkt
+}
+
+// XXX who knows if the following makes any sense lol
 
 const PlaintextPacketSize = 4 + SignatureSize + RandomizerSize + rovy.PublicKeySize
 
 const SignatureSize = 8
 const RandomizerSize = 8
 
-// XXX who knows if this is makes any sense lol
+//  4 bytes - msg type (0x5)
+//  8 bytes - signature
+//  8 bytes - randomizer
+// 32 bytes - sender static key
+//  .       - data
+// = 52+ bytes
 type PlaintextPacket struct {
 	MsgType   uint32
 	Signature [SignatureSize]byte

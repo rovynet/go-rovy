@@ -16,10 +16,10 @@ var (
 )
 
 const (
-	HelloMsgType         = 0x1
-	HelloResponseMsgType = 0x2
-	DataMsgType          = 0x4
-	PlaintextMsgType     = 0x5
+	HelloMsgType     = 0x1
+	ResponseMsgType  = 0x2
+	DataMsgType      = 0x4
+	PlaintextMsgType = 0x5
 )
 
 type Session struct {
@@ -27,7 +27,7 @@ type Session struct {
 	stage           int
 	waiters         []chan error
 	handshake       *ikpsk2.Handshake
-	remoteAddr      multiaddr.Multiaddr // XXX unused?
+	remoteAddr      multiaddr.Multiaddr
 	remotePeerID    rovy.PeerID
 	remoteMultigram *multigram.Table
 }
@@ -49,79 +49,100 @@ func newSessionIncoming(hs *ikpsk2.Handshake) *Session {
 	}
 }
 
-func (s *Session) Multigram() *multigram.Table {
+func (s *Session) RemotePeerID() rovy.PeerID {
+	return s.remotePeerID
+}
+
+func (s *Session) RemoteAddr() multiaddr.Multiaddr {
+	return s.remoteAddr
+}
+
+func (s *Session) SetRemoteAddr(raddr multiaddr.Multiaddr) {
+	s.remoteAddr = raddr
+}
+
+func (s *Session) RemoteMultigram() *multigram.Table {
 	return s.remoteMultigram
 }
 
-// TODO prepend multigram header to payload
-func (s *Session) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr, mgram *multigram.Table) (*HelloPacket, error) {
+func (s *Session) SetRemoteMultigram(mgram *multigram.Table) {
+	s.remoteMultigram = mgram
+}
+
+func (s *Session) CreateHello(pkt HelloPacket) (HelloPacket, error) {
 	if !s.initiator {
-		return nil, SessionStateError
+		return pkt, SessionStateError
 	}
 
-	hdr, payload, err := s.handshake.MakeHello(mgram.Bytes())
+	hdr, ct, err := s.handshake.MakeHello(pkt.Plaintext())
 	if err != nil {
-		return nil, err
+		return pkt, err
 	}
 
-	s.remoteAddr = raddr
-	s.remotePeerID = peerid
+	pkt.SetEphemeralKey(hdr.Ephemeral)
+	pkt.SetStaticKey(hdr.Static)
+	pkt.SetTimestamp(hdr.Timestamp)
+	pkt = pkt.SetCiphertext(ct)
 
-	return &HelloPacket{
-		MsgType:     HelloMsgType,
-		HelloHeader: hdr,
-		Payload:     payload,
-	}, nil
+	return pkt, nil
 }
 
-// TODO prepend multigram header to payload
-// TODO handle multigram header in front of payload
-func (s *Session) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr, mgram *multigram.Table) (*ResponsePacket, error) {
+func (s *Session) HandleHello(pkt HelloPacket) (HelloPacket, error) {
 	if s.initiator {
-		return nil, SessionStateError
+		return pkt, SessionStateError
 	}
 
-	payload, err := s.handshake.ConsumeHello(pkt.HelloHeader, pkt.Payload)
+	hdr := ikpsk2.HelloHeader{
+		Ephemeral: pkt.EphemeralKey(),
+		Static:    pkt.StaticKey(),
+		Timestamp: pkt.Timestamp(),
+	}
+
+	pt, err := s.handshake.ConsumeHello(hdr, pkt.Ciphertext())
 	if err != nil {
-		return nil, err
+		return pkt, err
 	}
 
-	remoteMgram, err := multigram.NewTableFromBytes(payload)
-	if err != nil {
-		return nil, err
-	}
+	pkt = pkt.SetPlaintext(pt)
 
-	hdr, payload2, err := s.handshake.MakeResponse(mgram.Bytes())
-	if err != nil {
-		return nil, err
-	}
-
-	s.remoteAddr = raddr
 	s.remotePeerID = rovy.NewPeerID(s.handshake.RemotePublicKey())
-	s.remoteMultigram = remoteMgram
 
-	return &ResponsePacket{
-		MsgType:        HelloResponseMsgType,
-		ResponseHeader: hdr,
-		Payload:        payload2,
-	}, nil
+	return pkt, nil
 }
 
-// TODO handle multigram header in front of payload
-func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multiaddr) error {
+func (s *Session) CreateResponse(pkt ResponsePacket) (ResponsePacket, error) {
+	if s.initiator {
+		return pkt, SessionStateError
+	}
+
+	hdr, ct, err := s.handshake.MakeResponse(pkt.Plaintext())
+	if err != nil {
+		return pkt, err
+	}
+
+	pkt.SetEphemeralKey(hdr.Ephemeral)
+	pkt.SetEmpty(hdr.Empty)
+	pkt = pkt.SetCiphertext(ct)
+
+	return pkt, nil
+}
+
+func (s *Session) HandleHelloResponse(pkt ResponsePacket) (ResponsePacket, error) {
 	if !s.initiator || s.stage != 0x01 {
-		return SessionStateError
+		return pkt, SessionStateError
 	}
 
-	payload, err := s.handshake.ConsumeResponse(pkt.ResponseHeader, pkt.Payload)
-	if err != nil {
-		return err
+	hdr := ikpsk2.ResponseHeader{
+		Ephemeral: pkt.EphemeralKey(),
+		Empty:     pkt.Empty(),
 	}
 
-	mgram, err := multigram.NewTableFromBytes(payload)
+	pt, err := s.handshake.ConsumeResponse(hdr, pkt.Ciphertext())
 	if err != nil {
-		return err
+		return pkt, err
 	}
+
+	pkt = pkt.SetPlaintext(pt)
 
 	peerid := rovy.NewPeerID(s.handshake.RemotePublicKey())
 	if peerid != s.remotePeerID {
@@ -129,41 +150,14 @@ func (s *Session) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multi
 		for _, waiter := range s.waiters {
 			waiter <- err
 		}
-		return err
+		return pkt, err
 	}
 
 	s.stage = 0x03
-	s.remoteAddr = raddr
-	s.remoteMultigram = mgram
 
 	for _, waiter := range s.waiters {
 		waiter <- nil
 	}
 
-	return nil
-}
-
-func (s *Session) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiaddr.Multiaddr, error) {
-	hdr, p2, err := s.handshake.MakeMessage(p)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	pkt := &DataPacket{
-		MsgType:       DataMsgType,
-		MessageHeader: hdr,
-		Data:          p2,
-	}
-	return pkt, s.remoteAddr, nil
-}
-
-func (s *Session) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
-	p2, err := s.handshake.ConsumeMessage(pkt.MessageHeader, pkt.Data)
-	if err != nil {
-		return nil, s.remotePeerID, err
-	}
-
-	s.stage = 0x03
-
-	return p2, s.remotePeerID, nil
+	return pkt, nil
 }

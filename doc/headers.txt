@@ -6,16 +6,16 @@
 #
 
 # IKpsk2 Initiation (MsgType = 1)
-MsgType = 0x1:8,(reserved):24,Sender Index:32,Ephemeral Key:256,Static Key:256,Timestamp:96,Key MAC:128,Cookie MAC:128,Sender Multigram Table ...:64
+MsgType = 0x1:8,(reserved):24,Initiator Index:32,Ephemeral Key:256,Static Key:256,Timestamp:96,Key MAC:128,Cookie MAC:128,Sender Multigram Table ...:64
 
 # IKpsk2 Response (MsgType = 2)
-MsgType = 0x2:8,(reserved):24,Sender Index:32,Receiver Index:32,Ephemeral Key:256,Encrypted Nothing:16,Key MAC:128,Cookie MAC:128,(nothing):16,Receiver Multigram Table ...:64
+MsgType = 0x2:8,(reserved):24,Initiator Index:32,Session Index:32,Ephemeral Key:256,Encrypted Nothing:16,Key MAC:128,Cookie MAC:128,(nothing):16,Session Multigram Table ...:64
 
 # IKpsk2 Cookie Reply (MsgType = 3)
-#MsgType = 0x3:8,(reserved):24,Receiver Index:32,Nonce:192,Cookie:144,(nothing):16
+#MsgType = 0x3:8,(reserved):24,Session Index:32,Nonce:192,Cookie:144,(nothing):16
 
 # IKpsk2 Transport (MsgType = 4)
-MsgType = 0x4:8,(reserved):24,Receiver Index:32,Nonce:64,Message ...:64
+MsgType = 0x4:8,(reserved):24,Session Index:32,Nonce:64,Message ...:64
 
 
-0x4 (outer):8,(reserved):24,Receiver Index (outer):32,Nonce (outer):64,Msg Length ... (outer):16,Multigram ... (outer):16,Forwarder Header...:64,0x4 (inner):8,(reserved):24,Receiver Index (inner):32,Nonce (inner):64,Msg Length ... (inner):16,Multigram ... (inner):16,Data ...:128,Poly1305 Tag (inner):128,Poly1305 Tag (outer):128
+0x4 (lower):8,(reserved):24,Session Index (lower):32,Nonce (lower):64,Multigram Codec (lower):16,(reserved):16,Forwarder Header (lower):128,0x4 (upper):8,(reserved):24,Session Index (upper):32,Nonce (upper):64,Multigram Codec (upper):16,(reserved):16,Data ... (upper):128,Poly1305 Tag (upper):128,Poly1305 Tag (lower):128

@@ -117,6 +117,11 @@ Per-packet efficiency:
 - Rovy routed UDPv4:    92.5% -- 1388/1500
 - Rovy routed Ethernet: 94.7% -- 1420/1500
 
+MTU reading list:
+
+- https://news.ycombinator.com/item?id=22364830
+- https://news.ycombinator.com/item?id=27673945
+
 UDP performance tuning:
 
 - https://www.slideshare.net/lfevents/boost-udp-transaction-performance

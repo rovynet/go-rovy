@@ -339,6 +339,10 @@ func (hs *Handshake) ConsumeResponse(hdr ResponseHeader, payload2 []byte) ([]byt
 }
 
 func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []byte, err error) {
+	if hs.send == nil {
+		return hdr, payload2, fmt.Errorf("handshake not finished yet with %s", rovy.NewPeerID(hs.RemotePublicKey()))
+	}
+
 	// see https://mailarchive.ietf.org/arch/msg/cfrg/u734TEOSDDWyQgE0pmhxjdncwvw/
 	// padding := calculatePaddingSize(len(payload), rovy.PreliminaryMTU-12)
 	// for i := 0; i < padding; i++ {
@@ -359,6 +363,8 @@ func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []
 	nonce[0x9] = hdr.Nonce[0x5]
 	nonce[0xa] = hdr.Nonce[0x6]
 	nonce[0xb] = hdr.Nonce[0x7]
+	// fmt.Printf("MakeMessage: hs=%#v\n", hs)
+	// fmt.Printf("MakeMessage: nonce=%#v payload=%#v\n", nonce, payload)
 	payload2 = hs.send.Seal(payload2[:0], nonce[:], payload, nil)
 
 	return
@@ -366,6 +372,10 @@ func (hs *Handshake) MakeMessage(payload []byte) (hdr MessageHeader, payload2 []
 
 // TODO: why is first byte of ciphertext always 0x15
 func (hs *Handshake) ConsumeMessage(hdr MessageHeader, payload []byte) (payload2 []byte, err error) {
+	if hs.receive == nil {
+		return payload2, fmt.Errorf("handshake not finished yet with %s", rovy.NewPeerID(hs.RemotePublicKey()))
+	}
+
 	var nonce [chacha20poly1305.NonceSize]byte
 	nonce[0x4] = hdr.Nonce[0x0]
 	nonce[0x5] = hdr.Nonce[0x1]
@@ -375,6 +385,8 @@ func (hs *Handshake) ConsumeMessage(hdr MessageHeader, payload []byte) (payload2
 	nonce[0x9] = hdr.Nonce[0x5]
 	nonce[0xa] = hdr.Nonce[0x6]
 	nonce[0xb] = hdr.Nonce[0x7]
+	// fmt.Printf("ConsumeMessage: hs=%#v\n", hs)
+	// fmt.Printf("ConsumeMessage: nonce=%#v payload=%#v\n", nonce, payload)
 	payload2, err = hs.receive.Open(payload2[:0], nonce[:], payload, nil)
 
 	return

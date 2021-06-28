@@ -183,17 +183,12 @@ func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
 
 // TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)+2
 func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
-	_, cn, err := varint.FromUvarint(buf)
-	if err != nil {
-		return err
-	}
-
-	length := int(buf[cn+1])
+	length := int(buf[5])
 	if length == 0 {
 		return ErrZeroLenRoute
 	}
 
-	pos := int(buf[cn+0])
+	pos := int(buf[4])
 	if pos > length {
 		return ErrLoopRoute
 	}
@@ -201,44 +196,42 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 	fwd.RLock()
 	defer fwd.RUnlock()
 
-	next := buf[cn+2+pos+1]
+	next := buf[6+pos+1]
 
 	prev, present := fwd.bypeer[from]
 	if !present {
 		return ErrPrevHopUnknown
 	}
-	buf[cn+2+pos] = byte(prev)
+	buf[6+pos] = byte(prev)
 
 	if pos+1 == length {
 		return fwd.slots[0].send(from, buf)
 	}
+	buf[4] = byte(pos + 1)
 
-	buf[cn+0] = byte(pos + 1)
+	// fwd.logger.Printf("forwarder: packet from %s forwarded along %s", from, rovy.NewRoute(buf[6+pos:6+buf[5]]...))
 	return fwd.slots[int(next)].send(from, buf)
 }
 
+// data is expected to have room for 20 bytes forwarder header at the beginning
 func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route) error {
 	length := route.Len()
 
 	if length == 0 {
 		return ErrZeroLenRoute
 	}
-	if length > 255 {
+	if length > 14 {
 		return ErrRouteTooLong
 	}
 
-	codec := fwd.mgram.ToUvarint(DataMulticodec)
+	copy(data[0:2], fwd.mgram.ToUvarint(DataMulticodec))
+	data[4] = 0x0 // pos
+	data[5] = byte(length)
+	copy(data[6:6+length], route.Bytes())
+	for i := 6 + length; i < 20; i++ {
+		data[i] = 0x0
+	}
 
-	buf := make([]byte, len(codec)+2+length+len(data))
-	n := 0
-	copy(buf[n:], codec)
-	n += len(codec)
-	buf[n] = 0 // pos
-	buf[n+1] = byte(length)
-	n += 2
-	copy(buf[n:], route.Bytes())
-	n += length
-	copy(buf[n:], data)
-
-	return fwd.slots[int(route.Bytes()[0])].send(from, buf)
+	// fwd.logger.Printf("forwarder: packet from us forwarded along %s", route)
+	return fwd.slots[int(data[6])].send(from, data)
 }

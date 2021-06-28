@@ -70,22 +70,17 @@ func run() error {
 	}
 
 	amount := 1000000
-	mtu := rovy.PreliminaryMTU - 100 // XXX max currently seems to be 1433
-	done := make(chan bool, 1)
+	mtu := rovy.UpperMTU + 52 // direct packet doesn't have forwarder+upper headers
 	start := time.Now()
 
 	var j int
 	nodeB.Handle(BenchmarkCodec, func(p []byte, peerid rovy.PeerID, route rovy.Route) error {
-		k, err := binary.ReadVarint(bytes.NewBuffer(p))
+		_, err := binary.ReadVarint(bytes.NewBuffer(p))
 		if err != nil {
 			log.Printf("ReadVarint: %s", err)
 			return err
 		}
 		j += 1
-		// log.Printf("k = %d", k)
-		if int(k) >= amount {
-			done <- true
-		}
 		return nil
 	})
 
@@ -98,7 +93,7 @@ func run() error {
 		}
 	}
 
-	<-done
+	time.Sleep(250 * time.Millisecond)
 
 	duration := time.Now().Sub(start)
 	gbps := float64(j*mtu) * 8 / 1024 / 1024 / 1024 / duration.Seconds()

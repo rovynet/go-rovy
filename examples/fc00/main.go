@@ -56,22 +56,22 @@ func run() error {
 		return err
 	}
 
-	devA, err := fc00.DefaultTun("rovy0", nodeA.PeerID().PublicKey().Addr(), rovy.PreliminaryMTU, nodeA.Log())
+	devA, err := fc00.DefaultTun("rovy0", nodeA.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeA.Log())
 	if err != nil {
 		return err
 	}
 
-	devB, err := fc00.DefaultTun("rovy1", nodeB.PeerID().PublicKey().Addr(), rovy.PreliminaryMTU, nodeB.Log())
+	devB, err := fc00.DefaultTun("rovy1", nodeB.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeB.Log())
 	if err != nil {
 		return err
 	}
 
-	devC, err := fc00.DefaultTun("rovy2", nodeC.PeerID().PublicKey().Addr(), rovy.PreliminaryMTU, nodeC.Log())
+	devC, err := fc00.DefaultTun("rovy2", nodeC.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeC.Log())
 	if err != nil {
 		return err
 	}
 
-	devD, err := fc00.DefaultTunWithNamespace("rovy3", nodeD.PeerID().PublicKey().Addr(), rovy.PreliminaryMTU, nodeD.Log())
+	devD, err := fc00.DefaultTunWithNamespace("rovy3", nodeD.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeD.Log())
 	if err != nil {
 		return err
 	}

@@ -120,55 +120,87 @@ func (sm *SessionManager) Remove(idx uint32) {
 	}
 }
 
-func (sm *SessionManager) CreateHello(peerid rovy.PeerID, raddr multiaddr.Multiaddr) (*HelloPacket, error) {
+func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr multiaddr.Multiaddr) (HelloPacket, error) {
 	hs, err := ikpsk2.NewHandshakeInitiator(sm.privkey, peerid.PublicKey())
 	if err != nil {
-		return nil, err
+		return pkt, err
 	}
 
 	s := newSession(peerid, hs)
 	idx := sm.Insert(s)
 
-	pkt, err := s.CreateHello(peerid, raddr, sm.multigram)
-	if err != nil {
-		return nil, err
-	}
-	pkt.SenderIndex = idx
+	pkt.SetSenderIndex(idx)
+	pkt = pkt.SetPlaintext(sm.multigram.Bytes())
 
-	return pkt, nil
+	if raddr != nil {
+		s.SetRemoteAddr(raddr)
+	}
+	return s.CreateHello(pkt)
 }
 
-func (sm *SessionManager) HandleHello(pkt *HelloPacket, raddr multiaddr.Multiaddr) (*ResponsePacket, error) {
+func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr) (ResponsePacket, error) {
+	var pkt2 ResponsePacket
+
 	hs, err := ikpsk2.NewHandshakeResponder(sm.privkey)
 	if err != nil {
-		return nil, err
+		return pkt2, err
 	}
 
 	s := newSessionIncoming(hs)
-	idx := sm.Insert(s)
 
-	pkt2, err := s.HandleHello(pkt, raddr, sm.multigram)
+	pkt, err = s.HandleHello(pkt)
 	if err != nil {
-		return nil, err
+		return pkt2, err
 	}
-	pkt2.SenderIndex = pkt.SenderIndex
-	pkt2.ReceiverIndex = idx
+
+	mgram, err := multigram.NewTableFromBytes(pkt.Plaintext())
+	if err != nil {
+		return pkt2, err
+	}
+
+	pkt2 = NewResponsePacket(pkt.Packet, pkt.Offset)
+	pkt2.SetSenderIndex(pkt.SenderIndex())
+	pkt2 = pkt2.SetPlaintext(sm.multigram.Bytes())
+
+	pkt2, err = s.CreateResponse(pkt2)
+	if err != nil {
+		return pkt2, err
+	}
+	pkt2.SetSessionIndex(sm.Insert(s))
+
+	s.remotePeerID = rovy.NewPeerID(s.handshake.RemotePublicKey())
+	s.SetRemoteMultigram(mgram)
+
+	if raddr != nil {
+		s.SetRemoteAddr(raddr)
+	}
 
 	return pkt2, nil
 }
 
-func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiaddr.Multiaddr) error {
-	s, present := sm.Get(pkt.SenderIndex)
+func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr multiaddr.Multiaddr) (ResponsePacket, error) {
+	s, present := sm.Get(pkt.SenderIndex())
 	if !present {
-		return UnknownIndexError
+		return pkt, UnknownIndexError
 	}
 
-	err := s.HandleHelloResponse(pkt, raddr)
+	pkt, err := s.HandleHelloResponse(pkt)
 	if err != nil {
-		return err
+		return pkt, err
 	}
 
-	sm.Swap(pkt.SenderIndex, pkt.ReceiverIndex)
+	mgram, err := multigram.NewTableFromBytes(pkt.Plaintext())
+	if err != nil {
+		return pkt, err
+	}
+
+	sm.Swap(pkt.SenderIndex(), pkt.SessionIndex())
+
+	s.SetRemoteMultigram(mgram)
+
+	if raddr != nil {
+		s.SetRemoteAddr(raddr)
+	}
 
 	// With raddr = nil we signal that this session is only via the forwarder
 	// and mustn't have the ConnectedLower callback called.
@@ -180,44 +212,62 @@ func (sm *SessionManager) HandleHelloResponse(pkt *ResponsePacket, raddr multiad
 		waiter <- nil
 	}
 
-	return nil
+	return pkt, nil
 }
 
-func (sm *SessionManager) CreateData(peerid rovy.PeerID, p []byte) (*DataPacket, multiaddr.Multiaddr, error) {
-	s, idx, present := sm.Find(peerid) // XXX slowness
+func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (multiaddr.Multiaddr, error) {
+	s, idx, present := sm.Find(peerid)
 	if !present {
-		return nil, nil, fmt.Errorf("no session for %s", peerid)
+		return nil, fmt.Errorf("no session for %s", peerid)
 	}
 
-	pkt, raddr, err := s.CreateData(peerid, p)
-	pkt.ReceiverIndex = idx
+	// sm.logger.Printf("CreateData: pkt=%#v", pkt)
 
-	return pkt, raddr, err
+	hdr, ct, err := s.handshake.MakeMessage(pkt.Plaintext())
+	if err != nil {
+		return nil, err
+	}
+
+	pkt.SetMsgType(DataMsgType)
+	pkt.SetSessionIndex(idx)
+	pkt.SetNonce(hdr.Nonce)
+	pkt = pkt.SetCiphertext(ct)
+
+	return s.remoteAddr, nil
 }
 
-func (sm *SessionManager) HandleData(pkt *DataPacket, raddr multiaddr.Multiaddr) ([]byte, rovy.PeerID, error) {
-	s, present := sm.Get(pkt.ReceiverIndex)
+func (sm *SessionManager) HandleData(pkt DataPacket) (rovy.PeerID, error) {
+	s, present := sm.Get(pkt.SessionIndex())
 	if !present {
-		return nil, rovy.EmptyPeerID, UnknownIndexError
+		return rovy.EmptyPeerID, UnknownIndexError
 	}
-
 	stage := s.stage
 
-	p, peerid, err := s.HandleData(pkt, raddr)
+	hdr := ikpsk2.MessageHeader{Nonce: pkt.Nonce()}
+	payloadPlain, err := s.handshake.ConsumeMessage(hdr, pkt.Ciphertext())
 	if err != nil {
-		return nil, rovy.EmptyPeerID, err
+		return rovy.EmptyPeerID, err
 	}
 
-	// With raddr = nil we signal that this session is only via the forwarder
-	// and mustn't have the ConnectedLower callback called.
-	if stage == 0x02 && raddr != nil {
+	// TODO: instead aead.Open should reuse storage
+	// XXX: why are we discarding the returned Packet?
+	pkt = pkt.SetPlaintext(payloadPlain)
+
+	if stage == 0x03 {
+		return s.remotePeerID, nil
+	}
+	s.stage = 0x03
+
+	// We only call the ConnectedLower callback for lower packets.
+	// We're dealing with a lower packet if LowerSrc isn't set yet.
+	if pkt.LowerSrc.Empty() {
 		sm.establishedCb(s.remotePeerID)
 		for _, waiter := range s.waiters {
 			waiter <- nil
 		}
 	}
 
-	return p, peerid, nil
+	return s.remotePeerID, nil
 }
 
 func (sm *SessionManager) WaitFor(peerid rovy.PeerID) chan error {
