@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"flag"
 	"log"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
@@ -33,6 +35,21 @@ func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 }
 
 func run() error {
+	cpuprof := flag.String("cpuprofile", "", "write cpu profile to `file`")
+	flag.Parse()
+	if *cpuprof != "" {
+		f, err := os.Create(*cpuprof)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			return nil
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	addrA := multiaddr.StringCast("/ip6/::1/udp/12345")
 	addrB := multiaddr.StringCast("/ip6/::1/udp/12346")
 
