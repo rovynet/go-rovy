@@ -23,7 +23,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 	fwd.Attach(peeridB, func(_ rovy.PeerID, _ []byte) error { return nil })
 	fwd.Attach(peeridC, func(_ rovy.PeerID, _ []byte) error { return nil })
 
-	buf := make([]byte, 1400)
+	buf := make([]byte, 1436)
 	pkt := []byte{0x0, 0x2, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0}
 	var err error
 

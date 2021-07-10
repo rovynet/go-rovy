@@ -121,6 +121,8 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		return nil
 	}
 
+	// fc.log.Printf("tun: buflen=%d hdrlen=%d+%d", plen, gotlen, ipv6.HeaderLen)
+
 	peerid, err := fc.routing.LookupIPv6(dst)
 	if err != nil {
 		return err

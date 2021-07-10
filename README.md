@@ -26,8 +26,8 @@ For the time being, check out the `examples/` directory.
 - [ ] 1 Gbps routed throughput
 - [x] Forwarding/Switching using route labels
 - [ ] Minimum-viable routing
-- [ ] fc00::/8 network via TUN interface
-- [ ] ICMP traceroutes for fc00::/8
+- [x] fc00::/8 network via TUN interface
+- [x] ICMP traceroutes for fc00::/8
 - [ ] DNS server for global routing lookups (this is technically cheating)
 - [ ] Local peer discovery
 - ---
@@ -49,12 +49,21 @@ For the time being, check out the `examples/` directory.
 - [x] fc00 traceroute plain
 - [ ] fc00 signatures on ping/pong
 - [ ] fc00 multicast ping
-- [ ] fix max packet size (ping -s >1293)
+- [x] fix max packet size (sweetspot: ping -s 1316)
 - [ ] Get the session stages in order
-- [ ] Fix the forwarder benchmark
-- [ ] Packet object (state machine?), its lack is biting us left and right
+- [x] Fix the forwarder benchmark
+- [x] Packet object (state machine?), its lack is biting us left and right
 - [ ] Node management, modifying the node, shutting down
-- [ ] Don't use aliasing for core types, wrap the value instead
+- [x] Don't use aliasing for core types, wrap the value instead
+- [ ] constants for sizes and offsets
+- [x] pktize plaintext msgtype
+- [ ] pktize handlers and forwarder
+- [ ] pktize fc00
+- [ ] handshake waiters are strange
+- [ ] fix endianness once and for all, do what wireguard and cjdns do
+- [ ] bufpool
+- [ ] ringbufs
+- [ ] lock-free maps for SessionManager and Forwarder
 - ---
 - [ ] check out wireguard-go/conn, why does it exist? sticky sockets, perf?
 - [ ] check out x/sys
