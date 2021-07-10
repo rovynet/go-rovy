@@ -58,15 +58,26 @@ func (fc *Fc00) Start() error {
 	fc.node.Handle(PingMulticodec, fc.handlePingPacket)
 
 	go func() {
+		zeros := []byte{0x0, 0x0, 0x0, 0x0}
+
 		for {
-			var buf [1420]byte
-			n, err := fc.device.Read(buf[0:], tunhdrOffset)
+			pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+			buf := pkt.Bytes()[rovy.UpperOffset:]
+
+			n, err := fc.device.Read(buf, 4)
 			if err != nil {
 				fc.log.Printf("fc00: tun read: %s", err)
 				continue
 			}
+			pkt.Length = rovy.UpperOffset + 4 + n
 
-			if err := fc.handleTunPacket(buf[:n]); err != nil {
+			if 0 != bytes.Compare([]byte{0x86, 0xdd}, buf[2:4]) {
+				fc.log.Printf("tun: not an ipv6 packet")
+				continue
+			}
+			copy(buf[0:4], zeros)
+
+			if err := fc.handleTunPacket(buf[4 : 4+n]); err != nil {
 				fc.log.Printf("fc00: handleTunPacket: %s", err)
 				continue
 			}
@@ -90,24 +101,19 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 	plen := len(buf)
 
 	// TODO: more checks
-	if plen < ipv6.HeaderLen+tunhdrOffset {
+	if plen < ipv6.HeaderLen {
 		return fmt.Errorf("tun: packet too short (len=%d)", plen)
 	}
 
-	ethertype := buf[2:4]
-	if 0 != bytes.Compare([]byte{0x86, 0xdd}, ethertype) {
-		return fmt.Errorf("tun: not an ipv6 packet")
-	}
-
-	gotlen := int(binary.BigEndian.Uint16(buf[tunhdrOffset+4 : tunhdrOffset+6]))
+	gotlen := int(binary.BigEndian.Uint16(buf[4:6]))
 	if plen != gotlen+ipv6.HeaderLen {
 		return fmt.Errorf("fc00: recv: length mismatch, expected %d, got %d (%d + %d)", plen, gotlen+ipv6.HeaderLen, gotlen, ipv6.HeaderLen)
 	}
 
-	nexthdr := buf[tunhdrOffset+6]
-	hops := int(buf[tunhdrOffset+7])
-	src := net.IP(buf[tunhdrOffset+8 : tunhdrOffset+24])
-	dst := net.IP(buf[tunhdrOffset+24 : tunhdrOffset+40])
+	nexthdr := buf[6]
+	hops := int(buf[7])
+	src := net.IP(buf[8:24])
+	dst := net.IP(buf[24:40])
 
 	// no link-local or multicast stuff yet
 	if dst.IsMulticast() || !src.Equal(fc.node.PeerID().PublicKey().Addr()) {
@@ -125,26 +131,17 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		return fmt.Errorf("tun: no route for %s: %s", peerid, err)
 	}
 
-	pkt := buf[tunhdrOffset : tunhdrOffset+plen]
+	buf = buf[:plen]
 
 	// end-to-end transmission
-	rlen := route.Len()
-	if hops >= rlen {
-		return fc.node.SendUpper(peerid, Fc00Multicodec, pkt, route)
-		// if err != nil {
-		// 	return fmt.Errorf("tun: failed to send: %s", err)
-		// }
-		// return nil
+	if hops >= route.Len() {
+		return fc.node.SendUpper(peerid, Fc00Multicodec, buf, route)
 	}
 
 	// icmp with ttl that'd exceed in transit
 	if nexthdr == byte(58) {
 		rt := rovy.NewRoute(route.Bytes()[0:hops]...)
-		return fc.node.SendPlaintext(rt, PingMulticodec, pkt)
-		// if err != nil {
-		// 	return fmt.Errorf("tun: failed to send: %s", err)
-		// }
-		// return nil
+		return fc.node.SendPlaintext(rt, PingMulticodec, buf)
 	}
 
 	fc.log.Printf("tun: fc00 packet %s -> %s dropped (ttl=%d, nexthdr=%d)", src, dst, hops, nexthdr)

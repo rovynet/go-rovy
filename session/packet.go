@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bytes"
 	"encoding/binary"
 
 	rovy "pkt.dev/go-rovy"
@@ -246,6 +245,9 @@ const PlaintextPacketSize = 4 + SignatureSize + RandomizerSize + rovy.PublicKeyS
 const SignatureSize = 8
 const RandomizerSize = 8
 
+var stubSignature = [8]byte{0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42}
+var stubRandomizer = [8]byte{0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23}
+
 //  4 bytes - msg type (0x5)
 //  8 bytes - signature
 //  8 bytes - randomizer
@@ -253,68 +255,68 @@ const RandomizerSize = 8
 //  .       - data
 // = 52+ bytes
 type PlaintextPacket struct {
-	MsgType   uint32
-	Signature [SignatureSize]byte
-	Random    [RandomizerSize]byte
-	Sender    rovy.PeerID
-	Data      []byte
+	Offset int
+	rovy.Packet
 }
 
-func (pkt *PlaintextPacket) MarshalBinary() ([]byte, error) {
-	pkt.MsgType = PlaintextMsgType
-
-	buf := make([]byte, PlaintextPacketSize+len(pkt.Data))
-	w := bytes.NewBuffer(buf[:0])
-
-	if err := binary.Write(w, binary.LittleEndian, pkt.MsgType); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.Signature); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.Random); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.Sender); err != nil {
-		return buf[:], err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, pkt.Data); err != nil {
-		return buf[:], err
-	}
-
-	return buf[:], nil
+func NewPlaintextPacket(basepkt rovy.Packet, offset int) PlaintextPacket {
+	pkt := PlaintextPacket{Packet: basepkt, Offset: offset}
+	pkt.SetMsgType(PlaintextMsgType)
+	pkt.SetSignature(stubSignature)
+	pkt.SetRandomizer(stubRandomizer)
+	return pkt
 }
 
-func (pkt *PlaintextPacket) UnmarshalBinary(buf []byte) error {
-	r := bytes.NewBuffer(buf)
+func (pkt PlaintextPacket) MsgType() uint32 {
+	o := pkt.Offset + 0
+	return binary.LittleEndian.Uint32(pkt.Buf[o : o+4])
+}
 
-	if err := binary.Read(r, binary.LittleEndian, &pkt.MsgType); err != nil {
-		return err
-	}
+func (pkt PlaintextPacket) SetMsgType(msgt uint32) {
+	o := pkt.Offset + 0
+	binary.LittleEndian.PutUint32(pkt.Buf[o:o+4], msgt)
+}
 
-	if err := binary.Read(r, binary.BigEndian, &pkt.Signature); err != nil {
-		return err
-	}
+func (pkt PlaintextPacket) Signature() (sig [SignatureSize]byte) {
+	o := pkt.Offset + 4
+	copy(sig[:], pkt.Buf[o:o+SignatureSize])
+	return sig
+}
 
-	if err := binary.Read(r, binary.BigEndian, &pkt.Random); err != nil {
-		return err
-	}
+func (pkt PlaintextPacket) SetSignature(sig [SignatureSize]byte) {
+	o := pkt.Offset + 4
+	copy(pkt.Buf[o:o+SignatureSize], sig[:])
+}
 
-	sender := make([]byte, rovy.PublicKeySize)
-	if err := binary.Read(r, binary.BigEndian, sender); err != nil {
-		return err
-	}
-	pkt.Sender = rovy.NewPeerID(rovy.NewPublicKey(sender))
+func (pkt PlaintextPacket) Randomizer() (rnd [RandomizerSize]byte) {
+	o := pkt.Offset + 12
+	copy(rnd[:], pkt.Buf[o:o+RandomizerSize])
+	return rnd
+}
 
-	pkt.Data = make([]byte, len(buf)-PlaintextPacketSize)
-	if err := binary.Read(r, binary.BigEndian, &pkt.Data); err != nil {
-		return err
-	}
+func (pkt PlaintextPacket) SetRandomizer(rnd [RandomizerSize]byte) {
+	o := pkt.Offset + 12
+	copy(pkt.Buf[o:o+RandomizerSize], rnd[:])
+}
 
-	pkt.MsgType = PlaintextMsgType
-	return nil
+func (pkt PlaintextPacket) Sender() rovy.PublicKey {
+	o := pkt.Offset + 20
+	return rovy.NewPublicKey(pkt.Buf[o : o+rovy.PublicKeySize])
+}
+
+func (pkt PlaintextPacket) SetSender(key rovy.PublicKey) {
+	o := pkt.Offset + 20
+	copy(pkt.Buf[o:o+rovy.PublicKeySize], key.Bytes())
+}
+
+func (pkt PlaintextPacket) Plaintext() []byte {
+	o := pkt.Offset + 52
+	return pkt.Buf[o:pkt.Length]
+}
+
+func (pkt PlaintextPacket) SetPlaintext(pt []byte) PlaintextPacket {
+	o := pkt.Offset + 52
+	pkt.Length = o + len(pt)
+	copy(pkt.Buf[o:pkt.Length], pt)
+	return pkt
 }

@@ -366,7 +366,7 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 		return node.ReceiveUpperDirect(peerid, datapkt.Plaintext(), route)
 
 	case session.PlaintextMsgType:
-		return node.ReceiveUpperPlaintext(pkt.Bytes(), route)
+		return node.ReceiveUpperPlaintext(pkt.Bytes()[rovy.UpperOffset:], route)
 	}
 
 	return fmt.Errorf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", b[0])
@@ -374,37 +374,43 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 
 // TODO actually sign the thing
 func (node *Node) SendPlaintext(route rovy.Route, codec uint64, b []byte) error {
-	b = append(varint.ToUvarint(codec), b...) // XXX slowness
+	hdr := varint.ToUvarint(codec)
+	b = append([]byte{0x0, 0x0, 0x0, 0x0}, b...) // XXX slowness
+	copy(b[0:4], hdr)
 
-	pkt := &session.PlaintextPacket{
-		Sender: node.peerid,
-		Data:   b,
-	}
-	buf, err := pkt.MarshalBinary()
-	if err != nil {
-		return err
-	}
+	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset)
+	ptpkt = ptpkt.SetPlaintext(b)
+	ptpkt.SetSender(node.PeerID().PublicKey())
 
-	return node.forwarder.SendPacket(buf, node.PeerID(), route)
+	fwdbuf := ptpkt.Bytes()[rovy.FwdOffset:]
+	// node.Log().Printf("SendPlaintext: fwdbuf=%#v", fwdbuf)
+	return node.forwarder.SendPacket(fwdbuf, node.PeerID(), route)
 }
 
 // TODO actually verify signature
 func (node *Node) ReceiveUpperPlaintext(b []byte, route rovy.Route) error {
-	pkt := &session.PlaintextPacket{}
-	if err := pkt.UnmarshalBinary(b); err != nil {
-		return err
-	}
+	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset)
+	copy(ptpkt.Bytes()[rovy.UpperOffset:], b)
+	ptpkt.Length = rovy.UpperOffset + len(b)
 
-	codec, n, err := varint.FromUvarint(pkt.Data)
+	pt := ptpkt.Plaintext()
+
+	// ptpkt.Route = route
+
+	codec, _, err := varint.FromUvarint(pt[0:4])
 	if err != nil {
 		return err
 	}
 
+	// node.Log().Printf("ReceiveUpperPlaintext: got %#v", pt)
+
 	cb, present := node.handlers[codec]
 	if !present {
-		node.logger.Printf("ReceiveUpperPlaintext: dropping packet with unknown codec 0x%x", codec)
+		node.logger.Printf("ReceiveUpperPlaintext: dropping packet with unknown codec %d", codec)
 		return err
 	}
 
-	return cb(pkt.Data[n:], pkt.Sender, route)
+	return cb(pt[4:], rovy.NewPeerID(ptpkt.Sender()), route)
 }

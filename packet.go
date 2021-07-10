@@ -1,8 +1,5 @@
 package rovy
 
-// TODO: check this out: https://github.com/lunixbochs/struc
-// TODO: figure out endianness once and for all
-
 import (
 	"encoding/binary"
 
