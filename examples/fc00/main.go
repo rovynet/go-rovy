@@ -122,7 +122,6 @@ func run() error {
 	nodeA.Routing().PrintTable(nodeA.Log())
 
 	select {}
-	return nil
 }
 
 func main() {

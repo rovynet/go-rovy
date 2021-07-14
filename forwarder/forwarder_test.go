@@ -19,20 +19,23 @@ func BenchmarkHandlePacket(b *testing.B) {
 	mgram.AddCodec(forwarder.DataMulticodec)
 
 	fwd := forwarder.NewForwarder(mgram, log.New(ioutil.Discard, "", log.LstdFlags))
-	fwd.Attach(peeridA, func(_ rovy.PeerID, _ []byte) error { return nil })
-	fwd.Attach(peeridB, func(_ rovy.PeerID, _ []byte) error { return nil })
-	fwd.Attach(peeridC, func(_ rovy.PeerID, _ []byte) error { return nil })
+	fwd.Attach(peeridA, func(_ rovy.LowerPacket) error { return nil })
+	fwd.Attach(peeridB, func(_ rovy.LowerPacket) error { return nil })
+	fwd.Attach(peeridC, func(_ rovy.LowerPacket) error { return nil })
 
-	buf := make([]byte, 1436)
-	pkt := []byte{0x0, 0x2, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0}
-	var err error
+	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+	upkt.SetRoute(rovy.NewRoute(0x2, 0x1))
+
+	lpkt := rovy.NewLowerPacket(upkt.Packet)
+	lpkt.LowerSrc = peeridA
 
 	b.ReportAllocs()
 	b.SetBytes(1436)
 	b.ResetTimer()
+
+	var err error
 	for i := 0; i < b.N; i++ {
-		copy(buf[4:20], pkt)
-		err = fwd.HandlePacket(buf, peeridA)
+		err = fwd.HandlePacket(lpkt)
 		if err != nil {
 			b.Fatalf("HandlePacket: %s", err)
 		}

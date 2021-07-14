@@ -98,9 +98,10 @@ func (s *Session) HandleHello(pkt HelloPacket) (HelloPacket, error) {
 		Timestamp: pkt.Timestamp(),
 	}
 
-	pt, err := s.handshake.ConsumeHello(hdr, pkt.Ciphertext())
+	ct := pkt.Ciphertext()
+	pt, err := s.handshake.ConsumeHello(hdr, ct)
 	if err != nil {
-		return pkt, err
+		return pkt, fmt.Errorf("HandleHello: %s: ct=%#v", err, ct)
 	}
 
 	pkt = pkt.SetPlaintext(pt)

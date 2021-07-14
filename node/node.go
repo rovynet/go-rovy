@@ -4,18 +4,21 @@ import (
 	"fmt"
 	"log"
 
+	pretty "github.com/kr/pretty"
+
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
+	multigram "pkt.dev/go-rovy/multigram"
 	routing "pkt.dev/go-rovy/routing"
 	session "pkt.dev/go-rovy/session"
 )
 
 type Listener multiaddrnet.PacketConn
 
-type DataHandler func([]byte, rovy.PeerID, rovy.Route) error
+type UpperHandler func(rovy.UpperPacket) error
 
 // TODO: move lower connection stuff to a Peering type (Connect, SendLower, Handle*)
 type Node struct {
@@ -23,7 +26,7 @@ type Node struct {
 	logger    *log.Logger
 	listeners []Listener
 	sessions  *session.SessionManager
-	handlers  map[uint64]DataHandler
+	handlers  map[uint64]UpperHandler
 	forwarder *forwarder.Forwarder
 	routing   *routing.Routing
 	RxTpt     uint64
@@ -38,7 +41,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	node := &Node{
 		peerid:   peerid,
 		logger:   logger,
-		handlers: map[uint64]DataHandler{},
+		handlers: map[uint64]UpperHandler{},
 		routing:  routing.NewRouting(logger),
 	}
 
@@ -46,11 +49,9 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 
 	node.forwarder = forwarder.NewForwarder(node.sessions.Multigram(), logger)
 
-	node.forwarder.Attach(peerid, func(peerid rovy.PeerID, p []byte) error {
-		rlen := p[5]
-		route := rovy.NewRoute(p[6 : 6+rlen]...).Reverse()
-		data := p[20:]
-		return node.ReceiveUpper(peerid, data, route)
+	node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
+		upkt := rovy.NewUpperPacket(lpkt.Packet)
+		return node.ReceiveUpper(upkt)
 	})
 
 	return node
@@ -62,6 +63,10 @@ func (node *Node) PeerID() rovy.PeerID {
 
 func (node *Node) Log() *log.Logger {
 	return node.logger
+}
+
+func (node *Node) Multigram() *multigram.Table {
+	return node.SessionManager().Multigram()
 }
 
 func (node *Node) Adresses() (addrs []multiaddr.Multiaddr) {
@@ -86,9 +91,9 @@ func (node *Node) Routing() *routing.Routing {
 // XXX this shouldn't & mustn't be triggered for Upper sessions,
 //     otherwise forwarder.Attach deadlocks.
 func (node *Node) ConnectedLower(peerid rovy.PeerID) {
-	send := func(from rovy.PeerID, buf []byte) error {
-		// node.Log().Printf("ConnectedLower: forwarding %d bytes to %s: %#v", len(buf), peerid, buf)
-		return node.SendLower(peerid, buf)
+	send := func(pkt rovy.LowerPacket) error {
+		pkt.LowerDst = peerid
+		return node.SendLower(pkt)
 	}
 
 	slot, err := node.forwarder.Attach(peerid, send)
@@ -125,7 +130,7 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 			pkt.TptSrc, _ = multiaddrnet.FromNetAddr(raddr) // TODO handle error
 
 			if err = node.ReceiveLower(pkt); err != nil {
-				node.logger.Printf("ReceiveLower: %s", err)
+				node.logger.Printf("Listen: loop: %s", err)
 			}
 		}
 	}()
@@ -133,7 +138,7 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 	return nil
 }
 
-func (node *Node) Handle(codec uint64, cb DataHandler) {
+func (node *Node) Handle(codec uint64, cb UpperHandler) {
 	_, present := node.handlers[codec]
 	if present {
 		return
@@ -149,7 +154,7 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 
 	if raddr != nil { // aka ConnectLower
-		hellopkt := session.NewHelloPacket(pkt, rovy.LowerOffset)
+		hellopkt := session.NewHelloPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 		hellopkt, err := node.SessionManager().CreateHello(hellopkt, peerid, raddr)
 		if err != nil {
 			return err
@@ -167,14 +172,16 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 			return err
 		}
 
-		hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset)
+		hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
 		hellopkt, err = node.SessionManager().CreateHello(hellopkt, peerid, raddr)
 		if err != nil {
 			return err
 		}
 
-		fwdbuf := hellopkt.Bytes()[rovy.FwdOffset:]
-		err = node.forwarder.SendPacket(fwdbuf, node.PeerID(), route)
+		upkt := rovy.NewUpperPacket(hellopkt.Packet)
+		upkt.SetRoute(route)
+
+		err = node.Forwarder().SendPacket(upkt)
 		if err != nil {
 			return fmt.Errorf("Connect: forwarder: %s", err)
 		}
@@ -188,12 +195,10 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 	return nil
 }
 
-func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	datapkt := session.NewDataPacket(pkt, 0)
-	datapkt = datapkt.SetPlaintext(p)
+func (node *Node) SendLower(pkt rovy.LowerPacket) error {
+	datapkt := session.NewDataPacket(pkt.Packet, rovy.LowerOffset, rovy.LowerPadding)
 
-	raddr, err := node.SessionManager().CreateData(datapkt, pid)
+	raddr, err := node.SessionManager().CreateData(datapkt, datapkt.LowerDst)
 	if err != nil {
 		return err
 	}
@@ -203,17 +208,15 @@ func (node *Node) SendLower(pid rovy.PeerID, p []byte) error {
 }
 
 func (node *Node) sendTransport(pkt rovy.Packet) error {
-	// node.Log().Printf("sendTransport: %#v", pkt.Bytes())
 	_, err := node.listeners[0].WriteToMultiaddr(pkt.Bytes(), pkt.TptDst)
 	return err
 }
 
 func (node *Node) ReceiveLower(pkt rovy.Packet) error {
-	// node.Log().Printf("ReceiveLower: %#v", pkt.Bytes())
 	msgtype := pkt.MsgType()
 	switch msgtype {
 	case session.HelloMsgType:
-		hellopkt := session.NewHelloPacket(pkt, rovy.LowerOffset)
+		hellopkt := session.NewHelloPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 
 		resppkt, err := node.SessionManager().HandleHello(hellopkt, pkt.TptSrc)
 		if err != nil {
@@ -222,128 +225,131 @@ func (node *Node) ReceiveLower(pkt rovy.Packet) error {
 
 		resppkt.TptDst = hellopkt.TptSrc
 		return node.sendTransport(resppkt.Packet)
+
 	case session.ResponseMsgType:
-		resppkt := session.NewResponsePacket(pkt, rovy.LowerOffset)
+		resppkt := session.NewResponsePacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 		resppkt, err := node.SessionManager().HandleResponse(resppkt, pkt.TptSrc)
 		if err != nil {
 			return err
 		}
 		return nil
+
 	case session.DataMsgType:
-		datapkt := session.NewDataPacket(pkt, rovy.LowerOffset)
+		datapkt := session.NewDataPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 
 		peerid, err := node.SessionManager().HandleData(datapkt)
 		if err != nil {
 			return err
 		}
-		datapkt.LowerSrc = peerid
 
-		data := datapkt.Plaintext()
+		lowpkt := rovy.NewLowerPacket(datapkt.Packet)
+		lowpkt.Length = datapkt.Length
+		lowpkt.LowerSrc = peerid
 
-		codec, _, err := node.sessions.Multigram().FromUvarint(data) // XXX LowerPacket
+		codec, err := lowpkt.Codec()
 		if err != nil {
-			return err
+			return fmt.Errorf("ReceiveLower: codec: %s", err)
 		}
 
 		node.RxLower += 1
 
-		switch codec {
+		switch node.SessionManager().Multigram().LookupCodec(codec) {
 		case forwarder.DataMulticodec:
-			return node.forwarder.HandlePacket(data, peerid)
-		case forwarder.ErrorMulticodec:
-			return node.forwarder.HandleError(data, peerid)
+			return node.Forwarder().HandlePacket(lowpkt)
 		}
 
-		return node.ReceiveUpperDirect(peerid, data, rovy.EmptyRoute)
+		// TODO should have a codec for this double-encryption-avoidance hack
+		upkt := rovy.NewUpperPacket(lowpkt.Packet)
+		upkt.UpperSrc = upkt.LowerSrc
+		return node.ReceiveUpperDirect(upkt)
 	}
 
 	return fmt.Errorf("ReceiveLower: dropping packet with unknown MsgType 0x%x", msgtype)
 }
 
-func (node *Node) Send(peerid rovy.PeerID, codec uint64, p []byte) error {
-	route, err := node.Routing().GetRoute(peerid)
+func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
+	route, err := node.Routing().GetRoute(to)
 	if err != nil {
 		return err
-	}
-
-	return node.SendUpper(peerid, codec, p, route)
-}
-
-func (node *Node) SendUpper(peerid rovy.PeerID, codec uint64, p []byte, route rovy.Route) error {
-	hdr := node.sessions.Multigram().ToUvarint(codec)
-	p = append([]byte{0x0, 0x0, 0x0, 0x0}, p...) // XXX slowness
-	copy(p[0:4], hdr)
-
-	if route.Len() == forwarder.HopLength {
-		return node.SendLower(peerid, p)
 	}
 
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	datapkt := session.NewDataPacket(pkt, rovy.UpperOffset)
-	datapkt = datapkt.SetPlaintext(p)
+	upkt := rovy.NewUpperPacket(pkt)
+	upkt.UpperDst = to
+	upkt.SetCodec(node.SessionManager().Multigram().LookupNumber(codec))
+	upkt.SetRoute(route)
+	upkt = upkt.SetPayload(p)
 
-	_, err := node.SessionManager().CreateData(datapkt, peerid)
+	return node.SendUpper(upkt)
+}
+
+func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
+	upkt.UpperSrc = node.PeerID()
+
+	// XXX not sure what the relationship is with handshake packets and non-data packets
+	if upkt.RouteLen() == forwarder.HopLength {
+		lpkt := rovy.NewLowerPacket(upkt.Packet)
+		lpkt.LowerSrc = node.PeerID()
+		lpkt.LowerDst = upkt.UpperDst
+		return node.SendLower(lpkt)
+	}
+
+	datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
+	_, err := node.SessionManager().CreateData(datapkt, upkt.UpperDst)
 	if err != nil {
 		return err
 	}
 
-	fwdbuf := datapkt.Bytes()[rovy.FwdOffset:]
-	// node.Log().Printf("SendUpper: fwdbuf=#%v", fwdbuf)
-	return node.forwarder.SendPacket(fwdbuf, node.PeerID(), route)
+	return node.Forwarder().SendPacket(upkt)
 }
 
-func (node *Node) ReceiveUpperDirect(from rovy.PeerID, data []byte, route rovy.Route) error {
-	// node.Log().Printf("ReceiveUpperDirect: from %s along %s: %#v", from, route, data)
-
-	sess, _, present := node.SessionManager().Find(from)
-	if !present {
-		node.logger.Printf("lost track of session while handling packet from %s", from)
-		// return nil // XXX return error instead?
-		return fmt.Errorf("lost track of session: %s", from)
-	}
+func (node *Node) ReceiveUpperDirect(upkt rovy.UpperPacket) error {
+	// node.Log().Printf("ReceiveUpperDirect: via=%s route=%s length=%d payload=%#v packet=%# v", upkt.LowerSrc, upkt.Route(), len(upkt.Payload()), upkt.Payload(), pretty.Formatter(upkt))
 
 	node.RxUpper += 1
 
-	codec, _, err := sess.RemoteMultigram().FromUvarint(data[0:4])
+	number, err := upkt.Codec()
 	if err != nil {
 		return err
 	}
 
+	mgram := node.SessionManager().Multigram()
+	codec := mgram.LookupCodec(number)
+
 	cb, present := node.handlers[codec]
 	if !present {
-		node.logger.Printf("ReceiveUpperDirect: dropping packet with unknown codec %d", codec)
+		node.logger.Printf("ReceiveUpperDirect: dropping packet with unknown codec %d (number=%d) multigram=%# v", codec, number, pretty.Formatter(mgram))
 		return err
 	}
-	return cb(data[4:], from, route)
+	return cb(upkt)
 }
 
-func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) error {
-	// node.logger.Printf("ReceiveUpper: packet=%#v", b)
+func (node *Node) ReceiveUpper(upkt rovy.UpperPacket) error {
+	// node.logger.Printf("ReceiveUpper: via=%s route=%s length=%d payload=%#v", upkt.LowerSrc, upkt.Route(), len(upkt.Payload()), upkt.Payload())
 
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	pkt.Length = rovy.UpperOffset + len(b)
-	copy(pkt.Bytes()[rovy.UpperOffset:], b)
-
-	pkt.LowerSrc = from
-	// pkt.Route = route
-
-	switch b[0] {
+	msgtype := upkt.Buf[rovy.UpperOffset]
+	switch msgtype {
 	case session.HelloMsgType:
-		hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset)
+		hellopkt := session.NewHelloPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
 
 		resppkt, err := node.SessionManager().HandleHello(hellopkt, nil)
 		if err != nil {
 			return err
 		}
-		resppkt.UpperDst = hellopkt.UpperSrc
-		// resppkt.Route = hellopkt.Route
 
-		respbuf := resppkt.Bytes()[rovy.FwdOffset:]
+		upkt2 := rovy.NewUpperPacket(resppkt.Packet)
+		upkt2.SetRoute(upkt.Route().Reverse())
+		upkt2.LowerSrc = node.PeerID()
 
-		return node.forwarder.SendPacket(respbuf, resppkt.UpperDst, route)
+		err = node.forwarder.SendPacket(upkt2)
+		if err != nil {
+			return fmt.Errorf("ReceiveUpper: %s", err)
+		}
+
+		return nil
 
 	case session.ResponseMsgType:
-		resppkt := session.NewResponsePacket(pkt, rovy.UpperOffset)
+		resppkt := session.NewResponsePacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
 		resppkt, err := node.SessionManager().HandleResponse(resppkt, nil)
 		if err != nil {
 			return err
@@ -351,7 +357,7 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 		return nil
 
 	case session.DataMsgType:
-		datapkt := session.NewDataPacket(pkt, rovy.UpperOffset)
+		datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
 
 		peerid, err := node.SessionManager().HandleData(datapkt)
 		if err != nil {
@@ -361,37 +367,48 @@ func (node *Node) ReceiveUpper(from rovy.PeerID, b []byte, route rovy.Route) err
 
 		// node.logger.Printf("ReceiveUpper: datapkt=%#v", datapkt)
 
-		node.Routing().AddRoute(peerid, route) // XXX slowness
+		node.Routing().AddRoute(datapkt.UpperSrc, upkt.Route().Reverse()) // XXX slowness
 
-		return node.ReceiveUpperDirect(peerid, datapkt.Plaintext(), route)
+		upkt := rovy.NewUpperPacket(datapkt.Packet)
+		return node.ReceiveUpperDirect(upkt)
 
 	case session.PlaintextMsgType:
-		return node.ReceiveUpperPlaintext(pkt.Bytes()[rovy.UpperOffset:], route)
+		return node.ReceiveUpperPlaintext(upkt.Bytes()[rovy.UpperOffset:], upkt.Route())
 	}
 
-	return fmt.Errorf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", b[0])
+	return fmt.Errorf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", msgtype)
 }
 
 // TODO actually sign the thing
 func (node *Node) SendPlaintext(route rovy.Route, codec uint64, b []byte) error {
-	hdr := varint.ToUvarint(codec)
-	b = append([]byte{0x0, 0x0, 0x0, 0x0}, b...) // XXX slowness
-	copy(b[0:4], hdr)
+	// hdr := varint.ToUvarint(codec)
+	// b = append([]byte{0x0, 0x0, 0x0, 0x0}, b...) // XXX slowness
+	// copy(b[0:4], hdr)
 
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset)
+	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
 	ptpkt = ptpkt.SetPlaintext(b)
 	ptpkt.SetSender(node.PeerID().PublicKey())
 
-	fwdbuf := ptpkt.Bytes()[rovy.FwdOffset:]
+	// fwdbuf := ptpkt.Bytes()[rovy.FwdOffset:]
 	// node.Log().Printf("SendPlaintext: fwdbuf=%#v", fwdbuf)
-	return node.forwarder.SendPacket(fwdbuf, node.PeerID(), route)
+	// return node.forwarder.SendPacket(fwdbuf, node.PeerID(), route)
+
+	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+	upkt.UpperSrc = node.PeerID()
+	// upkt.SetMsgType(session.DataMsgType)
+	upkt.SetCodec(codec)
+	upkt.SetRoute(route)
+	upkt = upkt.SetPayload(ptpkt.Plaintext())
+
+	node.Log().Printf("SendPlaintext: %# v", pretty.Formatter(upkt))
+	return node.Forwarder().SendPacket(upkt)
 }
 
 // TODO actually verify signature
 func (node *Node) ReceiveUpperPlaintext(b []byte, route rovy.Route) error {
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset)
+	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
 	copy(ptpkt.Bytes()[rovy.UpperOffset:], b)
 	ptpkt.Length = rovy.UpperOffset + len(b)
 
@@ -404,13 +421,21 @@ func (node *Node) ReceiveUpperPlaintext(b []byte, route rovy.Route) error {
 		return err
 	}
 
-	// node.Log().Printf("ReceiveUpperPlaintext: got %#v", pt)
+	node.Log().Printf("ReceiveUpperPlaintext: got %#v", pt)
 
 	cb, present := node.handlers[codec]
 	if !present {
-		node.logger.Printf("ReceiveUpperPlaintext: dropping packet with unknown codec %d", codec)
-		return err
+		return fmt.Errorf("ReceiveUpperPlaintext: dropping packet with unknown codec %d", codec)
 	}
 
-	return cb(pt[4:], rovy.NewPeerID(ptpkt.Sender()), route)
+	// XXX fucking horrific. this whole plaintext business must move to forwarder/
+	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+	upkt.UpperSrc = rovy.NewPeerID(ptpkt.Sender())
+	upkt.SetMsgType(session.DataMsgType)
+	upkt.SetRoute(route)
+	upkt.SetCodec(node.SessionManager().Multigram().LookupNumber(codec))
+	upkt = upkt.SetPayload(pt)
+
+	// return cb(pt[4:], rovy.NewPeerID(ptpkt.Sender()), route)
+	return cb(upkt)
 }

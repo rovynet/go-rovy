@@ -70,12 +70,12 @@ func run() error {
 	}
 
 	amount := 1000000
-	mtu := rovy.UpperMTU + 52 // direct packet doesn't have forwarder+upper headers
+	mtu := rovy.UpperMTU
 	start := time.Now()
 
 	var j int
-	nodeB.Handle(BenchmarkCodec, func(p []byte, peerid rovy.PeerID, route rovy.Route) error {
-		_, err := binary.ReadVarint(bytes.NewBuffer(p))
+	nodeB.Handle(BenchmarkCodec, func(pkt rovy.UpperPacket) error {
+		_, err := binary.ReadVarint(bytes.NewBuffer(pkt.Payload()))
 		if err != nil {
 			log.Printf("ReadVarint: %s", err)
 			return err

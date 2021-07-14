@@ -124,7 +124,12 @@ func (t *Table) FromUvarint(buf []byte) (uint64, int, error) {
 		return uint64(0), 0, err
 	}
 
-	return t.LookupCodec(number), n, nil
+	c := t.LookupCodec(number)
+	if int(c) == 0 {
+		log.Panicf("FromUvarint: c=%d n=%d buf=%#v tbl=%#v", c, number, buf, t.n2c)
+	}
+
+	return c, n, nil
 }
 
 func (t *Table) ToUvarint(code uint64) []byte {

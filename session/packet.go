@@ -17,12 +17,17 @@ var emptyTag [16]byte
 // 16 bytes - payload tag
 // = 132+ bytes
 type HelloPacket struct {
-	Offset int
+	Offset  int
+	Padding int
 	rovy.Packet
 }
 
-func NewHelloPacket(basepkt rovy.Packet, offset int) HelloPacket {
-	pkt := HelloPacket{Packet: basepkt, Offset: offset}
+func NewHelloPacket(basepkt rovy.Packet, offset, padding int) HelloPacket {
+	pkt := HelloPacket{
+		Packet:  basepkt,
+		Offset:  offset,
+		Padding: padding,
+	}
 	pkt.SetMsgType(HelloMsgType)
 	return pkt
 }
@@ -72,23 +77,24 @@ func (pkt HelloPacket) SetTimestamp(empty [28]byte) {
 }
 
 func (pkt HelloPacket) Plaintext() []byte {
-	return pkt.Buf[pkt.Offset+116 : pkt.Length-16]
+	return pkt.Buf[pkt.Offset+116 : pkt.Length-pkt.Padding-16]
 }
 
+// TODO what if plaintext is too long
 func (pkt HelloPacket) SetPlaintext(pt []byte) HelloPacket {
-	pkt.Length = pkt.Offset + 116 + len(pt) + 16
-	copy(pkt.Buf[pkt.Offset+116:pkt.Length], pt)
-	copy(pkt.Buf[pkt.Length-16:pkt.Length], emptyTag[:])
+	pkt.Length = pkt.Offset + 116 + len(pt) + 16 + pkt.Padding
+	copy(pkt.Buf[pkt.Offset+116:pkt.Length-pkt.Padding], pt) // XXX does this do what i think
+	copy(pkt.Buf[pkt.Length-16:pkt.Length-pkt.Padding], emptyTag[:])
 	return pkt
 }
 
 func (pkt HelloPacket) Ciphertext() []byte {
-	return pkt.Buf[pkt.Offset+116 : pkt.Length]
+	return pkt.Buf[pkt.Offset+116 : pkt.Length-pkt.Padding]
 }
 
 func (pkt HelloPacket) SetCiphertext(ct []byte) HelloPacket {
-	pkt.Length = pkt.Offset + 116 + len(ct)
-	copy(pkt.Buf[pkt.Offset+116:pkt.Length], ct)
+	pkt.Length = pkt.Offset + 116 + len(ct) + pkt.Padding
+	copy(pkt.Buf[pkt.Offset+116:pkt.Length-pkt.Padding], ct)
 	return pkt
 }
 
@@ -101,12 +107,17 @@ func (pkt HelloPacket) SetCiphertext(ct []byte) HelloPacket {
 // 16 bytes - payload tag
 // = 76+ bytes
 type ResponsePacket struct {
-	Offset int
+	Offset  int
+	Padding int
 	rovy.Packet
 }
 
-func NewResponsePacket(basepkt rovy.Packet, offset int) ResponsePacket {
-	pkt := ResponsePacket{Packet: basepkt, Offset: offset}
+func NewResponsePacket(basepkt rovy.Packet, offset, padding int) ResponsePacket {
+	pkt := ResponsePacket{
+		Packet:  basepkt,
+		Offset:  offset,
+		Padding: padding,
+	}
 	pkt.SetMsgType(ResponseMsgType)
 	return pkt
 }
@@ -154,23 +165,23 @@ func (pkt ResponsePacket) SetEmpty(empty [16]byte) {
 }
 
 func (pkt ResponsePacket) Plaintext() []byte {
-	return pkt.Buf[pkt.Offset+60 : pkt.Length-16]
+	return pkt.Buf[pkt.Offset+60 : pkt.Length-pkt.Padding-16]
 }
 
 func (pkt ResponsePacket) SetPlaintext(pt []byte) ResponsePacket {
-	pkt.Length = pkt.Offset + 60 + len(pt) + 16
-	copy(pkt.Buf[pkt.Offset+60:pkt.Length], pt)
-	copy(pkt.Buf[pkt.Length-16:pkt.Length], emptyTag[:])
+	pkt.Length = pkt.Offset + 60 + len(pt) + 16 + pkt.Padding
+	copy(pkt.Buf[pkt.Offset+60:pkt.Length-pkt.Padding], pt)
+	copy(pkt.Buf[pkt.Length-pkt.Padding-16:pkt.Length-pkt.Padding], emptyTag[:])
 	return pkt
 }
 
 func (pkt ResponsePacket) Ciphertext() []byte {
-	return pkt.Buf[pkt.Offset+60 : pkt.Length]
+	return pkt.Buf[pkt.Offset+60 : pkt.Length-pkt.Padding]
 }
 
 func (pkt ResponsePacket) SetCiphertext(ct []byte) ResponsePacket {
-	pkt.Length = pkt.Offset + 60 + len(ct)
-	copy(pkt.Buf[pkt.Offset+60:pkt.Length], ct)
+	pkt.Length = pkt.Offset + 60 + len(ct) + pkt.Padding
+	copy(pkt.Buf[pkt.Offset+60:pkt.Length-pkt.Padding], ct)
 	return pkt
 }
 
@@ -181,12 +192,17 @@ func (pkt ResponsePacket) SetCiphertext(ct []byte) ResponsePacket {
 // 16 bytes - payload tag
 // = 32+ bytes
 type DataPacket struct {
-	Offset int
+	Offset  int
+	Padding int
 	rovy.Packet
 }
 
-func NewDataPacket(basepkt rovy.Packet, offset int) DataPacket {
-	pkt := DataPacket{Packet: basepkt, Offset: offset}
+func NewDataPacket(basepkt rovy.Packet, offset, padding int) DataPacket {
+	pkt := DataPacket{
+		Packet:  basepkt,
+		Offset:  offset,
+		Padding: padding,
+	}
 	pkt.SetMsgType(DataMsgType)
 	return pkt
 }
@@ -218,23 +234,23 @@ func (pkt DataPacket) SetNonce(nonce [8]byte) {
 }
 
 func (pkt DataPacket) Plaintext() []byte {
-	return pkt.Buf[pkt.Offset+16 : pkt.Length-16]
+	return pkt.Buf[pkt.Offset+16 : pkt.Length-pkt.Padding-16]
 }
 
 func (pkt DataPacket) SetPlaintext(pt []byte) DataPacket {
-	pkt.Length = pkt.Offset + 16 + len(pt) + 16
-	copy(pkt.Buf[pkt.Offset+16:pkt.Length], pt)
-	copy(pkt.Buf[pkt.Length-16:pkt.Length], emptyTag[:])
+	pkt.Length = pkt.Offset + 16 + len(pt) + 16 + pkt.Padding
+	copy(pkt.Buf[pkt.Offset+16:pkt.Length-pkt.Padding], pt)
+	copy(pkt.Buf[pkt.Length-pkt.Padding-16:pkt.Length-pkt.Padding], emptyTag[:])
 	return pkt
 }
 
 func (pkt DataPacket) Ciphertext() []byte {
-	return pkt.Buf[pkt.Offset+16 : pkt.Length]
+	return pkt.Buf[pkt.Offset+16 : pkt.Length-pkt.Padding]
 }
 
 func (pkt DataPacket) SetCiphertext(ct []byte) DataPacket {
-	pkt.Length = pkt.Offset + 16 + len(ct)
-	copy(pkt.Buf[pkt.Offset+16:pkt.Length], ct)
+	pkt.Length = pkt.Offset + 16 + len(ct) + pkt.Padding
+	copy(pkt.Buf[pkt.Offset+16:pkt.Length-pkt.Padding], ct)
 	return pkt
 }
 
@@ -255,12 +271,17 @@ var stubRandomizer = [8]byte{0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23, 0x23}
 //  .       - data
 // = 52+ bytes
 type PlaintextPacket struct {
-	Offset int
+	Offset  int
+	Padding int
 	rovy.Packet
 }
 
-func NewPlaintextPacket(basepkt rovy.Packet, offset int) PlaintextPacket {
-	pkt := PlaintextPacket{Packet: basepkt, Offset: offset}
+func NewPlaintextPacket(basepkt rovy.Packet, offset, padding int) PlaintextPacket {
+	pkt := PlaintextPacket{
+		Packet:  basepkt,
+		Offset:  offset,
+		Padding: padding,
+	}
 	pkt.SetMsgType(PlaintextMsgType)
 	pkt.SetSignature(stubSignature)
 	pkt.SetRandomizer(stubRandomizer)
@@ -311,12 +332,12 @@ func (pkt PlaintextPacket) SetSender(key rovy.PublicKey) {
 
 func (pkt PlaintextPacket) Plaintext() []byte {
 	o := pkt.Offset + 52
-	return pkt.Buf[o:pkt.Length]
+	return pkt.Buf[o : pkt.Length-pkt.Padding]
 }
 
 func (pkt PlaintextPacket) SetPlaintext(pt []byte) PlaintextPacket {
 	o := pkt.Offset + 52
-	pkt.Length = o + len(pt)
-	copy(pkt.Buf[o:pkt.Length], pt)
+	pkt.Length = o + len(pt) + pkt.Padding
+	copy(pkt.Buf[o:pkt.Length-pkt.Padding], pt)
 	return pkt
 }

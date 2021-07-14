@@ -193,16 +193,12 @@ func run() error {
 		return err
 	}
 
-	nodeA.SessionManager().Multigram().AddCodec(0x42010)
-	nodeA.SessionManager().Multigram().AddCodec(0x42011)
-	nodeA.SessionManager().Multigram().AddCodec(0x42012)
-
-	nodeA.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID, route rovy.Route) error {
-		nodeA.Log().Printf("got packet from %s: %#v", from, buf)
+	nodeA.Handle(RoutedCodec, func(pkt rovy.UpperPacket) error {
+		nodeA.Log().Printf("got packet from %s: %#v", pkt.UpperSrc, pkt.Payload())
 		return nil
 	})
-	nodeK.Handle(RoutedCodec, func(buf []byte, from rovy.PeerID, route rovy.Route) error {
-		nodeK.Log().Printf("got packet from %s: %#v", from, buf)
+	nodeK.Handle(RoutedCodec, func(pkt rovy.UpperPacket) error {
+		nodeK.Log().Printf("got packet from %s: %#v", pkt.UpperSrc, pkt.Payload())
 		return nil
 	})
 
@@ -225,6 +221,7 @@ func run() error {
 	// nodeA.Routing().PrintTable(nodeA.Log())
 
 	if err := nodeA.Connect(nodeK.PeerID(), nil); err != nil {
+		nodeA.Log().Printf("failed to connect nodeA to nodeK: %s", err)
 		return err
 	}
 

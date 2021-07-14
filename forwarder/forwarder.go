@@ -62,7 +62,6 @@ import (
 	"log"
 	"sync"
 
-	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
 	multigram "pkt.dev/go-rovy/multigram"
 )
@@ -71,8 +70,7 @@ const (
 	NumSlots  = 256
 	HopLength = 1
 
-	DataMulticodec  = 0x12345
-	ErrorMulticodec = 0x12346
+	DataMulticodec = 0x12345
 )
 
 var (
@@ -83,12 +81,10 @@ var (
 	ErrRouteTooLong   = errors.New("route is longer than 255 bytes")
 	ErrLoopRoute      = errors.New("route resulted in loop")
 
-	// TODO: move into NewForwarder so we can use logger
 	nullSlotEntry = &slotentry{
 		rovy.EmptyPeerID,
-		func(from rovy.PeerID, _ []byte) error {
-			fmt.Printf("nullSlotEntry: dropping packet for unknown destination from %s\n", from)
-			return nil
+		func(pkt rovy.LowerPacket) error {
+			return fmt.Errorf("forwarder: dropping packet for unknown destination from %s -- %#v\n", pkt.LowerSrc, pkt.Bytes())
 		},
 	}
 )
@@ -98,7 +94,7 @@ type slotentry struct {
 	send   sendFunc
 }
 
-type sendFunc func(rovy.PeerID, []byte) error
+type sendFunc func(rovy.LowerPacket) error
 
 // XXX: is rovy.PeerID okay as a map index type?
 type Forwarder struct {
@@ -111,7 +107,6 @@ type Forwarder struct {
 
 func NewForwarder(mgram *multigram.Table, logger *log.Logger) *Forwarder {
 	mgram.AddCodec(DataMulticodec)
-	mgram.AddCodec(ErrorMulticodec)
 
 	fwd := &Forwarder{
 		slots:  make(map[int]*slotentry, NumSlots),
@@ -164,31 +159,16 @@ func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
 	return fmt.Errorf("slot entry not found")
 }
 
-func (fwd *Forwarder) HandleError(buf []byte, from rovy.PeerID) error {
-	code, _, err := varint.FromUvarint(buf)
-	if err != nil {
-		fwd.logger.Printf("got broken error reply from %s: %s", from, err)
-		return nil
-	}
-
-	switch code {
-	case 1:
-		fwd.logger.Printf("error reply from %s: unknown slot", from)
-	default:
-		fwd.logger.Printf("error reply from %s: %d", from, code)
-	}
-
-	return nil
-}
-
 // TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)+2
-func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
-	length := int(buf[5])
+func (fwd *Forwarder) HandlePacket(pkt rovy.LowerPacket) error {
+	buf := pkt.Buf[rovy.FwdOffset : rovy.FwdOffset+16]
+
+	length := int(buf[1])
 	if length == 0 {
 		return ErrZeroLenRoute
 	}
 
-	pos := int(buf[4])
+	pos := int(buf[0])
 	if pos > length {
 		return ErrLoopRoute
 	}
@@ -196,27 +176,26 @@ func (fwd *Forwarder) HandlePacket(buf []byte, from rovy.PeerID) error {
 	fwd.RLock()
 	defer fwd.RUnlock()
 
-	next := buf[6+pos+1]
+	next := int(buf[2+pos+1])
 
-	prev, present := fwd.bypeer[from]
+	prev, present := fwd.bypeer[pkt.LowerSrc]
 	if !present {
 		return ErrPrevHopUnknown
 	}
-	buf[6+pos] = byte(prev)
+	buf[2+pos] = byte(prev)
 
 	if pos+1 == length {
-		return fwd.slots[0].send(from, buf)
+		return fwd.slots[0].send(pkt)
 	}
-	buf[4] = byte(pos + 1)
+	buf[0] = byte(pos + 1)
 
-	// fwd.logger.Printf("forwarder: packet from %s forwarded along %s", from, rovy.NewRoute(buf[6+pos:6+buf[5]]...))
-	return fwd.slots[int(next)].send(from, buf)
+	// fwd.logger.Printf("forwarder: packet from %s forwarded along %s", from, rovy.NewRoute(buf[2+pos:2+buf[1]]...))
+	return fwd.slots[next].send(pkt)
 }
 
-// data is expected to have room for 20 bytes forwarder header at the beginning
-func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route) error {
-	length := route.Len()
-
+// We expect the packet to have already passed through SessionManager.CreateData
+func (fwd *Forwarder) SendPacket(upkt rovy.UpperPacket) error {
+	length := upkt.Route().Len()
 	if length == 0 {
 		return ErrZeroLenRoute
 	}
@@ -224,14 +203,11 @@ func (fwd *Forwarder) SendPacket(data []byte, from rovy.PeerID, route rovy.Route
 		return ErrRouteTooLong
 	}
 
-	copy(data[0:2], fwd.mgram.ToUvarint(DataMulticodec))
-	data[4] = 0x0 // pos
-	data[5] = byte(length)
-	copy(data[6:6+length], route.Bytes())
-	for i := 6 + length; i < 20; i++ {
-		data[i] = 0x0
-	}
+	pkt := rovy.NewLowerPacket(upkt.Packet)
+	pkt.SetCodec(fwd.mgram.LookupNumber(DataMulticodec))
 
-	// fwd.logger.Printf("forwarder: packet from us forwarded along %s", route)
-	return fwd.slots[int(data[6])].send(from, data)
+	next := int(pkt.Payload()[2])
+
+	// fwd.logger.Printf("forwarder: packet from us forwarded along %s", upkt.Route())
+	return fwd.slots[next].send(pkt)
 }

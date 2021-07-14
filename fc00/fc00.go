@@ -11,7 +11,9 @@ import (
 	ipv6 "golang.org/x/net/ipv6"
 
 	rovy "pkt.dev/go-rovy"
+	multigram "pkt.dev/go-rovy/multigram"
 	node "pkt.dev/go-rovy/node"
+	routing "pkt.dev/go-rovy/routing"
 )
 
 const Fc00Multicodec = 0x42004
@@ -19,8 +21,10 @@ const PingMulticodec = 0x42005
 
 type nodeIface interface {
 	PeerID() rovy.PeerID
-	Handle(uint64, node.DataHandler)
-	SendUpper(rovy.PeerID, uint64, []byte, rovy.Route) error
+	Multigram() *multigram.Table
+	Handle(uint64, node.UpperHandler)
+	Routing() *routing.Routing
+	SendUpper(rovy.UpperPacket) error
 	SendPlaintext(rovy.Route, uint64, []byte) error
 	Log() *log.Logger
 }
@@ -76,6 +80,7 @@ func (fc *Fc00) Start() error {
 				continue
 			}
 			copy(buf[0:4], zeros)
+			pkt.Buf = pkt.Buf[4:]
 
 			if err := fc.handleTunPacket(buf[4 : 4+n]); err != nil {
 				fc.log.Printf("fc00: handleTunPacket: %s", err)
@@ -133,16 +138,24 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		return fmt.Errorf("tun: no route for %s: %s", peerid, err)
 	}
 
-	buf = buf[:plen]
-
 	// end-to-end transmission
 	if hops >= route.Len() {
-		return fc.node.SendUpper(peerid, Fc00Multicodec, buf, route)
+		upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+		upkt.UpperDst = peerid
+		upkt.SetRoute(route)
+		upkt.SetCodec(fc.node.Multigram().LookupNumber(Fc00Multicodec))
+		upkt = upkt.SetPayload(buf)
+		return fc.node.SendUpper(upkt)
+		// return fc.node.SendUpper(peerid, Fc00Multicodec, buf, route)
 	}
 
 	// icmp with ttl that'd exceed in transit
 	if nexthdr == byte(58) {
-		rt := rovy.NewRoute(route.Bytes()[0:hops]...)
+		r := route.Bytes()
+		if len(r) > hops {
+			r = r[:hops]
+		}
+		rt := rovy.NewRoute(r...)
 		return fc.node.SendPlaintext(rt, PingMulticodec, buf)
 	}
 
@@ -151,7 +164,10 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 	return nil
 }
 
-func (fc *Fc00) handleFc00Packet(buf []byte, pid rovy.PeerID, rt rovy.Route) error {
+func (fc *Fc00) handleFc00Packet(upkt rovy.UpperPacket) error {
+	buf := upkt.Payload()
+	pid := upkt.UpperSrc
+
 	n := len(buf)
 	if n < ipv6.HeaderLen {
 		fc.log.Printf("fc00: recv: packet too short (len=%d)", n)
@@ -182,9 +198,13 @@ func (fc *Fc00) handleFc00Packet(buf []byte, pid rovy.PeerID, rt rovy.Route) err
 	return err
 }
 
-func (fc *Fc00) handlePingPacket(buf []byte, pid rovy.PeerID, rt rovy.Route) error {
+func (fc *Fc00) handlePingPacket(upkt rovy.UpperPacket) error {
+	buf := upkt.Payload()
+	pid := upkt.UpperSrc
+	rt := upkt.Route().Reverse()
+
 	if buf[40] == byte(ipv6.ICMPTypeEchoRequest) {
-		// fc.log.Printf("fc00: icmp-echo-request from %s @ %s", peerid, route)
+		fc.log.Printf("fc00: icmp-echo-request from %s @ %s", pid, rt)
 
 		src := pid.PublicKey().Addr()
 		if 0 != bytes.Compare(buf[8:24], src) {
@@ -223,7 +243,7 @@ func (fc *Fc00) handlePingPacket(buf []byte, pid rovy.PeerID, rt rovy.Route) err
 	}
 
 	if buf[40] == byte(ipv6.ICMPTypeTimeExceeded) {
-		// fc.log.Printf("fc00: icmp-time-exceeded from %s @ %s", peerid, route)
+		fc.log.Printf("fc00: icmp-time-exceeded from %s @ %s", pid, rt)
 
 		src := pid.PublicKey().Addr()
 		if 0 != bytes.Compare(buf[8:24], src) {
@@ -237,9 +257,9 @@ func (fc *Fc00) handlePingPacket(buf []byte, pid rovy.PeerID, rt rovy.Route) err
 			return nil
 		}
 
-		return fc.handleFc00Packet(buf, pid, rt)
+		return fc.handleFc00Packet(upkt)
 	}
 
-	// rnode.Log().Printf("fc00: dropping ping packet from %s @ %s %#v", peerid, route, p)
+	fc.node.Log().Printf("fc00: dropping ping packet from %s @ %s %#v", pid, rt, buf)
 	return nil
 }

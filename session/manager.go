@@ -150,7 +150,7 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 
 	pkt, err = s.HandleHello(pkt)
 	if err != nil {
-		return pkt2, err
+		return pkt2, fmt.Errorf("HandleHello: %s", err)
 	}
 
 	mgram, err := multigram.NewTableFromBytes(pkt.Plaintext())
@@ -158,7 +158,7 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 		return pkt2, err
 	}
 
-	pkt2 = NewResponsePacket(pkt.Packet, pkt.Offset)
+	pkt2 = NewResponsePacket(rovy.NewPacket(make([]byte, rovy.TptMTU)), pkt.Offset, pkt.Padding)
 	pkt2.SetSenderIndex(pkt.SenderIndex())
 	pkt2 = pkt2.SetPlaintext(sm.multigram.Bytes())
 
@@ -221,8 +221,6 @@ func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (multia
 		return nil, fmt.Errorf("no session for %s", peerid)
 	}
 
-	// sm.logger.Printf("CreateData: pkt=%#v", pkt)
-
 	hdr, ct, err := s.handshake.MakeMessage(pkt.Plaintext())
 	if err != nil {
 		return nil, err
@@ -261,6 +259,7 @@ func (sm *SessionManager) HandleData(pkt DataPacket) (rovy.PeerID, error) {
 	// We only call the ConnectedLower callback for lower packets.
 	// We're dealing with a lower packet if LowerSrc isn't set yet.
 	if pkt.LowerSrc.Empty() {
+		// sm.logger.Printf("calling establishedCb now for %s", s.RemotePeerID())
 		sm.establishedCb(s.remotePeerID)
 		for _, waiter := range s.waiters {
 			waiter <- nil

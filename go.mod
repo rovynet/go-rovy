@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/ipfs/go-cid v0.0.7
+	github.com/kr/pretty v0.2.1
 	github.com/minio/sha256-simd v0.1.1 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-multiaddr v0.3.1
