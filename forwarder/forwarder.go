@@ -184,7 +184,7 @@ func (fwd *Forwarder) HandlePacket(pkt rovy.LowerPacket) error {
 	}
 	buf[2+pos] = byte(prev)
 
-	if pos+1 == length {
+	if pos == length-1 {
 		return fwd.slots[0].send(pkt)
 	}
 	buf[0] = byte(pos + 1)
@@ -193,7 +193,7 @@ func (fwd *Forwarder) HandlePacket(pkt rovy.LowerPacket) error {
 	return fwd.slots[next].send(pkt)
 }
 
-// We expect the packet to have already passed through SessionManager.CreateData
+// We expect the packet to have already passed through (upper) SessionManager.CreateData
 func (fwd *Forwarder) SendPacket(upkt rovy.UpperPacket) error {
 	length := upkt.Route().Len()
 	if length == 0 {
@@ -203,11 +203,15 @@ func (fwd *Forwarder) SendPacket(upkt rovy.UpperPacket) error {
 		return ErrRouteTooLong
 	}
 
-	pkt := rovy.NewLowerPacket(upkt.Packet)
-	pkt.SetCodec(fwd.mgram.LookupNumber(DataMulticodec))
-
-	next := int(pkt.Payload()[2])
+	lpkt := rovy.NewLowerPacket(upkt.Packet)
+	lpkt.SetCodec(fwd.mgram.LookupNumber(DataMulticodec))
 
 	// fwd.logger.Printf("forwarder: packet from us forwarded along %s", upkt.Route())
-	return fwd.slots[next].send(pkt)
+	return fwd.SendRaw(lpkt)
+}
+
+func (fwd *Forwarder) SendRaw(lpkt rovy.LowerPacket) error {
+	buf := lpkt.Payload()
+	next := int(buf[2+buf[0]])
+	return fwd.slots[next].send(lpkt)
 }
