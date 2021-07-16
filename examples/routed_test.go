@@ -1,37 +1,20 @@
-package main
+package examples_test
 
 import (
-	"fmt"
-	"log"
-	"os"
+	"bytes"
+	"testing"
 	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
-	node "pkt.dev/go-rovy/node"
 )
 
-const RoutedCodec = 0x42003
+func TestRouted(t *testing.T) {
+	codec := uint64(0x42003)
 
-func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
-	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
+	payload := []byte{0x42, 0x42, 0x42, 0x42}
+	payload2 := []byte{0x0, 0x0, 0x0, 0x0}
 
-	privkey, err := rovy.GeneratePrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	node := node.NewNode(privkey, logger)
-
-	if err = node.Listen(lisaddr); err != nil {
-		return nil, err
-	}
-
-	logger.Printf("%s/rovy/%s", lisaddr, node.PeerID())
-	return node, nil
-}
-
-func run() error {
 	addrA := multiaddr.StringCast("/ip4/127.0.0.1/udp/12340")
 	addrB := multiaddr.StringCast("/ip4/127.0.0.1/udp/12341")
 	addrC := multiaddr.StringCast("/ip4/127.0.0.1/udp/12342")
@@ -46,163 +29,201 @@ func run() error {
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeB, err := newNode("nodeB", addrB)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeC, err := newNode("nodeC", addrC)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeD, err := newNode("nodeD", addrD)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeE, err := newNode("nodeE", addrE)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeF, err := newNode("nodeF", addrF)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeG, err := newNode("nodeG", addrG)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeH, err := newNode("nodeH", addrH)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeI, err := newNode("nodeI", addrI)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeJ, err := newNode("nodeJ", addrJ)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 	nodeK, err := newNode("nodeK", addrK)
 	if err != nil {
-		return err
+		t.Error(err)
+		return
 	}
 
 	// A <-> B/C/D
 	if err := nodeA.Connect(nodeB.PeerID(), addrB); err != nil {
 		nodeA.Log().Printf("failed to connect nodeA to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeA.Connect(nodeC.PeerID(), addrC); err != nil {
 		nodeA.Log().Printf("failed to connect nodeA to nodeC: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeA.Connect(nodeD.PeerID(), addrD); err != nil {
 		nodeA.Log().Printf("failed to connect nodeA to nodeD: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 
 	// B/C/D <-> E/F/G
 	if err := nodeB.Connect(nodeE.PeerID(), addrE); err != nil {
 		nodeA.Log().Printf("failed to connect nodeB to nodeE: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeB.Connect(nodeF.PeerID(), addrF); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeB.Connect(nodeG.PeerID(), addrG); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeC.Connect(nodeE.PeerID(), addrE); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeC.Connect(nodeF.PeerID(), addrF); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeC.Connect(nodeG.PeerID(), addrG); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeD.Connect(nodeE.PeerID(), addrE); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeD.Connect(nodeF.PeerID(), addrF); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeD.Connect(nodeG.PeerID(), addrG); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 
 	// E/F/G <-> H/I/J
 	if err := nodeE.Connect(nodeH.PeerID(), addrH); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeE.Connect(nodeI.PeerID(), addrI); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeE.Connect(nodeJ.PeerID(), addrJ); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeF.Connect(nodeH.PeerID(), addrH); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeF.Connect(nodeI.PeerID(), addrI); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeF.Connect(nodeJ.PeerID(), addrJ); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeG.Connect(nodeH.PeerID(), addrH); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeG.Connect(nodeI.PeerID(), addrI); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeG.Connect(nodeJ.PeerID(), addrJ); err != nil {
 		nodeA.Log().Printf("failed to connect to nodeB: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 
 	// H/I/J <-> K
 	if err := nodeH.Connect(nodeK.PeerID(), addrK); err != nil {
 		nodeA.Log().Printf("failed to connect nodeH to nodeK: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeI.Connect(nodeK.PeerID(), addrK); err != nil {
 		nodeA.Log().Printf("failed to connect nodeI to nodeK: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 	if err := nodeJ.Connect(nodeK.PeerID(), addrK); err != nil {
 		nodeA.Log().Printf("failed to connect nodeJ to nodeK: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 
-	nodeA.Handle(RoutedCodec, func(pkt rovy.UpperPacket) error {
+	nodeA.Handle(codec, func(pkt rovy.UpperPacket) error {
 		nodeA.Log().Printf("got packet from %s: %#v", pkt.UpperSrc, pkt.Payload())
 		return nil
 	})
-	nodeK.Handle(RoutedCodec, func(pkt rovy.UpperPacket) error {
-		nodeK.Log().Printf("got packet from %s: %#v", pkt.UpperSrc, pkt.Payload())
+	nodeK.Handle(codec, func(pkt rovy.UpperPacket) error {
+		pl := pkt.Payload()
+		copy(payload2[:0], pl)
+
+		nodeK.Log().Printf("got packet from %s: %#v", pkt.UpperSrc, pl)
 		return nil
 	})
 
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// peerings
 	// A     <-> B/C/D
@@ -222,22 +243,20 @@ func run() error {
 
 	if err := nodeA.Connect(nodeK.PeerID(), nil); err != nil {
 		nodeA.Log().Printf("failed to connect nodeA to nodeK: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 
-	if err := nodeA.Send(nodeK.PeerID(), RoutedCodec, []byte{0x42, 0x42, 0x42, 0x42}); err != nil {
+	if err := nodeA.Send(nodeK.PeerID(), codec, payload); err != nil {
 		nodeA.Log().Printf("failed to send nodeA -> nodeK: %s", err)
-		return err
+		t.Error(err)
+		return
 	}
 
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
-	return nil
-}
-
-func main() {
-	if err := run(); err != nil {
-		fmt.Printf("error: %s\n", err)
-		os.Exit(1)
+	if bytes.Equal(payload2, payload) {
+		t.Fatalf("expected %#v but got %#v", payload, payload2)
+		return
 	}
 }
