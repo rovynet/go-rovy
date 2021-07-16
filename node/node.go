@@ -8,7 +8,6 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
-	varint "github.com/multiformats/go-varint"
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
 	multigram "pkt.dev/go-rovy/multigram"
@@ -384,71 +383,7 @@ func (node *Node) ReceiveUpper(upkt rovy.UpperPacket) error {
 
 		upkt := rovy.NewUpperPacket(datapkt.Packet)
 		return node.ReceiveUpperDirect(upkt)
-
-		// case session.PlaintextMsgType:
-		// 	return node.ReceiveUpperPlaintext(upkt.Bytes()[rovy.UpperOffset:], upkt.Route())
 	}
 
 	return fmt.Errorf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", msgtype)
-}
-
-// TODO actually sign the thing
-func (node *Node) SendPlaintext(route rovy.Route, codec uint64, b []byte) error {
-	// hdr := varint.ToUvarint(codec)
-	// b = append([]byte{0x0, 0x0, 0x0, 0x0}, b...) // XXX slowness
-	// copy(b[0:4], hdr)
-
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
-	ptpkt = ptpkt.SetPlaintext(b)
-	ptpkt.SetSender(node.PeerID().PublicKey())
-
-	// fwdbuf := ptpkt.Bytes()[rovy.FwdOffset:]
-	// node.Log().Printf("SendPlaintext: fwdbuf=%#v", fwdbuf)
-	// return node.forwarder.SendPacket(fwdbuf, node.PeerID(), route)
-
-	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
-	upkt.UpperSrc = node.PeerID()
-	// upkt.SetMsgType(session.DataMsgType)
-	upkt.SetCodec(codec)
-	upkt.SetRoute(route)
-	upkt = upkt.SetPayload(ptpkt.Plaintext())
-
-	node.Log().Printf("SendPlaintext: %# v", pretty.Formatter(upkt))
-	return node.Forwarder().SendPacket(upkt)
-}
-
-// TODO actually verify signature
-func (node *Node) ReceiveUpperPlaintext(b []byte, route rovy.Route) error {
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-	ptpkt := session.NewPlaintextPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
-	copy(ptpkt.Bytes()[rovy.UpperOffset:], b)
-	ptpkt.Length = rovy.UpperOffset + len(b)
-
-	pt := ptpkt.Plaintext()
-
-	// ptpkt.Route = route
-
-	codec, _, err := varint.FromUvarint(pt[0:4])
-	if err != nil {
-		return err
-	}
-
-	node.Log().Printf("ReceiveUpperPlaintext: got %#v", pt)
-
-	cb, present := node.upperHandlers[codec]
-	if !present {
-		return fmt.Errorf("ReceiveUpperPlaintext: dropping packet with unknown codec %d", codec)
-	}
-
-	// XXX fucking horrific. this whole plaintext business must move to forwarder/
-	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
-	upkt.UpperSrc = rovy.NewPeerID(ptpkt.Sender())
-	upkt.SetMsgType(session.DataMsgType)
-	upkt.SetRoute(route)
-	upkt.SetCodec(node.SessionManager().Multigram().LookupNumber(codec))
-	upkt = upkt.SetPayload(pt)
-
-	// return cb(pt[4:], rovy.NewPeerID(ptpkt.Sender()), route)
-	return cb(upkt)
 }

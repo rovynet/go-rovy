@@ -84,7 +84,7 @@ var (
 	nullSlotEntry = &slotentry{
 		rovy.EmptyPeerID,
 		func(pkt rovy.LowerPacket) error {
-			return fmt.Errorf("forwarder: dropping packet for unknown destination from %s -- %#v\n", pkt.LowerSrc, pkt.Bytes())
+			return fmt.Errorf("forwarder: dropping packet for unknown destination from %s via %s -- %#v\n", pkt.LowerSrc, rovy.NewUpperPacket(pkt.Packet).Route(), pkt.Bytes())
 		},
 	}
 )

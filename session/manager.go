@@ -55,6 +55,7 @@ func (sm *SessionManager) randUint32() uint32 {
 	}
 }
 
+// TODO randomize the codec numbers somehow, to find incorrect usages
 func (sm *SessionManager) Multigram() *multigram.Table {
 	return sm.multigram
 }
