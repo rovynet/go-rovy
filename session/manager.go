@@ -15,7 +15,6 @@ import (
 )
 
 // TODO: make sure indexes from remote don't overwrite other sessions
-// TODO: clean up sessions that don't establish
 type SessionManager struct {
 	sync.RWMutex
 	privkey       rovy.PrivateKey
@@ -55,7 +54,6 @@ func (sm *SessionManager) randUint32() uint32 {
 	}
 }
 
-// TODO randomize the codec numbers somehow, to find incorrect usages
 func (sm *SessionManager) Multigram() *multigram.Table {
 	return sm.multigram
 }

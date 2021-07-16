@@ -53,10 +53,6 @@ type MessageHeader struct {
 	Nonce [8]byte
 }
 
-// TODO: replay protection
-// TODO: flood protection
-// TODO: cookies
-// TODO: resending / how to handle lost handshake packets
 type Handshake struct {
 	hash             [blake2s.Size]byte
 	chainKey         [blake2s.Size]byte

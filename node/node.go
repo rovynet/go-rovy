@@ -298,7 +298,7 @@ func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
 func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
 	upkt.UpperSrc = node.PeerID()
 
-	// XXX not sure what the relationship is with handshake packets and non-data packets
+	// TODO should have a codec for this double-encryption-avoidance hack
 	if upkt.RouteLen() == forwarder.HopLength {
 		lpkt := rovy.NewLowerPacket(upkt.Packet)
 		lpkt.LowerSrc = node.PeerID()

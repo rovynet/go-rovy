@@ -111,11 +111,6 @@ func (pkt UpperPacket) SetPayload(pl []byte) UpperPacket {
 	return pkt
 }
 
-// TODO get rid of this
-func (pkt UpperPacket) CodecAndPayload() []byte {
-	return pkt.Buf[pkt.Offset : pkt.Length-pkt.Padding]
-}
-
 type LowerPacket struct {
 	Offset int
 	Packet

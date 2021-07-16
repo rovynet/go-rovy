@@ -160,7 +160,7 @@ func (fc *Fc00) verify(ppkt PingPacket) error {
 func (fc *Fc00) listenTun() {
 	zeros := []byte{0x0, 0x0, 0x0, 0x0}
 
-	for { // XXX select?
+	for {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 		buf := pkt.Bytes()[rovy.UpperOffset:]
 
