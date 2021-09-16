@@ -45,7 +45,7 @@ For the time being, check out the `examples/` directory.
 ### Next
 
 - [ ] transmitter object that knows route (and thus mtu) before we construct packet
-- [ ] node: add lower codec for direct-upper hack
+- [x] node: add lower codec for direct-upper hack
 - [ ] node: payload overflow checks
 - [ ] node: enforce max route length of 14 bytes
 - [ ] constants for sizes and offsets
@@ -79,7 +79,7 @@ For the time being, check out the `examples/` directory.
   - 0x4     /rovy/v0/message
   - 0x12345 /rovy/v0/fwd
   - 0x12346 /rovy/v0/fwdctl
-  -         /rovy/v0/directupper
+  - 0x12347 /rovy/v0/directupper
   - 0x42004 /rovy/v0/fc00
   - 0x42005 /rovy/v0/fc00trace
 

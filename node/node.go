@@ -15,6 +15,8 @@ import (
 	session "pkt.dev/go-rovy/session"
 )
 
+const DirectUpperCodec = 0x12347
+
 type Listener multiaddrnet.PacketConn
 
 type UpperHandler func(rovy.UpperPacket) error
@@ -55,6 +57,8 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		return node.ReceiveUpper(upkt)
 	})
 	node.HandleLower(forwarder.DataMulticodec, node.forwarder.HandlePacket)
+
+	node.sessions.Multigram().AddCodec(DirectUpperCodec)
 
 	return node
 }
@@ -266,12 +270,15 @@ func (node *Node) ReceiveLower(pkt rovy.Packet) error {
 
 		node.RxLower += 1
 
-		cb, present := node.lowerHandlers[codec]
-		if !present {
-			// TODO should have a codec for this double-encryption-avoidance hack
+		if codec == DirectUpperCodec {
 			upkt := rovy.NewUpperPacket(lowpkt.Packet)
 			upkt.UpperSrc = upkt.LowerSrc
 			return node.ReceiveUpperDirect(upkt)
+		}
+
+		cb, present := node.lowerHandlers[codec]
+		if !present {
+			return fmt.Errorf("ReceiveLower: dropping packet with unknown lower codec 0x%x from %s", codec, lowpkt.LowerSrc)
 		}
 		return cb(lowpkt)
 	}
@@ -298,9 +305,9 @@ func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
 func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
 	upkt.UpperSrc = node.PeerID()
 
-	// TODO should have a codec for this double-encryption-avoidance hack
 	if upkt.RouteLen() == forwarder.HopLength {
 		lpkt := rovy.NewLowerPacket(upkt.Packet)
+		lpkt.SetCodec(node.SessionManager().Multigram().LookupNumber(DirectUpperCodec))
 		lpkt.LowerSrc = node.PeerID()
 		lpkt.LowerDst = upkt.UpperDst
 		return node.SendLower(lpkt)
