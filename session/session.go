@@ -18,6 +18,7 @@ var (
 const (
 	HelloMsgType     = 0x1
 	ResponseMsgType  = 0x2
+	CookieMsgType    = 0x3
 	DataMsgType      = 0x4
 	PlaintextMsgType = 0x5
 )

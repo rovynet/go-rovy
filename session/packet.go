@@ -185,6 +185,27 @@ func (pkt ResponsePacket) SetCiphertext(ct []byte) ResponsePacket {
 	return pkt
 }
 
+//  4 bytes - msg type (0x3)
+//  4 bytes - session index
+// 24 bytes - nonce
+// 16 bytes - cookie
+// 16 bytes - cookie tag
+type CookiePacket struct {
+	Offset  int
+	Padding int
+	rovy.Packet
+}
+
+func NewCookiePacket(basepkt rovy.Packet, offset, padding int) CookiePacket {
+	pkt := CookiePacket{
+		Packet:  basepkt,
+		Offset:  offset,
+		Padding: padding,
+	}
+	pkt.SetMsgType(CookieMsgType)
+	return pkt
+}
+
 //  4 bytes - msg type (0x4)
 //  4 bytes - session index
 //  8 bytes - nonce
