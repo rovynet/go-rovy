@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -91,6 +92,7 @@ func run() error {
 		if err := nodeA.Send(nodeB.PeerID(), BenchmarkCodec, p); err != nil {
 			return err
 		}
+		runtime.Gosched()
 	}
 
 	time.Sleep(250 * time.Millisecond)

@@ -16,6 +16,13 @@ const (
 	UpperPadding = 16
 )
 
+type Queue interface {
+	Put(Packet)
+	Get() Packet
+	Capacity() int
+	Length() int
+}
+
 type Packet struct {
 	Buf      []byte
 	Length   int

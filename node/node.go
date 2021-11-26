@@ -13,9 +13,12 @@ import (
 	multigram "pkt.dev/go-rovy/multigram"
 	routing "pkt.dev/go-rovy/routing"
 	session "pkt.dev/go-rovy/session"
+	ringbuf "pkt.dev/go-rovy/util/ringbuf"
 )
 
 const DirectUpperCodec = 0x12347
+
+const LowerUnsealQueueSize = 1024
 
 type Listener multiaddrnet.PacketConn
 
@@ -26,7 +29,7 @@ type LowerHandler func(rovy.LowerPacket) error
 type Node struct {
 	peerid        rovy.PeerID
 	logger        *log.Logger
-	listeners     []Listener
+	transports    []*Transport
 	sessions      *session.SessionManager
 	upperHandlers map[uint64]UpperHandler
 	lowerHandlers map[uint64]LowerHandler
@@ -35,6 +38,7 @@ type Node struct {
 	RxTpt         uint64
 	RxLower       uint64
 	RxUpper       uint64
+	lowerUnsealQ  rovy.Queue
 }
 
 func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
@@ -47,6 +51,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		upperHandlers: map[uint64]UpperHandler{},
 		lowerHandlers: map[uint64]LowerHandler{},
 		routing:       routing.NewRouting(logger),
+		lowerUnsealQ:  ringbuf.NewRingBuffer(LowerUnsealQueueSize),
 	}
 
 	node.sessions = session.NewSessionManager(privkey, logger, node.ConnectedLower)
@@ -59,6 +64,8 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	node.HandleLower(forwarder.DataMulticodec, node.forwarder.HandlePacket)
 
 	node.sessions.Multigram().AddCodec(DirectUpperCodec)
+
+	go node.lowerUnsealRoutine()
 
 	return node
 }
@@ -76,7 +83,7 @@ func (node *Node) Multigram() *multigram.Table {
 }
 
 func (node *Node) Adresses() (addrs []multiaddr.Multiaddr) {
-	for _, lis := range node.listeners {
+	for _, lis := range node.transports {
 		addrs = append(addrs, lis.LocalMultiaddr())
 	}
 	return addrs
@@ -109,36 +116,17 @@ func (node *Node) ConnectedLower(peerid rovy.PeerID) {
 }
 
 func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
-	pktconn, err := multiaddrnet.ListenPacket(lisaddr)
+	tpt, err := NewTransport(lisaddr, node.logger)
 	if err != nil {
 		return err
 	}
-	node.listeners = append(node.listeners, pktconn)
 
-	go node.listenRoutine(pktconn)
+	node.transports = append(node.transports, tpt)
+
+	go tpt.RecvRoutine(node.lowerUnsealQ)
+	go tpt.SendRoutine()
 
 	return nil
-}
-
-func (node *Node) listenRoutine(pktconn multiaddrnet.PacketConn) {
-	for {
-		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-
-		n, raddr, err := pktconn.ReadFrom(pkt.Bytes())
-		if err != nil {
-			node.logger.Printf("ReadFrom: %s", err)
-			continue
-		}
-
-		node.RxTpt += 1
-
-		pkt.Length = n
-		pkt.TptSrc, _ = multiaddrnet.FromNetAddr(raddr) // TODO handle error
-
-		if err = node.ReceiveLower(pkt); err != nil {
-			node.logger.Printf("Listen: loop: %s", err)
-		}
-	}
 }
 
 func (node *Node) Handle(codec uint64, cb UpperHandler) {
@@ -221,8 +209,19 @@ func (node *Node) SendLower(pkt rovy.LowerPacket) error {
 }
 
 func (node *Node) sendTransport(pkt rovy.Packet) error {
-	_, err := node.listeners[0].WriteToMultiaddr(pkt.Bytes(), pkt.TptDst)
-	return err
+	node.transports[0].Send(pkt)
+	return nil
+}
+
+func (node *Node) lowerUnsealRoutine() {
+	for {
+		pkt := node.lowerUnsealQ.Get()
+
+		err := node.ReceiveLower(pkt)
+		if err != nil {
+			node.Log().Printf("lowerUnsealRoutine: %s", err)
+		}
+	}
 }
 
 func (node *Node) ReceiveLower(pkt rovy.Packet) error {
