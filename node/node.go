@@ -120,28 +120,30 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 	}
 	node.listeners = append(node.listeners, pktconn)
 
-	go func() {
-		for {
-			pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-
-			n, raddr, err := pktconn.ReadFrom(pkt.Bytes())
-			if err != nil {
-				node.logger.Printf("ReadFrom: %s", err)
-				continue
-			}
-
-			node.RxTpt += 1
-
-			pkt.Length = n
-			pkt.TptSrc, _ = multiaddrnet.FromNetAddr(raddr) // TODO handle error
-
-			if err = node.ReceiveLower(pkt); err != nil {
-				node.logger.Printf("Listen: loop: %s", err)
-			}
-		}
-	}()
+	go node.listenRoutine(pktconn)
 
 	return nil
+}
+
+func (node *Node) listenRoutine(pktconn multiaddrnet.PacketConn) {
+	for {
+		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+
+		n, raddr, err := pktconn.ReadFrom(pkt.Bytes())
+		if err != nil {
+			node.logger.Printf("ReadFrom: %s", err)
+			continue
+		}
+
+		node.RxTpt += 1
+
+		pkt.Length = n
+		pkt.TptSrc, _ = multiaddrnet.FromNetAddr(raddr) // TODO handle error
+
+		if err = node.ReceiveLower(pkt); err != nil {
+			node.logger.Printf("Listen: loop: %s", err)
+		}
+	}
 }
 
 func (node *Node) Handle(codec uint64, cb UpperHandler) {
