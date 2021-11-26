@@ -97,12 +97,7 @@ func (node *Node) Routing() *routing.Routing {
 // XXX this shouldn't & mustn't be triggered for Upper sessions,
 //     otherwise forwarder.Attach deadlocks.
 func (node *Node) ConnectedLower(peerid rovy.PeerID) {
-	send := func(pkt rovy.LowerPacket) error {
-		pkt.LowerDst = peerid
-		return node.SendLower(pkt)
-	}
-
-	slot, err := node.forwarder.Attach(peerid, send)
+	slot, err := node.forwarder.Attach(peerid, node.SendLower)
 	if err != nil {
 		node.Log().Printf("connected to %s, but forwarder error: %s", peerid, err)
 		return

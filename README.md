@@ -102,8 +102,9 @@ Measures to take for higher throughput:
 - Use net.af/netaddr for IP addresses
 - Profiling: https://github.com/pyroscope-io/pyroscope
 
-Lock-free ring buffers:
+Data structures:
 
+- https://github.com/cornelk/hashmap
 - https://tanzu.vmware.com/content/blog/a-channel-based-ring-buffer-in-go
 - https://github.com/textnode/gringo
 

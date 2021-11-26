@@ -190,6 +190,7 @@ func (fwd *Forwarder) HandlePacket(pkt rovy.LowerPacket) error {
 	buf[0] = byte(pos + 1)
 
 	// fwd.logger.Printf("forwarder: packet from %s forwarded along %s", from, rovy.NewRoute(buf[2+pos:2+buf[1]]...))
+	pkt.LowerDst = fwd.slots[next].peerid
 	return fwd.slots[next].send(pkt)
 }
 
@@ -213,5 +214,6 @@ func (fwd *Forwarder) SendPacket(upkt rovy.UpperPacket) error {
 func (fwd *Forwarder) SendRaw(lpkt rovy.LowerPacket) error {
 	buf := lpkt.Payload()
 	next := int(buf[2+buf[0]])
+	lpkt.LowerDst = fwd.slots[next].peerid
 	return fwd.slots[next].send(lpkt)
 }
