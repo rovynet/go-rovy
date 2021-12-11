@@ -173,6 +173,8 @@ func (fwd *Forwarder) HandlePacket(pkt rovy.LowerPacket) error {
 		return ErrLoopRoute
 	}
 
+	// TODO error if length > 14 || pos > 13
+
 	fwd.RLock()
 	defer fwd.RUnlock()
 
