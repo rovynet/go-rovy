@@ -90,6 +90,9 @@ func (pid PeerID) Bytes() []byte {
 }
 
 func (pid PeerID) String() string {
+	if pid.Empty() {
+		return "<empty>"
+	}
 	return pid.Cid().String()
 }
 
