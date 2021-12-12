@@ -42,7 +42,7 @@ func TestEcho(t *testing.T) {
 
 	nodeA.Handle(codec, func(pkt rovy.UpperPacket) error {
 		pl := pkt.Payload()
-		copy(payload2[:0], pl)
+		copy(payload2, pl)
 
 		nodeA.Log().Printf("got echo from %s (len=%d) %#v", pkt.UpperSrc, len(pl), pl)
 		return nil
@@ -64,7 +64,7 @@ func TestEcho(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if bytes.Equal(payload2, payload) {
+	if !bytes.Equal(payload2, payload) {
 		t.Fatalf("expected %#v but got %#v", payload, payload2)
 		return
 	}

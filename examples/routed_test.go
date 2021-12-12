@@ -217,7 +217,7 @@ func TestRouted(t *testing.T) {
 	})
 	nodeK.Handle(codec, func(pkt rovy.UpperPacket) error {
 		pl := pkt.Payload()
-		copy(payload2[:0], pl)
+		copy(payload2, pl)
 
 		nodeK.Log().Printf("got packet from %s: %#v", pkt.UpperSrc, pl)
 		return nil
@@ -255,7 +255,7 @@ func TestRouted(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if bytes.Equal(payload2, payload) {
+	if !bytes.Equal(payload2, payload) {
 		t.Fatalf("expected %#v but got %#v", payload, payload2)
 		return
 	}
