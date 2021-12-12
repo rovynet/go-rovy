@@ -74,5 +74,5 @@ func (tpt *Transport) SendRoutine() {
 }
 
 func (tpt *Transport) Send(pkt rovy.Packet) {
-	tpt.sendQ.Put(pkt)
+	tpt.sendQ.PutWithBackpressure(pkt)
 }

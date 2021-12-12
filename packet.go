@@ -18,6 +18,7 @@ const (
 
 type Queue interface {
 	Put(Packet)
+	PutWithBackpressure(Packet)
 	Get() Packet
 	Capacity() int
 	Length() int

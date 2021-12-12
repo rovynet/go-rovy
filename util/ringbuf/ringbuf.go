@@ -25,6 +25,10 @@ func (rb *RingBuffer) Put(pkt rovy.Packet) {
 	}
 }
 
+func (rb *RingBuffer) PutWithBackpressure(pkt rovy.Packet) {
+	rb.ch <- pkt
+}
+
 func (rb *RingBuffer) Get() rovy.Packet {
 	return <-rb.ch
 }

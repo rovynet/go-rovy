@@ -122,7 +122,7 @@ func (node *Node) Routing() *routing.Routing {
 //     otherwise forwarder.Attach deadlocks.
 func (node *Node) ConnectedLower(peerid rovy.PeerID) {
 	slot, err := node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
-		node.lowerSealQ.Put(lpkt.Packet)
+		node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
 		return nil
 	})
 	if err != nil {
@@ -278,7 +278,7 @@ func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
 		lpkt.LowerSrc = node.PeerID()
 		lpkt.LowerDst = upkt.UpperDst
 		// return node.SendLower(lpkt)
-		node.lowerSealQ.Put(lpkt.Packet)
+		node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
 		return nil
 	}
 
