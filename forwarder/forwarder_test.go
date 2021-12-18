@@ -30,7 +30,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 	lpkt.LowerSrc = peeridA
 
 	b.ReportAllocs()
-	b.SetBytes(1436)
+	b.SetBytes(rovy.TptMTU)
 	b.ResetTimer()
 
 	var err error
