@@ -1,8 +1,29 @@
-# Rovy
 
-Rovy is a (work-in-progress) permissionless (routed peer-to-peer)|(encrypted packet) network. Rovy aims to tear down artifical barriers in internetworking, make routing and transit secure against certain attacks, and be backward-compatible by smoothly integrating with existing Internet infrastructure.
+# The Rovy Network
 
-Rovy is pretty closely related to [libp2p](https://libp2p.io) and [cjdns](https://github.com/cjdelisle/cjdns), so you'll recognize many of their ideas and techniques here.
+Rovy is a global encrypted computer network that anyone can join and extend.
+
+Rovy aims to tear down artifical barriers in internetworking, make routing and transit secure against certain attacks, and smoothly integrate with existing Internet infrastructure.
+
+**Anyone can join** -- TODO: openness and accessiblity through 1. zero config 2. permissionless and flat keyspace 3. no costly registry fees 4. good performance on cheap hardware
+
+**Encrypted & authenticated** -- Rovy guarantees the confidentiality, integrity, and authenticity of every single packet. This applies to connections between two nodes with other nodes in between (end-to-end) as well as the underlying direct connections between the involved nodes (hop-to-hop). Rovy connections use a handshake protocol called Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s originally introduced by Wireguard. In addition, all records shared with the network in order to facilitate routing are authenticated with signatures to avoid forgery.
+
+**Compatible with all IPv6-capable applications** -- TODO: 1. need for upgrade path 2. fc00::/8 on tun 3. per-port dual-stack
+
+**End-to-end principle restored, middleboxes simplified** -- TODO
+
+**Secure Internet routing** -- 1. can carry any typical ipv4/ipv6 traffic 2. bgp and reusing keys from rpki for our own stuff 3. control plane is encrypted
+
+**An upgrade to the Internet's protocols** -- TODO
+
+The protocols making up Rovy are pretty closely related to the ideas and concepts of [cjdns](https://github.com/cjdelisle/cjdns) and [libp2p](https://libp2p.io).
+
+Right now (late 2021) Rovy is an early work-in-progress with some foundational parts in place and working, and many of the more interesting parts still missing. There is a Go node daemon that runs on Linux x86_64 and a Go Library to communicate with a daemon or run one embedded in the same process. In the future, Rovy should be ported to more operating systems and architectures.
+
+---
+
+*From here on just random notes*
 
 Rovy addresses are [multiaddrs](https://multiformats.io) and look like this:
 
