@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	rovy "pkt.dev/go-rovy"
+	forwarder "pkt.dev/go-rovy/forwarder"
 	session "pkt.dev/go-rovy/session"
 )
 
@@ -172,6 +173,11 @@ func (node *Node) doLowerMux(pkt rovy.Packet) error {
 	}
 
 	codec := node.SessionManager().Multigram().LookupCodec(number)
+
+	if codec == forwarder.DataMulticodec {
+		return node.Forwarder().HandlePacket(lowpkt)
+	}
+
 	if codec == DirectUpperCodec {
 		lowpkt.UpperSrc = pkt.LowerSrc
 		// node.upperMuxQ.Put(lowpkt.Packet)

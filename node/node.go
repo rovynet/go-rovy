@@ -78,7 +78,6 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		upkt := rovy.NewUpperPacket(lpkt.Packet)
 		return node.ReceiveUpper(upkt)
 	})
-	node.HandleLower(forwarder.DataMulticodec, node.forwarder.HandlePacket)
 
 	node.sessions.Multigram().AddCodec(DirectUpperCodec)
 
