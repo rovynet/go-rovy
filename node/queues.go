@@ -7,10 +7,18 @@ import (
 	session "pkt.dev/go-rovy/session"
 )
 
-// XXX: requires pkt.LowerDst, pkt.TptDst
 func (node *Node) lowerHelloSendRoutine() {
 	for {
 		pkt := node.lowerHelloSendQ.Get()
+
+		if pkt.TptDst == nil {
+			node.Log().Printf("lowerHelloSendRoutine: packet without TptDst")
+			continue
+		}
+		if pkt.LowerDst.Empty() {
+			node.Log().Printf("lowerHelloSendRoutine: packet without LowerDst")
+			continue
+		}
 
 		if err := node.doLowerHelloSend(pkt); err != nil {
 			node.Log().Printf("lowerHelloSendRoutine: %s", err)
@@ -25,6 +33,9 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 	if err != nil {
 		return err
 	}
+
+	node.sendTransport(hellopkt.Packet)
+
 	return nil
 }
 
@@ -32,6 +43,11 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 func (node *Node) lowerHelloRecvRoutine() {
 	for {
 		pkt := node.lowerHelloRecvQ.Get()
+
+		if pkt.TptSrc == nil {
+			node.Log().Printf("lowerHelloRecvRoutine: dropping packet without TptSrc")
+			continue
+		}
 
 		if err := node.doLowerHelloRecv(pkt); err != nil {
 			node.Log().Printf("lowerHelloRecvRoutine: %s", err)
@@ -53,17 +69,17 @@ func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
 		node.sendTransport(resppkt.Packet)
 	case session.ResponseMsgType:
 		resppkt := session.NewResponsePacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
-		resppkt, err := node.SessionManager().HandleResponse(resppkt, pkt.TptSrc)
+		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, pkt.TptSrc)
 		if err != nil {
 			return err
 		}
+		node.connectedCallback(peerid, true)
 	default:
 		return fmt.Errorf("dropping packet with unknown MsgType 0x%x", msgtype)
 	}
 	return nil
 }
 
-// XXX: requires pkt.LowerSrc
 func (node *Node) lowerUnsealRoutine() {
 	for {
 		pkt := node.lowerUnsealQ.Get()
@@ -87,9 +103,13 @@ func (node *Node) lowerUnsealRoutine() {
 func (node *Node) doLowerUnseal(pkt rovy.Packet) error {
 	datapkt := session.NewDataPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 
-	peerid, err := node.SessionManager().HandleData(datapkt)
+	peerid, firstdata, err := node.SessionManager().HandleData(datapkt)
 	if err != nil {
 		return err
+	}
+
+	if firstdata {
+		node.connectedCallback(peerid, true)
 	}
 
 	node.RxLower += 1
@@ -103,6 +123,11 @@ func (node *Node) lowerSealRoutine() {
 	for {
 		pkt := node.lowerSealQ.Get()
 
+		if pkt.LowerDst.Empty() {
+			node.Log().Printf("lowerSealRoutine: dropping packet without LowerDst")
+			continue
+		}
+
 		if err := node.doLowerSeal(pkt); err != nil {
 			node.Log().Printf("lowerSealRoutine: %s", err)
 			continue
@@ -110,7 +135,6 @@ func (node *Node) lowerSealRoutine() {
 	}
 }
 
-// XXX: requires pkt.LowerDst
 func (node *Node) doLowerSeal(pkt rovy.Packet) error {
 	datapkt := session.NewDataPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 
@@ -126,6 +150,11 @@ func (node *Node) doLowerSeal(pkt rovy.Packet) error {
 func (node *Node) lowerMuxRoutine() {
 	for {
 		pkt := node.lowerMuxQ.Get()
+
+		if pkt.LowerSrc.Empty() {
+			node.Log().Printf("lowerMuxRoutine: dropping packet without LowerSrc")
+			continue
+		}
 
 		if err := node.doLowerMux(pkt); err != nil {
 			node.Log().Printf("lowerMuxRoutine: %s", err)

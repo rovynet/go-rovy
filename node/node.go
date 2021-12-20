@@ -3,6 +3,7 @@ package node
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	pretty "github.com/kr/pretty"
 
@@ -34,6 +35,8 @@ type Node struct {
 	peerid          rovy.PeerID
 	logger          *log.Logger
 	transports      []*Transport
+	waiters         map[string][]chan error
+	waitersLock     sync.Mutex
 	sessions        *session.SessionManager
 	upperHandlers   map[uint64]UpperHandler
 	lowerHandlers   map[uint64]LowerHandler
@@ -57,6 +60,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	node := &Node{
 		peerid:          peerid,
 		logger:          logger,
+		waiters:         map[string][]chan error{},
 		upperHandlers:   map[uint64]UpperHandler{},
 		lowerHandlers:   map[uint64]LowerHandler{},
 		routing:         routing.NewRouting(logger),
@@ -67,7 +71,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		lowerMuxQ:       ringbuf.NewRingBuffer(LowerMuxQueueSize),
 	}
 
-	node.sessions = session.NewSessionManager(privkey, logger, node.ConnectedLower)
+	node.sessions = session.NewSessionManager(privkey, logger)
 
 	node.forwarder = forwarder.NewForwarder(node.sessions.Multigram(), logger)
 	node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
@@ -118,21 +122,54 @@ func (node *Node) Routing() *routing.Routing {
 	return node.routing
 }
 
-// XXX this shouldn't & mustn't be triggered for Upper sessions,
-//     otherwise forwarder.Attach deadlocks.
-func (node *Node) ConnectedLower(peerid rovy.PeerID) {
-	slot, err := node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
-		node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
-		return nil
-	})
-	if err != nil {
-		node.Log().Printf("connected to %s, but forwarder error: %s", peerid, err)
-		return
+func (node *Node) WaitFor(pid rovy.PeerID) error {
+	node.waitersLock.Lock()
+
+	spid := pid.String()
+
+	_, present := node.waiters[spid]
+	if !present {
+		node.waiters[spid] = []chan error{}
 	}
 
-	node.routing.AddRoute(peerid, slot)
+	ch := make(chan error, 1)
+	node.waiters[spid] = append(node.waiters[spid], ch)
+	node.waitersLock.Unlock()
 
-	node.Log().Printf("connected to %s", peerid)
+	return <-ch
+}
+
+func (node *Node) connectedCallback(peerid rovy.PeerID, lower bool) {
+	var err error
+
+	if lower {
+		slot, err := node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
+			node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
+			return nil
+		})
+		if err != nil {
+			err = fmt.Errorf("connected to %s, but forwarder error: %s", peerid, err)
+		} else {
+			node.routing.AddRoute(peerid, slot)
+		}
+	}
+
+	if err == nil {
+		node.Log().Printf("connected to %s", peerid)
+	}
+
+	node.waitersLock.Lock()
+	defer node.waitersLock.Unlock()
+
+	spid := peerid.String()
+
+	w, present := node.waiters[spid]
+	if present {
+		for _, ch := range w {
+			ch <- err
+		}
+		delete(node.waiters, spid)
+	}
 }
 
 func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
@@ -169,7 +206,9 @@ func (node *Node) HandleLower(codec uint64, cb LowerHandler) {
 	node.lowerHandlers[codec] = cb
 }
 
-func (node *Node) Connect2(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
+// TODO: timeouts
+// TODO: check if we already have a session
+func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 
 	if raddr != nil {
@@ -177,37 +216,9 @@ func (node *Node) Connect2(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error 
 		pkt.TptDst = raddr
 		node.lowerHelloSendQ.Put(pkt)
 	} else {
-		pkt.UpperDst = peerid
-		node.upperHelloSendQ.Put(pkt)
-	}
+		// pkt.UpperDst = peerid
+		// node.upperHelloSendQ.Put(pkt)
 
-	if err := <-node.sessions.WaitFor(peerid); err != nil {
-		node.Log().Printf("connect %s: %s", peerid, err)
-		return err
-	}
-
-	return nil
-}
-
-// TODO: timeout
-// TODO: check if we already have a session
-func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-
-	if raddr != nil { // aka ConnectLower
-		hellopkt := session.NewHelloPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
-		hellopkt, err := node.SessionManager().CreateHello(hellopkt, peerid, raddr)
-		if err != nil {
-			return err
-		}
-
-		hellopkt.TptDst = raddr
-		err = node.sendTransport(hellopkt.Packet)
-		if err != nil {
-			node.logger.Printf("Connect: sendTransport: %s", err)
-			return err
-		}
-	} else { // aka ConnectUpper
 		route, err := node.Routing().GetRoute(peerid)
 		if err != nil {
 			return err
@@ -228,25 +239,13 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 		}
 	}
 
-	if err := <-node.sessions.WaitFor(peerid); err != nil {
+	if err := node.WaitFor(peerid); err != nil {
 		node.Log().Printf("connect %s: %s", peerid, err)
 		return err
 	}
 
 	return nil
 }
-
-// func (node *Node) SendLower(pkt rovy.LowerPacket) error {
-// 	datapkt := session.NewDataPacket(pkt.Packet, rovy.LowerOffset, rovy.LowerPadding)
-//
-// 	raddr, err := node.SessionManager().CreateData(datapkt, datapkt.LowerDst)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	datapkt.TptDst = raddr
-// 	return node.sendTransport(datapkt.Packet)
-// }
 
 func (node *Node) sendTransport(pkt rovy.Packet) error {
 	node.transports[0].Send(pkt)
@@ -338,23 +337,27 @@ func (node *Node) ReceiveUpper(upkt rovy.UpperPacket) error {
 
 	case session.ResponseMsgType:
 		resppkt := session.NewResponsePacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-		resppkt, err := node.SessionManager().HandleResponse(resppkt, nil)
+		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, nil)
 		if err != nil {
 			return err
 		}
+		node.connectedCallback(peerid, false)
 		return nil
 
 	case session.DataMsgType:
 		datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
 
-		peerid, err := node.SessionManager().HandleData(datapkt)
+		peerid, firstdata, err := node.SessionManager().HandleData(datapkt)
 		if err != nil {
 			return err
 		}
+
+		if firstdata {
+			node.connectedCallback(peerid, false)
+		}
+
 		datapkt.UpperSrc = peerid
-
 		// node.logger.Printf("ReceiveUpper: datapkt=%#v", datapkt)
-
 		node.Routing().AddRoute(datapkt.UpperSrc, upkt.Route().Reverse()) // XXX slowness
 
 		upkt := rovy.NewUpperPacket(datapkt.Packet)

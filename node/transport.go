@@ -64,11 +64,16 @@ func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
 func (tpt *Transport) SendRoutine() {
 	for {
 		pkt := tpt.sendQ.Get()
-		if pkt.TptDst != nil {
-			_, err := tpt.conn.WriteToMultiaddr(pkt.Bytes(), pkt.TptDst)
-			if err != nil {
-				tpt.logger.Printf("SendRoutine: %s", err)
-			}
+		if pkt.TptDst == nil {
+			tpt.logger.Printf("SendRoutine: dropping packet without TptSrc", pkt)
+			continue
+		}
+
+		// tpt.logger.Printf("SendRoutine: writeTo: TptDst=%+v LowerDst=%+v UpperDst=%+v", pkt.TptDst, pkt.LowerDst, pkt.UpperDst)
+
+		_, err := tpt.conn.WriteToMultiaddr(pkt.Bytes(), pkt.TptDst)
+		if err != nil {
+			tpt.logger.Printf("SendRoutine: %s", err)
 		}
 	}
 }

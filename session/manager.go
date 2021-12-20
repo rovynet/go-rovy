@@ -17,27 +17,23 @@ import (
 // TODO: make sure indexes from remote don't overwrite other sessions
 type SessionManager struct {
 	sync.RWMutex
-	privkey       rovy.PrivateKey
-	pubkey        rovy.PublicKey
-	peerid        rovy.PeerID
-	store         map[uint32]*Session
-	multigram     *multigram.Table
-	logger        *log.Logger
-	establishedCb EstablishedCb
+	privkey   rovy.PrivateKey
+	pubkey    rovy.PublicKey
+	peerid    rovy.PeerID
+	store     map[uint32]*Session
+	multigram *multigram.Table
+	logger    *log.Logger
 }
 
-type EstablishedCb func(rovy.PeerID)
-
-func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger, cb EstablishedCb) *SessionManager {
+func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger) *SessionManager {
 	pubkey := privkey.PublicKey()
 	sm := &SessionManager{
-		privkey:       privkey,
-		pubkey:        pubkey,
-		peerid:        rovy.NewPeerID(pubkey),
-		store:         make(map[uint32]*Session),
-		multigram:     multigram.NewTable(),
-		logger:        logger,
-		establishedCb: cb,
+		privkey:   privkey,
+		pubkey:    pubkey,
+		peerid:    rovy.NewPeerID(pubkey),
+		store:     make(map[uint32]*Session),
+		multigram: multigram.NewTable(),
+		logger:    logger,
 	}
 	return sm
 }
@@ -177,20 +173,20 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 	return pkt2, nil
 }
 
-func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr multiaddr.Multiaddr) (ResponsePacket, error) {
+func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr multiaddr.Multiaddr) (ResponsePacket, rovy.PeerID, error) {
 	s, present := sm.Get(pkt.SenderIndex())
 	if !present {
-		return pkt, UnknownIndexError
+		return pkt, rovy.EmptyPeerID, UnknownIndexError
 	}
 
 	pkt, err := s.HandleHelloResponse(pkt)
 	if err != nil {
-		return pkt, err
+		return pkt, rovy.EmptyPeerID, err
 	}
 
 	mgram, err := multigram.NewTableFromBytes(pkt.Plaintext())
 	if err != nil {
-		return pkt, err
+		return pkt, rovy.EmptyPeerID, err
 	}
 
 	sm.Swap(pkt.SenderIndex(), pkt.SessionIndex())
@@ -201,17 +197,7 @@ func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr multiaddr.Mul
 		s.SetRemoteAddr(raddr)
 	}
 
-	// With raddr = nil we signal that this session is only via the forwarder
-	// and mustn't have the ConnectedLower callback called.
-	if raddr != nil {
-		sm.establishedCb(s.remotePeerID)
-	}
-
-	for _, waiter := range s.waiters {
-		waiter <- nil
-	}
-
-	return pkt, nil
+	return pkt, s.remotePeerID, nil
 }
 
 func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (multiaddr.Multiaddr, error) {
@@ -233,17 +219,19 @@ func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (multia
 	return s.remoteAddr, nil
 }
 
-func (sm *SessionManager) HandleData(pkt DataPacket) (rovy.PeerID, error) {
+func (sm *SessionManager) HandleData(pkt DataPacket) (rovy.PeerID, bool, error) {
+	var firstdata bool
+
 	s, present := sm.Get(pkt.SessionIndex())
 	if !present {
-		return rovy.EmptyPeerID, UnknownIndexError
+		return rovy.EmptyPeerID, firstdata, UnknownIndexError
 	}
 	stage := s.stage
 
 	hdr := ikpsk2.MessageHeader{Nonce: pkt.Nonce()}
 	payloadPlain, err := s.handshake.ConsumeMessage(hdr, pkt.Ciphertext())
 	if err != nil {
-		return rovy.EmptyPeerID, err
+		return rovy.EmptyPeerID, firstdata, err
 	}
 
 	// TODO: instead aead.Open should reuse storage
@@ -251,32 +239,10 @@ func (sm *SessionManager) HandleData(pkt DataPacket) (rovy.PeerID, error) {
 	pkt = pkt.SetPlaintext(payloadPlain)
 
 	if stage == 0x03 {
-		return s.remotePeerID, nil
+		return s.remotePeerID, firstdata, nil
 	}
+
 	s.stage = 0x03
-
-	// We only call the ConnectedLower callback for lower packets.
-	// We're dealing with a lower packet if LowerSrc isn't set yet.
-	if pkt.LowerSrc.Empty() {
-		// sm.logger.Printf("calling establishedCb now for %s", s.RemotePeerID())
-		sm.establishedCb(s.remotePeerID)
-		for _, waiter := range s.waiters {
-			waiter <- nil
-		}
-	}
-
-	return s.remotePeerID, nil
-}
-
-func (sm *SessionManager) WaitFor(peerid rovy.PeerID) chan error {
-	ch := make(chan error, 1)
-
-	s, _, present := sm.Find(peerid)
-	if !present {
-		ch <- fmt.Errorf("no session for %s", peerid)
-		return ch
-	}
-
-	s.waiters = append(s.waiters, ch)
-	return ch
+	firstdata = true
+	return s.remotePeerID, firstdata, nil
 }
