@@ -6,7 +6,6 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
-	multigram "pkt.dev/go-rovy/multigram"
 	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
@@ -23,13 +22,12 @@ const (
 )
 
 type Session struct {
-	initiator       bool
-	stage           int
-	waiters         []chan error
-	handshake       *ikpsk2.Handshake
-	remoteAddr      multiaddr.Multiaddr
-	remotePeerID    rovy.PeerID
-	remoteMultigram *multigram.Table
+	initiator    bool
+	stage        int
+	waiters      []chan error
+	handshake    *ikpsk2.Handshake
+	remoteAddr   multiaddr.Multiaddr
+	remotePeerID rovy.PeerID
 }
 
 func newSession(peerid rovy.PeerID, hs *ikpsk2.Handshake) *Session {
@@ -59,14 +57,6 @@ func (s *Session) RemoteAddr() multiaddr.Multiaddr {
 
 func (s *Session) SetRemoteAddr(raddr multiaddr.Multiaddr) {
 	s.remoteAddr = raddr
-}
-
-func (s *Session) RemoteMultigram() *multigram.Table {
-	return s.remoteMultigram
-}
-
-func (s *Session) SetRemoteMultigram(mgram *multigram.Table) {
-	s.remoteMultigram = mgram
 }
 
 func (s *Session) CreateHello(pkt HelloPacket) (HelloPacket, error) {

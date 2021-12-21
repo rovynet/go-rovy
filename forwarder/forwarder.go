@@ -63,7 +63,6 @@ import (
 	"sync"
 
 	rovy "pkt.dev/go-rovy"
-	multigram "pkt.dev/go-rovy/multigram"
 )
 
 const (
@@ -101,17 +100,13 @@ type Forwarder struct {
 	sync.RWMutex
 	slots  map[int]*slotentry
 	bypeer map[rovy.PeerID]int
-	mgram  *multigram.Table
 	logger *log.Logger
 }
 
-func NewForwarder(mgram *multigram.Table, logger *log.Logger) *Forwarder {
-	mgram.AddCodec(DataMulticodec)
-
+func NewForwarder(logger *log.Logger) *Forwarder {
 	fwd := &Forwarder{
 		slots:  make(map[int]*slotentry, NumSlots),
 		bypeer: make(map[rovy.PeerID]int, NumSlots),
-		mgram:  mgram,
 		logger: logger,
 	}
 	for i := 0; i < NumSlots; i++ {
@@ -207,7 +202,7 @@ func (fwd *Forwarder) SendPacket(upkt rovy.UpperPacket) error {
 	}
 
 	lpkt := rovy.NewLowerPacket(upkt.Packet)
-	lpkt.SetCodec(fwd.mgram.LookupNumber(DataMulticodec))
+	lpkt.SetCodec(DataMulticodec)
 
 	// fwd.logger.Printf("forwarder: packet from us forwarded along %s", upkt.Route())
 	return fwd.SendRaw(lpkt)

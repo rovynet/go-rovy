@@ -7,7 +7,6 @@ import (
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	rovy "pkt.dev/go-rovy"
 	ringbuf "pkt.dev/go-rovy/util/ringbuf"
-	// multigram "pkt.dev/go-rovy/multigram"
 )
 
 // tpt

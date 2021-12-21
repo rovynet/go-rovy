@@ -167,12 +167,10 @@ func (node *Node) lowerMuxRoutine() {
 func (node *Node) doLowerMux(pkt rovy.Packet) error {
 	lowpkt := rovy.NewLowerPacket(pkt)
 
-	number, err := lowpkt.Codec()
+	codec, err := lowpkt.Codec()
 	if err != nil {
 		return fmt.Errorf("codec: %s", err)
 	}
-
-	codec := node.SessionManager().Multigram().LookupCodec(number)
 
 	if codec == forwarder.DataMulticodec {
 		return node.Forwarder().HandlePacket(lowpkt)

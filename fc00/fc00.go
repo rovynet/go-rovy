@@ -12,7 +12,6 @@ import (
 
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
-	multigram "pkt.dev/go-rovy/multigram"
 	node "pkt.dev/go-rovy/node"
 	routing "pkt.dev/go-rovy/routing"
 )
@@ -22,7 +21,6 @@ const PingMulticodec = 0x42005
 
 type nodeIface interface {
 	PeerID() rovy.PeerID
-	Multigram() *multigram.Table
 	Handle(uint64, node.UpperHandler)
 	HandleLower(uint64, node.LowerHandler)
 	Forwarder() *forwarder.Forwarder
@@ -143,7 +141,7 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 	}
 
 	lpkt2 := rovy.NewLowerPacket(ppkt2.Packet)
-	lpkt2.SetCodec(fc.node.Multigram().LookupNumber(PingMulticodec))
+	lpkt2.SetCodec(PingMulticodec)
 	return fc.node.Forwarder().SendRaw(lpkt2)
 }
 
@@ -226,7 +224,7 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
 		upkt.UpperDst = peerid
 		upkt.SetRoute(route)
-		upkt.SetCodec(fc.node.Multigram().LookupNumber(Fc00Multicodec))
+		upkt.SetCodec(Fc00Multicodec)
 		upkt = upkt.SetPayload(buf)
 		return fc.node.SendUpper(upkt)
 	}
@@ -252,7 +250,7 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		}
 
 		lpkt := rovy.NewLowerPacket(ppkt.Packet)
-		lpkt.SetCodec(fc.node.Multigram().LookupNumber(PingMulticodec))
+		lpkt.SetCodec(PingMulticodec)
 
 		return fc.node.Forwarder().SendRaw(lpkt)
 	}

@@ -5,13 +5,10 @@ import (
 	"log"
 	"sync"
 
-	pretty "github.com/kr/pretty"
-
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	rovy "pkt.dev/go-rovy"
 	forwarder "pkt.dev/go-rovy/forwarder"
-	multigram "pkt.dev/go-rovy/multigram"
 	routing "pkt.dev/go-rovy/routing"
 	session "pkt.dev/go-rovy/session"
 	ringbuf "pkt.dev/go-rovy/util/ringbuf"
@@ -73,13 +70,11 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 
 	node.sessions = session.NewSessionManager(privkey, logger)
 
-	node.forwarder = forwarder.NewForwarder(node.sessions.Multigram(), logger)
+	node.forwarder = forwarder.NewForwarder(logger)
 	node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
 		upkt := rovy.NewUpperPacket(lpkt.Packet)
 		return node.ReceiveUpper(upkt)
 	})
-
-	node.sessions.Multigram().AddCodec(DirectUpperCodec)
 
 	go node.lowerUnsealRoutine()
 	go node.lowerSealRoutine()
@@ -96,10 +91,6 @@ func (node *Node) PeerID() rovy.PeerID {
 
 func (node *Node) Log() *log.Logger {
 	return node.logger
-}
-
-func (node *Node) Multigram() *multigram.Table {
-	return node.SessionManager().Multigram()
 }
 
 func (node *Node) Adresses() (addrs []multiaddr.Multiaddr) {
@@ -191,7 +182,6 @@ func (node *Node) Handle(codec uint64, cb UpperHandler) {
 		return
 	}
 
-	node.sessions.Multigram().AddCodec(codec)
 	node.upperHandlers[codec] = cb
 }
 
@@ -201,7 +191,6 @@ func (node *Node) HandleLower(codec uint64, cb LowerHandler) {
 		return
 	}
 
-	node.sessions.Multigram().AddCodec(codec)
 	node.lowerHandlers[codec] = cb
 }
 
@@ -260,7 +249,7 @@ func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 	upkt := rovy.NewUpperPacket(pkt)
 	upkt.UpperDst = to
-	upkt.SetCodec(node.SessionManager().Multigram().LookupNumber(codec))
+	upkt.SetCodec(codec)
 	upkt.SetRoute(route)
 	upkt = upkt.SetPayload(p)
 
@@ -272,7 +261,7 @@ func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
 
 	if upkt.RouteLen() == forwarder.HopLength {
 		lpkt := rovy.NewLowerPacket(upkt.Packet)
-		lpkt.SetCodec(node.SessionManager().Multigram().LookupNumber(DirectUpperCodec))
+		lpkt.SetCodec(DirectUpperCodec)
 		lpkt.LowerSrc = node.PeerID()
 		lpkt.LowerDst = upkt.UpperDst
 		// return node.SendLower(lpkt)
@@ -299,12 +288,8 @@ func (node *Node) ReceiveUpperDirect(upkt rovy.UpperPacket) error {
 		return err
 	}
 
-	mgram := node.SessionManager().Multigram()
-	codec := mgram.LookupCodec(number)
-
-	cb, present := node.upperHandlers[codec]
+	cb, present := node.upperHandlers[number]
 	if !present {
-		node.logger.Printf("ReceiveUpperDirect: dropping packet with unknown codec %d (number=%d) multigram=%# v", codec, number, pretty.Formatter(mgram))
 		return err
 	}
 	return cb(upkt)

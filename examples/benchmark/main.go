@@ -63,9 +63,6 @@ func run() error {
 		return err
 	}
 
-	nodeA.SessionManager().Multigram().AddCodec(BenchmarkCodec)
-	nodeB.SessionManager().Multigram().AddCodec(BenchmarkCodec)
-
 	if err = nodeA.Connect(nodeB.PeerID(), addrB); err != nil {
 		return err
 	}

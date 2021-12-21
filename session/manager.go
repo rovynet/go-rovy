@@ -10,30 +10,27 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "pkt.dev/go-rovy"
-	multigram "pkt.dev/go-rovy/multigram"
 	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
 )
 
 // TODO: make sure indexes from remote don't overwrite other sessions
 type SessionManager struct {
 	sync.RWMutex
-	privkey   rovy.PrivateKey
-	pubkey    rovy.PublicKey
-	peerid    rovy.PeerID
-	store     map[uint32]*Session
-	multigram *multigram.Table
-	logger    *log.Logger
+	privkey rovy.PrivateKey
+	pubkey  rovy.PublicKey
+	peerid  rovy.PeerID
+	store   map[uint32]*Session
+	logger  *log.Logger
 }
 
 func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger) *SessionManager {
 	pubkey := privkey.PublicKey()
 	sm := &SessionManager{
-		privkey:   privkey,
-		pubkey:    pubkey,
-		peerid:    rovy.NewPeerID(pubkey),
-		store:     make(map[uint32]*Session),
-		multigram: multigram.NewTable(),
-		logger:    logger,
+		privkey: privkey,
+		pubkey:  pubkey,
+		peerid:  rovy.NewPeerID(pubkey),
+		store:   make(map[uint32]*Session),
+		logger:  logger,
 	}
 	return sm
 }
@@ -48,10 +45,6 @@ func (sm *SessionManager) randUint32() uint32 {
 			return binary.LittleEndian.Uint32(integer[:])
 		}
 	}
-}
-
-func (sm *SessionManager) Multigram() *multigram.Table {
-	return sm.multigram
 }
 
 func (sm *SessionManager) Insert(s *Session) uint32 {
@@ -125,7 +118,6 @@ func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr
 	idx := sm.Insert(s)
 
 	pkt.SetSenderIndex(idx)
-	pkt = pkt.SetPlaintext(sm.multigram.Bytes())
 
 	if raddr != nil {
 		s.SetRemoteAddr(raddr)
@@ -148,14 +140,8 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 		return pkt2, fmt.Errorf("HandleHello: %s", err)
 	}
 
-	mgram, err := multigram.NewTableFromBytes(pkt.Plaintext())
-	if err != nil {
-		return pkt2, err
-	}
-
 	pkt2 = NewResponsePacket(rovy.NewPacket(make([]byte, rovy.TptMTU)), pkt.Offset, pkt.Padding)
 	pkt2.SetSenderIndex(pkt.SenderIndex())
-	pkt2 = pkt2.SetPlaintext(sm.multigram.Bytes())
 
 	pkt2, err = s.CreateResponse(pkt2)
 	if err != nil {
@@ -164,7 +150,6 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 	pkt2.SetSessionIndex(sm.Insert(s))
 
 	s.remotePeerID = rovy.NewPeerID(s.handshake.RemotePublicKey())
-	s.SetRemoteMultigram(mgram)
 
 	if raddr != nil {
 		s.SetRemoteAddr(raddr)
@@ -184,14 +169,7 @@ func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr multiaddr.Mul
 		return pkt, rovy.EmptyPeerID, err
 	}
 
-	mgram, err := multigram.NewTableFromBytes(pkt.Plaintext())
-	if err != nil {
-		return pkt, rovy.EmptyPeerID, err
-	}
-
 	sm.Swap(pkt.SenderIndex(), pkt.SessionIndex())
-
-	s.SetRemoteMultigram(mgram)
 
 	if raddr != nil {
 		s.SetRemoteAddr(raddr)
