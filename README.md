@@ -19,11 +19,30 @@ Rovy aims to tear down artifical barriers in internetworking, make routing and t
 
 The protocols making up Rovy are pretty closely related to the ideas and concepts of [cjdns](https://github.com/cjdelisle/cjdns) and [libp2p](https://libp2p.io).
 
-Right now (late 2021) Rovy is an early work-in-progress with some foundational parts in place and working, and many of the more interesting parts still missing. There is a Go node daemon that runs on Linux x86_64 and a Go Library to communicate with a daemon or run one embedded in the same process. In the future, Rovy should be ported to more operating systems and architectures.
+Right now (late 2021) Rovy is an early work-in-progress with some foundational parts in place and working, and many of the more interesting parts still missing.
+
+## Usage
+
+There is no CLI yet, just a bunch of smoketests :-)
+
+```sh
+> go test -v ./examples
+> go run ./examples/benchmark
+> go test -bench=. ./forwarder
+```
+
+To test IPv6 networking over Rovy's TUN interface, run traceroute against the IPv6 address of `nodeD` from the following command's output:
+```
+> go build -o rovy-fc00 ./examples/fc00 && sudo ./rovy-fc00
+...
+[nodeD] 02:28:45 main.go:32: /ip6/fcc7:6ea0:d8bb:448a:4d82:fcc0:982c:ceed
+...
+> mtr -n fcc7:6ea0:d8bb:448a:4d82:fcc0:982c:ceed
+```
 
 ---
 
-*From here on just random notes*
+## *From here on just random notes*
 
 Rovy addresses are [multiaddrs](https://multiformats.io) and look like this:
 
