@@ -14,6 +14,12 @@ const (
 	FwdOffset    = 20
 	UpperOffset  = 16 + 4 + 16
 	UpperPadding = 16
+
+	// all of rovy's layers combined
+	UpperMTU = 1500 - 48 - 20 - 16 - 20 - 16 - 16 // 1364
+
+	// ethernet + udp6
+	TptMTU = 1500 - 48
 )
 
 type Queue interface {

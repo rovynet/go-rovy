@@ -16,13 +16,13 @@ import (
 
 const DirectUpperCodec = 0x12347
 
-const LowerUnsealQueueSize = 1024
-const LowerSealQueueSize = 1024
-const HelloRecvQueueSize = 1024
-const HelloSendQueueSize = 1024
+const LowerRecvQueueSize = 1024
+const LowerSendQueueSize = 1024
+const LowerHelloRecvQueueSize = 1024
+const LowerHelloSendQueueSize = 1024
 const LowerMuxQueueSize = 1024
-const UpperUnsealQueueSize = 1024
-const UpperSealQueueSize = 1024
+const UpperRecvQueueSize = 1024
+const UpperSendQueueSize = 1024
 const UpperHelloRecvQueueSize = 1024
 const UpperHelloSendQueueSize = 1024
 const UpperMuxQueueSize = 1024
@@ -49,13 +49,13 @@ type Node struct {
 	RxUpper         uint64
 	lowerHelloSendQ rovy.Queue
 	lowerHelloRecvQ rovy.Queue
-	lowerSealQ      rovy.Queue
-	lowerUnsealQ    rovy.Queue
+	lowerSendQ      rovy.Queue
+	lowerRecvQ      rovy.Queue
 	lowerMuxQ       rovy.Queue
 	upperHelloSendQ rovy.Queue
 	upperHelloRecvQ rovy.Queue
-	upperSealQ      rovy.Queue
-	upperUnsealQ    rovy.Queue
+	upperSendQ      rovy.Queue
+	upperRecvQ      rovy.Queue
 	upperMuxQ       rovy.Queue
 }
 
@@ -70,13 +70,13 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		upperHandlers:   map[uint64]UpperHandler{},
 		lowerHandlers:   map[uint64]LowerHandler{},
 		routing:         routing.NewRouting(logger),
-		lowerUnsealQ:    ringbuf.NewRingBuffer(LowerUnsealQueueSize),
-		lowerSealQ:      ringbuf.NewRingBuffer(LowerSealQueueSize),
-		lowerHelloRecvQ: ringbuf.NewRingBuffer(HelloRecvQueueSize),
-		lowerHelloSendQ: ringbuf.NewRingBuffer(HelloSendQueueSize),
+		lowerRecvQ:      ringbuf.NewRingBuffer(LowerRecvQueueSize),
+		lowerSendQ:      ringbuf.NewRingBuffer(LowerSendQueueSize),
+		lowerHelloRecvQ: ringbuf.NewRingBuffer(LowerHelloRecvQueueSize),
+		lowerHelloSendQ: ringbuf.NewRingBuffer(LowerHelloSendQueueSize),
 		lowerMuxQ:       ringbuf.NewRingBuffer(LowerMuxQueueSize),
-		upperUnsealQ:    ringbuf.NewRingBuffer(UpperUnsealQueueSize),
-		upperSealQ:      ringbuf.NewRingBuffer(UpperSealQueueSize),
+		upperRecvQ:      ringbuf.NewRingBuffer(UpperRecvQueueSize),
+		upperSendQ:      ringbuf.NewRingBuffer(UpperSendQueueSize),
 		upperHelloRecvQ: ringbuf.NewRingBuffer(UpperHelloRecvQueueSize),
 		upperHelloSendQ: ringbuf.NewRingBuffer(UpperHelloSendQueueSize),
 		upperMuxQ:       ringbuf.NewRingBuffer(UpperMuxQueueSize),
@@ -86,17 +86,17 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 
 	node.forwarder = forwarder.NewForwarder(logger)
 	node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
-		node.upperUnsealQ.Put(lpkt.Packet)
+		node.upperRecvQ.Put(lpkt.Packet)
 		return nil
 	})
 
-	go node.lowerUnsealRoutine()
-	go node.lowerSealRoutine()
+	go node.lowerRecvRoutine()
+	go node.lowerSendRoutine()
 	go node.lowerHelloRecvRoutine()
 	go node.lowerHelloSendRoutine()
 	go node.lowerMuxRoutine()
-	go node.upperUnsealRoutine()
-	go node.upperSealRoutine()
+	go node.upperRecvRoutine()
+	go node.upperSendRoutine()
 	go node.upperHelloRecvRoutine()
 	go node.upperHelloSendRoutine()
 	go node.upperMuxRoutine()
@@ -153,7 +153,7 @@ func (node *Node) connectedCallback(peerid rovy.PeerID, lower bool) {
 
 	if lower {
 		slot, err := node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
-			node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
+			node.lowerSendQ.PutWithBackpressure(lpkt.Packet)
 			return nil
 		})
 		if err != nil {
@@ -189,7 +189,7 @@ func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
 
 	node.transports = append(node.transports, tpt)
 
-	go tpt.RecvRoutine(node.lowerUnsealQ)
+	go tpt.RecvRoutine(node.lowerRecvQ)
 	go tpt.SendRoutine()
 
 	return nil
@@ -257,6 +257,6 @@ func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
 }
 
 func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
-	node.upperSealQ.PutWithBackpressure(upkt.Packet)
+	node.upperSendQ.PutWithBackpressure(upkt.Packet)
 	return nil
 }
