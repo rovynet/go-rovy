@@ -178,8 +178,8 @@ func (node *Node) doLowerMux(pkt rovy.Packet) error {
 
 	if codec == DirectUpperCodec {
 		lowpkt.UpperSrc = pkt.LowerSrc
-		// node.upperMuxQ.Put(lowpkt.Packet)
-		return node.ReceiveUpperDirect(rovy.NewUpperPacket(lowpkt.Packet))
+		node.upperMuxQ.Put(lowpkt.Packet)
+		return nil
 	}
 
 	cb, present := node.lowerHandlers[codec]
@@ -188,4 +188,205 @@ func (node *Node) doLowerMux(pkt rovy.Packet) error {
 	}
 
 	return cb(lowpkt)
+}
+
+// upper unseal
+
+func (node *Node) upperUnsealRoutine() {
+	for {
+		pkt := node.upperUnsealQ.Get()
+
+		msgtype := pkt.Buf[rovy.UpperOffset]
+		switch msgtype {
+		case session.DataMsgType:
+			err := node.doUpperUnseal(pkt)
+			if err != nil {
+				node.Log().Printf("upperUnsealRoutine: %s", err)
+				continue
+			}
+		case session.HelloMsgType, session.ResponseMsgType:
+			node.upperHelloRecvQ.Put(pkt)
+		default:
+			node.Log().Printf("upperUnsealRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
+		}
+	}
+}
+
+func (node *Node) doUpperUnseal(pkt rovy.Packet) error {
+	upkt := rovy.NewUpperPacket(pkt)
+	datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
+
+	peerid, firstdata, err := node.SessionManager().HandleData(datapkt)
+	if err != nil {
+		return err
+	}
+
+	if firstdata {
+		node.connectedCallback(peerid, false)
+	}
+
+	datapkt.UpperSrc = peerid
+	node.Routing().AddRoute(datapkt.UpperSrc, upkt.Route().Reverse()) // XXX slowness
+
+	node.upperMuxQ.Put(datapkt.Packet)
+	return nil
+}
+
+// upper hello recv
+
+func (node *Node) upperHelloRecvRoutine() {
+	for {
+		pkt := node.upperHelloRecvQ.Get()
+
+		if err := node.doUpperHelloRecv(pkt); err != nil {
+			node.Log().Printf("upperHelloRecvRoutine: %s", err)
+			continue
+		}
+	}
+}
+
+func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
+	upkt := rovy.NewUpperPacket(pkt)
+
+	msgtype := upkt.Buf[rovy.UpperOffset]
+	switch msgtype {
+	case session.HelloMsgType:
+		hellopkt := session.NewHelloPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
+
+		resppkt, err := node.SessionManager().HandleHello(hellopkt, nil)
+		if err != nil {
+			return err
+		}
+
+		upkt2 := rovy.NewUpperPacket(resppkt.Packet)
+		upkt2.SetRoute(upkt.Route().Reverse())
+		upkt2.LowerSrc = node.PeerID()
+
+		if err = node.forwarder.SendPacket(upkt2); err != nil {
+			return fmt.Errorf("forwarder: %s", err)
+		}
+		return nil
+	case session.ResponseMsgType:
+		resppkt := session.NewResponsePacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
+		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, nil)
+		if err != nil {
+			return err
+		}
+
+		node.connectedCallback(peerid, false)
+		return nil
+	default:
+		return fmt.Errorf("dropping packet with unknown MsgType 0x%x", msgtype)
+	}
+}
+
+// upper mux
+
+func (node *Node) upperMuxRoutine() {
+	for {
+		pkt := node.upperMuxQ.Get()
+
+		if err := node.doUpperMux(pkt); err != nil {
+			node.Log().Printf("upperMuxRoutine: %s", err)
+			continue
+		}
+	}
+}
+
+func (node *Node) doUpperMux(pkt rovy.Packet) error {
+	node.RxUpper += 1
+
+	upkt := rovy.NewUpperPacket(pkt)
+
+	codec, err := upkt.Codec()
+	if err != nil {
+		return fmt.Errorf("codec: %s", err)
+	}
+
+	cb, present := node.upperHandlers[codec]
+	if !present {
+		return fmt.Errorf("dropping packet with unknown upper codec 0x%x from %s", codec, upkt.LowerSrc)
+	}
+
+	return cb(upkt)
+}
+
+// upper seal
+
+func (node *Node) upperSealRoutine() {
+	for {
+		pkt := node.upperSealQ.Get()
+
+		if pkt.UpperDst.Empty() {
+			node.Log().Printf("upperSealRoutine: packet without UpperDst")
+			continue
+		}
+
+		if err := node.doUpperSeal(pkt); err != nil {
+			node.Log().Printf("upperSealRoutine: %s", err)
+			continue
+		}
+	}
+}
+
+func (node *Node) doUpperSeal(pkt rovy.Packet) error {
+	upkt := rovy.NewUpperPacket(pkt)
+
+	if upkt.RouteLen() == forwarder.HopLength {
+		lpkt := rovy.NewLowerPacket(upkt.Packet)
+		lpkt.SetCodec(DirectUpperCodec)
+		lpkt.LowerDst = upkt.UpperDst
+		node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
+		return nil
+	}
+
+	datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
+	_, err := node.SessionManager().CreateData(datapkt, datapkt.UpperDst)
+	if err != nil {
+		return err
+	}
+
+	if err = node.Forwarder().SendPacket(upkt); err != nil {
+		return fmt.Errorf("forwarder: %s", err)
+	}
+	return nil
+}
+
+// upper hello send
+
+func (node *Node) upperHelloSendRoutine() {
+	for {
+		pkt := node.upperHelloSendQ.Get()
+
+		if pkt.UpperDst.Empty() {
+			node.Log().Printf("upperHelloSendRoutine: packet without UpperDst")
+			continue
+		}
+
+		if err := node.doUpperHelloSend(pkt); err != nil {
+			node.Log().Printf("upperHelloSendRoutine: %s", err)
+			continue
+		}
+	}
+}
+
+func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
+	hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
+	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.UpperDst, nil)
+	if err != nil {
+		return err
+	}
+
+	// TODO: route lookup should move to caller
+	route, err := node.Routing().GetRoute(pkt.UpperDst)
+	if err != nil {
+		return err
+	}
+	upkt := rovy.NewUpperPacket(hellopkt.Packet)
+	upkt.SetRoute(route)
+
+	if err = node.Forwarder().SendPacket(upkt); err != nil {
+		return fmt.Errorf("forwarder: %s", err)
+	}
+	return nil
 }

@@ -21,6 +21,11 @@ const LowerSealQueueSize = 1024
 const HelloRecvQueueSize = 1024
 const HelloSendQueueSize = 1024
 const LowerMuxQueueSize = 1024
+const UpperUnsealQueueSize = 1024
+const UpperSealQueueSize = 1024
+const UpperHelloRecvQueueSize = 1024
+const UpperHelloSendQueueSize = 1024
+const UpperMuxQueueSize = 1024
 
 type Listener multiaddrnet.PacketConn
 
@@ -42,12 +47,16 @@ type Node struct {
 	RxTpt           uint64
 	RxLower         uint64
 	RxUpper         uint64
-	lowerUnsealQ    rovy.Queue
-	lowerSealQ      rovy.Queue
-	lowerHelloRecvQ rovy.Queue
 	lowerHelloSendQ rovy.Queue
+	lowerHelloRecvQ rovy.Queue
+	lowerSealQ      rovy.Queue
+	lowerUnsealQ    rovy.Queue
 	lowerMuxQ       rovy.Queue
 	upperHelloSendQ rovy.Queue
+	upperHelloRecvQ rovy.Queue
+	upperSealQ      rovy.Queue
+	upperUnsealQ    rovy.Queue
+	upperMuxQ       rovy.Queue
 }
 
 func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
@@ -66,14 +75,19 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		lowerHelloRecvQ: ringbuf.NewRingBuffer(HelloRecvQueueSize),
 		lowerHelloSendQ: ringbuf.NewRingBuffer(HelloSendQueueSize),
 		lowerMuxQ:       ringbuf.NewRingBuffer(LowerMuxQueueSize),
+		upperUnsealQ:    ringbuf.NewRingBuffer(UpperUnsealQueueSize),
+		upperSealQ:      ringbuf.NewRingBuffer(UpperSealQueueSize),
+		upperHelloRecvQ: ringbuf.NewRingBuffer(UpperHelloRecvQueueSize),
+		upperHelloSendQ: ringbuf.NewRingBuffer(UpperHelloSendQueueSize),
+		upperMuxQ:       ringbuf.NewRingBuffer(UpperMuxQueueSize),
 	}
 
 	node.sessions = session.NewSessionManager(privkey, logger)
 
 	node.forwarder = forwarder.NewForwarder(logger)
 	node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
-		upkt := rovy.NewUpperPacket(lpkt.Packet)
-		return node.ReceiveUpper(upkt)
+		node.upperUnsealQ.Put(lpkt.Packet)
+		return nil
 	})
 
 	go node.lowerUnsealRoutine()
@@ -81,6 +95,11 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	go node.lowerHelloRecvRoutine()
 	go node.lowerHelloSendRoutine()
 	go node.lowerMuxRoutine()
+	go node.upperUnsealRoutine()
+	go node.upperSealRoutine()
+	go node.upperHelloRecvRoutine()
+	go node.upperHelloSendRoutine()
+	go node.upperMuxRoutine()
 
 	return node
 }
@@ -204,27 +223,8 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 		pkt.TptDst = raddr
 		node.lowerHelloSendQ.Put(pkt)
 	} else {
-		// pkt.UpperDst = peerid
-		// node.upperHelloSendQ.Put(pkt)
-
-		route, err := node.Routing().GetRoute(peerid)
-		if err != nil {
-			return err
-		}
-
-		hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
-		hellopkt, err = node.SessionManager().CreateHello(hellopkt, peerid, raddr)
-		if err != nil {
-			return err
-		}
-
-		upkt := rovy.NewUpperPacket(hellopkt.Packet)
-		upkt.SetRoute(route)
-
-		err = node.Forwarder().SendPacket(upkt)
-		if err != nil {
-			return fmt.Errorf("Connect: forwarder: %s", err)
-		}
+		pkt.UpperDst = peerid
+		node.upperHelloSendQ.Put(pkt)
 	}
 
 	if err := node.WaitFor(peerid); err != nil {
@@ -257,96 +257,6 @@ func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
 }
 
 func (node *Node) SendUpper(upkt rovy.UpperPacket) error {
-	upkt.UpperSrc = node.PeerID()
-
-	if upkt.RouteLen() == forwarder.HopLength {
-		lpkt := rovy.NewLowerPacket(upkt.Packet)
-		lpkt.SetCodec(DirectUpperCodec)
-		lpkt.LowerSrc = node.PeerID()
-		lpkt.LowerDst = upkt.UpperDst
-		// return node.SendLower(lpkt)
-		node.lowerSealQ.PutWithBackpressure(lpkt.Packet)
-		return nil
-	}
-
-	datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-	_, err := node.SessionManager().CreateData(datapkt, upkt.UpperDst)
-	if err != nil {
-		return err
-	}
-
-	return node.Forwarder().SendPacket(upkt)
-}
-
-func (node *Node) ReceiveUpperDirect(upkt rovy.UpperPacket) error {
-	// node.Log().Printf("ReceiveUpperDirect: via=%s route=%s length=%d payload=%#v packet=%# v", upkt.LowerSrc, upkt.Route(), len(upkt.Payload()), upkt.Payload(), pretty.Formatter(upkt))
-
-	node.RxUpper += 1
-
-	number, err := upkt.Codec()
-	if err != nil {
-		return err
-	}
-
-	cb, present := node.upperHandlers[number]
-	if !present {
-		return err
-	}
-	return cb(upkt)
-}
-
-func (node *Node) ReceiveUpper(upkt rovy.UpperPacket) error {
-	// node.logger.Printf("ReceiveUpper: via=%s route=%s length=%d payload=%#v", upkt.LowerSrc, upkt.Route(), len(upkt.Payload()), upkt.Payload())
-
-	msgtype := upkt.Buf[rovy.UpperOffset]
-	switch msgtype {
-	case session.HelloMsgType:
-		hellopkt := session.NewHelloPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-
-		resppkt, err := node.SessionManager().HandleHello(hellopkt, nil)
-		if err != nil {
-			return err
-		}
-
-		upkt2 := rovy.NewUpperPacket(resppkt.Packet)
-		upkt2.SetRoute(upkt.Route().Reverse())
-		upkt2.LowerSrc = node.PeerID()
-
-		err = node.forwarder.SendPacket(upkt2)
-		if err != nil {
-			return fmt.Errorf("ReceiveUpper: %s", err)
-		}
-
-		return nil
-
-	case session.ResponseMsgType:
-		resppkt := session.NewResponsePacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, nil)
-		if err != nil {
-			return err
-		}
-		node.connectedCallback(peerid, false)
-		return nil
-
-	case session.DataMsgType:
-		datapkt := session.NewDataPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-
-		peerid, firstdata, err := node.SessionManager().HandleData(datapkt)
-		if err != nil {
-			return err
-		}
-
-		if firstdata {
-			node.connectedCallback(peerid, false)
-		}
-
-		datapkt.UpperSrc = peerid
-		// node.logger.Printf("ReceiveUpper: datapkt=%#v", datapkt)
-		node.Routing().AddRoute(datapkt.UpperSrc, upkt.Route().Reverse()) // XXX slowness
-
-		upkt := rovy.NewUpperPacket(datapkt.Packet)
-		return node.ReceiveUpperDirect(upkt)
-	}
-
-	return fmt.Errorf("ReceiveUpper: dropping packet with unknown MsgType 0x%x", msgtype)
+	node.upperSealQ.PutWithBackpressure(upkt.Packet)
+	return nil
 }
