@@ -16,16 +16,7 @@ import (
 
 const DirectUpperCodec = 0x12347
 
-const LowerRecvQueueSize = 1024
-const LowerSendQueueSize = 1024
-const LowerHelloRecvQueueSize = 1024
-const LowerHelloSendQueueSize = 1024
-const LowerMuxQueueSize = 1024
-const UpperRecvQueueSize = 1024
-const UpperSendQueueSize = 1024
-const UpperHelloRecvQueueSize = 1024
-const UpperHelloSendQueueSize = 1024
-const UpperMuxQueueSize = 1024
+const DefaultQueueSize = 1024
 
 type Listener multiaddrnet.PacketConn
 
@@ -34,29 +25,30 @@ type LowerHandler func(rovy.LowerPacket) error
 
 // TODO: move lower connection stuff to a Peering type (Connect, SendLower, Handle*)
 type Node struct {
-	peerid          rovy.PeerID
-	logger          *log.Logger
-	transports      []*Transport
-	waiters         map[string][]chan error
-	waitersLock     sync.Mutex
-	sessions        *session.SessionManager
-	upperHandlers   map[uint64]UpperHandler
-	lowerHandlers   map[uint64]LowerHandler
-	forwarder       *forwarder.Forwarder
-	routing         *routing.Routing
-	RxTpt           uint64
-	RxLower         uint64
-	RxUpper         uint64
-	lowerHelloSendQ rovy.Queue
-	lowerHelloRecvQ rovy.Queue
-	lowerSendQ      rovy.Queue
-	lowerRecvQ      rovy.Queue
-	lowerMuxQ       rovy.Queue
-	upperHelloSendQ rovy.Queue
-	upperHelloRecvQ rovy.Queue
-	upperSendQ      rovy.Queue
-	upperRecvQ      rovy.Queue
-	upperMuxQ       rovy.Queue
+	peerid        rovy.PeerID
+	logger        *log.Logger
+	transports    []*Transport
+	waiters       map[string][]chan error
+	waitersLock   sync.Mutex
+	sessions      *session.SessionManager
+	upperHandlers map[uint64]UpperHandler
+	lowerHandlers map[uint64]LowerHandler
+	forwarder     *forwarder.Forwarder
+	routing       *routing.Routing
+
+	RxTpt   uint64
+	RxLower uint64
+	RxUpper uint64
+
+	helloSendQ rovy.Queue
+	lowerSendQ rovy.Queue
+	upperSendQ rovy.Queue
+
+	helloRecvQ rovy.Queue
+	lowerRecvQ rovy.Queue
+	lowerMuxQ  rovy.Queue
+	upperRecvQ rovy.Queue
+	upperMuxQ  rovy.Queue
 }
 
 func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
@@ -64,22 +56,20 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	peerid := rovy.NewPeerID(pubkey)
 
 	node := &Node{
-		peerid:          peerid,
-		logger:          logger,
-		waiters:         map[string][]chan error{},
-		upperHandlers:   map[uint64]UpperHandler{},
-		lowerHandlers:   map[uint64]LowerHandler{},
-		routing:         routing.NewRouting(logger),
-		lowerRecvQ:      ringbuf.NewRingBuffer(LowerRecvQueueSize),
-		lowerSendQ:      ringbuf.NewRingBuffer(LowerSendQueueSize),
-		lowerHelloRecvQ: ringbuf.NewRingBuffer(LowerHelloRecvQueueSize),
-		lowerHelloSendQ: ringbuf.NewRingBuffer(LowerHelloSendQueueSize),
-		lowerMuxQ:       ringbuf.NewRingBuffer(LowerMuxQueueSize),
-		upperRecvQ:      ringbuf.NewRingBuffer(UpperRecvQueueSize),
-		upperSendQ:      ringbuf.NewRingBuffer(UpperSendQueueSize),
-		upperHelloRecvQ: ringbuf.NewRingBuffer(UpperHelloRecvQueueSize),
-		upperHelloSendQ: ringbuf.NewRingBuffer(UpperHelloSendQueueSize),
-		upperMuxQ:       ringbuf.NewRingBuffer(UpperMuxQueueSize),
+		peerid:        peerid,
+		logger:        logger,
+		waiters:       map[string][]chan error{},
+		upperHandlers: map[uint64]UpperHandler{},
+		lowerHandlers: map[uint64]LowerHandler{},
+		routing:       routing.NewRouting(logger),
+		helloSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
+		lowerSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
+		upperSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
+		helloRecvQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
+		lowerRecvQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
+		lowerMuxQ:     ringbuf.NewRingBuffer(DefaultQueueSize),
+		upperRecvQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
+		upperMuxQ:     ringbuf.NewRingBuffer(DefaultQueueSize),
 	}
 
 	node.sessions = session.NewSessionManager(privkey, logger)
@@ -90,15 +80,14 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		return nil
 	})
 
-	go node.lowerRecvRoutine()
+	go node.helloSendRoutine()
 	go node.lowerSendRoutine()
-	go node.lowerHelloRecvRoutine()
-	go node.lowerHelloSendRoutine()
+	go node.upperSendRoutine()
+
+	go node.helloRecvRoutine()
+	go node.lowerRecvRoutine()
 	go node.lowerMuxRoutine()
 	go node.upperRecvRoutine()
-	go node.upperSendRoutine()
-	go node.upperHelloRecvRoutine()
-	go node.upperHelloSendRoutine()
 	go node.upperMuxRoutine()
 
 	return node
@@ -221,10 +210,10 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
 	if raddr != nil {
 		pkt.LowerDst = peerid
 		pkt.TptDst = raddr
-		node.lowerHelloSendQ.Put(pkt)
+		node.helloSendQ.Put(pkt)
 	} else {
 		pkt.UpperDst = peerid
-		node.upperHelloSendQ.Put(pkt)
+		node.helloSendQ.Put(pkt)
 	}
 
 	if err := node.WaitFor(peerid); err != nil {

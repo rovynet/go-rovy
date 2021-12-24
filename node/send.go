@@ -8,35 +8,37 @@ import (
 	session "pkt.dev/go-rovy/session"
 )
 
-// func (node *Node) doHelloSend(pkt rovy.Packet) error {
-//   if pkt.LowerDst.Empty() {
-//     // upper hello send
-//   } else {
-//     // lower hello send
-//   }
-//   return nil
-// }
+// hello send
 
-// lower hello send
-
-func (node *Node) lowerHelloSendRoutine() {
+func (node *Node) helloSendRoutine() error {
 	for {
-		pkt := node.lowerHelloSendQ.Get()
+		pkt := node.helloSendQ.Get()
 
-		if pkt.TptDst == nil {
-			node.Log().Printf("lowerHelloSendRoutine: packet without TptDst")
-			continue
-		}
 		if pkt.LowerDst.Empty() {
-			node.Log().Printf("lowerHelloSendRoutine: packet without LowerDst")
-			continue
-		}
-
-		if err := node.doLowerHelloSend(pkt); err != nil {
-			node.Log().Printf("lowerHelloSendRoutine: %s", err)
-			continue
+			if pkt.UpperDst.Empty() {
+				node.Log().Printf("helloSendRoutine: upper packet without UpperDst")
+				continue
+			}
+			if err := node.doUpperHelloSend(pkt); err != nil {
+				node.Log().Printf("helloSendRoutine: %s", err)
+				continue
+			}
+		} else {
+			if pkt.TptDst == nil {
+				node.Log().Printf("helloSendRoutine: lower packet without TptDst")
+				continue
+			}
+			if pkt.LowerDst.Empty() {
+				node.Log().Printf("helloSendRoutine: lower packet without LowerDst")
+				continue
+			}
+			if err := node.doLowerHelloSend(pkt); err != nil {
+				node.Log().Printf("helloSendRoutine: %s", err)
+				continue
+			}
 		}
 	}
+	return nil
 }
 
 func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
@@ -49,24 +51,6 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 	node.sendTransport(hellopkt.Packet)
 
 	return nil
-}
-
-// upper hello send
-
-func (node *Node) upperHelloSendRoutine() {
-	for {
-		pkt := node.upperHelloSendQ.Get()
-
-		if pkt.UpperDst.Empty() {
-			node.Log().Printf("upperHelloSendRoutine: packet without UpperDst")
-			continue
-		}
-
-		if err := node.doUpperHelloSend(pkt); err != nil {
-			node.Log().Printf("upperHelloSendRoutine: %s", err)
-			continue
-		}
-	}
 }
 
 func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
