@@ -60,7 +60,7 @@ func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
 		return err
 	}
 
-	// TODO: route lookup should move to caller
+	// TODO: route lookup should move to where the packet is enqueued
 	route, err := node.Routing().GetRoute(pkt.UpperDst)
 	if err != nil {
 		return err

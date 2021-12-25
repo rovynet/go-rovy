@@ -84,19 +84,21 @@ For the time being, check out the `examples/` directory.
 
 ### Next
 
+- [x] remove multigram table negotiation, it doesn't make sense much sense at the moment
+- [ ] make multigram varints exactly 4 bytes long, padding + length restriction
+- [ ] unify lowerpacket and upperpacket in one packet type, which tracks state (lower, upper, tpt) and gives access to respective payload slices
 - [ ] transmitter object that knows route (and thus mtu) before we construct packet
 - [x] node: add lower codec for direct-upper hack
 - [ ] node: payload overflow checks
 - [ ] node: enforce max route length of 14 bytes
 - [ ] constants for sizes and offsets
-- [ ] randomize multigram number ordering
 - [ ] fix endianness once and for all, do what wireguard and cjdns do
 - [ ] fc00: signatures on ping/pong
 - [ ] fc00: multicast ping
 - [ ] perf: lock-free maps for SessionManager and Forwarder
 - [ ] perf: buffer pool
-- [ ] perf: ring buffers
-- [ ] session: handshake waiters are strange
+- [x] perf: ring buffers
+- [x] session: handshake waiters are strange - not anymore :-)
 - [ ] session: get the stages in order
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission
@@ -104,8 +106,8 @@ For the time being, check out the `examples/` directory.
 
 ### Project TODOs
 
-- [ ] ASN + IP addrs
-- [ ] Basic website
+- [x] ASN + IP addrs
+- [x] Basic website
 - [ ] Git repo and issue tracker
 - [ ] CI for tests
 - [ ] CI for performance
