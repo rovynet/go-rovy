@@ -18,6 +18,11 @@ import (
 
 const TransportBufferSize = 1024
 
+type allocator interface {
+	AllocatePacket() rovy.Packet
+	ReleasePacket(rovy.Packet)
+}
+
 type Transport struct {
 	conn   multiaddrnet.PacketConn
 	sendQ  rovy.Queue
@@ -43,13 +48,15 @@ func (tpt *Transport) LocalMultiaddr() multiaddr.Multiaddr {
 	return tpt.conn.LocalMultiaddr()
 }
 
-func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
+func (tpt *Transport) RecvRoutine(alloc allocator, recvQ rovy.Queue) {
 	for {
-		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+		// pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+		pkt := alloc.AllocatePacket()
 
 		n, raddr, err := tpt.conn.ReadFrom(pkt.Bytes())
 		if err != nil {
 			tpt.logger.Printf("RecvRoutine: %s", err)
+			alloc.ReleasePacket(pkt)
 			continue
 		}
 
@@ -60,11 +67,12 @@ func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
 	}
 }
 
-func (tpt *Transport) SendRoutine() {
+func (tpt *Transport) SendRoutine(alloc allocator) {
 	for {
 		pkt := tpt.sendQ.Get()
 		if pkt.TptDst == nil {
 			tpt.logger.Printf("SendRoutine: dropping packet without TptSrc", pkt)
+			alloc.ReleasePacket(pkt)
 			continue
 		}
 
@@ -74,6 +82,8 @@ func (tpt *Transport) SendRoutine() {
 		if err != nil {
 			tpt.logger.Printf("SendRoutine: %s", err)
 		}
+
+		alloc.ReleasePacket(pkt)
 	}
 }
 

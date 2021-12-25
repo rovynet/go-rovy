@@ -156,7 +156,7 @@ func (fwd *Forwarder) Detach(peerid rovy.PeerID) error {
 
 // TODO drop if n+2+length > len(buf) || n+2+pos > len(buf)+2
 func (fwd *Forwarder) HandlePacket(pkt rovy.LowerPacket) error {
-	buf := pkt.Buf[rovy.FwdOffset : rovy.FwdOffset+16]
+	buf := pkt.Buf.Get()[rovy.FwdOffset : rovy.FwdOffset+16]
 
 	length := int(buf[1])
 	if length == 0 {

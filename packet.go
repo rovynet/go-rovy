@@ -6,6 +6,7 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	varint "github.com/multiformats/go-varint"
+	bufpool "go.rovy.net/util/bufpool"
 )
 
 const (
@@ -31,7 +32,7 @@ type Queue interface {
 }
 
 type Packet struct {
-	Buf      []byte
+	Buf      *bufpool.Buffer
 	Length   int
 	TptSrc   multiaddr.Multiaddr
 	TptDst   multiaddr.Multiaddr
@@ -41,23 +42,23 @@ type Packet struct {
 	UpperDst PeerID
 }
 
-func NewPacket(buf []byte) Packet {
+func NewPacket(buf *bufpool.Buffer) Packet {
 	return Packet{
 		Buf:    buf,
-		Length: len(buf),
+		Length: len(buf.Get()),
 	}
 }
 
 func (pkt Packet) Bytes() []byte {
-	return pkt.Buf[:pkt.Length]
+	return pkt.Buf.Get()[:pkt.Length]
 }
 
 func (pkt Packet) MsgType() uint32 {
-	return binary.LittleEndian.Uint32(pkt.Buf[0:4])
+	return binary.LittleEndian.Uint32(pkt.Buf.Get()[0:4])
 }
 
 func (pkt Packet) SetMsgType(msgt uint32) {
-	binary.LittleEndian.PutUint32(pkt.Buf[0:4], msgt)
+	binary.LittleEndian.PutUint32(pkt.Buf.Get()[0:4], msgt)
 }
 
 type UpperPacket struct {
@@ -78,29 +79,29 @@ func NewUpperPacket(basepkt Packet) UpperPacket {
 // TODO max length 2+14 bytes
 func (pkt UpperPacket) Route() Route {
 	o := FwdOffset
-	length := int(pkt.Buf[o+1])
-	return NewRoute(pkt.Buf[o+2 : o+2+length]...)
+	length := int(pkt.Buf.Get()[o+1])
+	return NewRoute(pkt.Buf.Get()[o+2 : o+2+length]...)
 }
 
 func (pkt UpperPacket) RouteLen() int {
-	return int(pkt.Buf[FwdOffset+1])
+	return int(pkt.Buf.Get()[FwdOffset+1])
 }
 
 // TODO max length 2+14 bytes
 func (pkt UpperPacket) SetRoute(rt Route) {
 	o := FwdOffset
 	length := rt.Len()
-	pkt.Buf[o+0] = 0x0
-	pkt.Buf[o+1] = byte(length)
-	copy(pkt.Buf[o+2:o+2+length], rt.Bytes())
+	pkt.Buf.Get()[o+0] = 0x0
+	pkt.Buf.Get()[o+1] = byte(length)
+	copy(pkt.Buf.Get()[o+2:o+2+length], rt.Bytes())
 	for i := 2 + length; i < 16; i++ {
-		pkt.Buf[o+i] = 0x0
+		pkt.Buf.Get()[o+i] = 0x0
 	}
 }
 
 func (pkt UpperPacket) Codec() (uint64, error) {
 	o := pkt.Offset + 0
-	codec, _, err := varint.FromUvarint(pkt.Buf[o+0 : o+4])
+	codec, _, err := varint.FromUvarint(pkt.Buf.Get()[o+0 : o+4])
 	return codec, err
 }
 
@@ -110,18 +111,18 @@ func (pkt UpperPacket) SetCodec(codec uint64) {
 	if len(buf) > 4 {
 		log.Panicf("varint too large for 4 bytes: %#v", buf)
 	}
-	copy(pkt.Buf[o+0:o+4], buf)
+	copy(pkt.Buf.Get()[o+0:o+4], buf)
 }
 
 func (pkt UpperPacket) Payload() []byte {
 	o := pkt.Offset + 4
-	return pkt.Buf[o : pkt.Length-pkt.Padding]
+	return pkt.Buf.Get()[o : pkt.Length-pkt.Padding]
 }
 
 func (pkt UpperPacket) SetPayload(pl []byte) UpperPacket {
 	o := pkt.Offset + 4
 	pkt.Length = o + len(pl) + pkt.Padding
-	copy(pkt.Buf[o:pkt.Length-pkt.Padding], pl)
+	copy(pkt.Buf.Get()[o:pkt.Length-pkt.Padding], pl)
 	return pkt
 }
 
@@ -136,7 +137,7 @@ func NewLowerPacket(basepkt Packet) LowerPacket {
 
 func (pkt LowerPacket) Codec() (uint64, error) {
 	o := pkt.Offset + 0
-	codec, _, err := varint.FromUvarint(pkt.Buf[o+0 : o+4])
+	codec, _, err := varint.FromUvarint(pkt.Buf.Get()[o+0 : o+4])
 	return codec, err
 }
 
@@ -146,17 +147,17 @@ func (pkt LowerPacket) SetCodec(codec uint64) {
 	if len(buf) > 4 {
 		log.Panicf("varint too large for 4 bytes: %#v", buf)
 	}
-	copy(pkt.Buf[o+0:o+4], buf)
+	copy(pkt.Buf.Get()[o+0:o+4], buf)
 }
 
 func (pkt LowerPacket) Payload() []byte {
 	o := pkt.Offset + 4
-	return pkt.Buf[o : pkt.Length-16]
+	return pkt.Buf.Get()[o : pkt.Length-16]
 }
 
 func (pkt LowerPacket) SetPayload(pl []byte) LowerPacket {
 	o := pkt.Offset + 4
 	pkt.Length = o + len(pl) + 16
-	copy(pkt.Buf[o:pkt.Length-16], pl)
+	copy(pkt.Buf.Get()[o:pkt.Length-16], pl)
 	return pkt
 }

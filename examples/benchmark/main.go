@@ -72,21 +72,31 @@ func run() error {
 	start := time.Now()
 
 	var j int
-	nodeB.Handle(BenchmarkCodec, func(pkt rovy.UpperPacket) error {
-		_, err := binary.ReadVarint(bytes.NewBuffer(pkt.Payload()))
+	nodeB.Handle(BenchmarkCodec, func(upkt rovy.UpperPacket) error {
+		defer nodeB.ReleasePacket(upkt.Packet)
+
+		_, err := binary.ReadVarint(bytes.NewBuffer(upkt.Payload()))
 		if err != nil {
 			log.Printf("ReadVarint: %s", err)
 			return err
 		}
 		j += 1
+
 		return nil
 	})
 
 	nodeA.Log().Printf("sending %d packets, %d bytes each", amount, mtu)
 	for i := 1; i <= amount; i++ {
-		p := make([]byte, mtu)
-		binary.PutVarint(p, int64(i))
-		if err := nodeA.Send(nodeB.PeerID(), BenchmarkCodec, p); err != nil {
+		pkt := nodeA.AllocatePacket()
+		upkt := rovy.NewUpperPacket(pkt)
+		upkt.UpperDst = nodeB.PeerID()
+		upkt.SetCodec(BenchmarkCodec)
+		upkt.SetRoute(rovy.NewRoute(0x1))
+
+		binary.PutVarint(upkt.Payload(), int64(i))
+
+		// if err := nodeA.Send(nodeB.PeerID(), BenchmarkCodec, p); err != nil {
+		if err := nodeA.SendUpper(upkt); err != nil {
 			return err
 		}
 		runtime.Gosched()

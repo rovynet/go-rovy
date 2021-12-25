@@ -125,9 +125,7 @@ func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr
 	return s.CreateHello(pkt)
 }
 
-func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr) (ResponsePacket, error) {
-	var pkt2 ResponsePacket
-
+func (sm *SessionManager) HandleHello(pkt HelloPacket, pkt2 ResponsePacket, raddr multiaddr.Multiaddr) (ResponsePacket, error) {
 	hs, err := ikpsk2.NewHandshakeResponder(sm.privkey)
 	if err != nil {
 		return pkt2, err
@@ -140,7 +138,6 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 		return pkt2, fmt.Errorf("HandleHello: %s", err)
 	}
 
-	pkt2 = NewResponsePacket(rovy.NewPacket(make([]byte, rovy.TptMTU)), pkt.Offset, pkt.Padding)
 	pkt2.SetSenderIndex(pkt.SenderIndex())
 
 	pkt2, err = s.CreateResponse(pkt2)

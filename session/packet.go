@@ -33,68 +33,68 @@ func NewHelloPacket(basepkt rovy.Packet, offset, padding int) HelloPacket {
 }
 
 func (pkt HelloPacket) MsgType() uint32 {
-	return binary.LittleEndian.Uint32(pkt.Buf[pkt.Offset+0 : pkt.Offset+4])
+	return binary.LittleEndian.Uint32(pkt.Buf.Get()[pkt.Offset+0 : pkt.Offset+4])
 }
 
 func (pkt HelloPacket) SetMsgType(msgt uint32) {
-	binary.LittleEndian.PutUint32(pkt.Buf[pkt.Offset+0:pkt.Offset+4], msgt)
+	binary.LittleEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+0:pkt.Offset+4], msgt)
 }
 
 func (pkt HelloPacket) SenderIndex() uint32 {
-	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+4 : pkt.Offset+8])
+	return binary.BigEndian.Uint32(pkt.Buf.Get()[pkt.Offset+4 : pkt.Offset+8])
 }
 
 func (pkt HelloPacket) SetSenderIndex(idx uint32) {
-	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+4:pkt.Offset+8], idx)
+	binary.BigEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+4:pkt.Offset+8], idx)
 }
 
 func (pkt HelloPacket) EphemeralKey() rovy.PublicKey {
-	return rovy.NewPublicKey(pkt.Buf[pkt.Offset+8 : pkt.Offset+40])
+	return rovy.NewPublicKey(pkt.Buf.Get()[pkt.Offset+8 : pkt.Offset+40])
 }
 
 func (pkt HelloPacket) SetEphemeralKey(key rovy.PublicKey) {
-	copy(pkt.Buf[pkt.Offset+8:pkt.Offset+40], key.Bytes())
+	copy(pkt.Buf.Get()[pkt.Offset+8:pkt.Offset+40], key.Bytes())
 }
 
 func (pkt HelloPacket) StaticKey() [48]byte {
 	var key [48]byte
-	copy(key[:], pkt.Buf[pkt.Offset+40:pkt.Offset+88])
+	copy(key[:], pkt.Buf.Get()[pkt.Offset+40:pkt.Offset+88])
 	return key
 }
 
 func (pkt HelloPacket) SetStaticKey(empty [48]byte) {
-	copy(pkt.Buf[pkt.Offset+40:pkt.Offset+88], empty[:])
+	copy(pkt.Buf.Get()[pkt.Offset+40:pkt.Offset+88], empty[:])
 }
 
 func (pkt HelloPacket) Timestamp() [28]byte {
 	var ts [28]byte
-	copy(ts[:], pkt.Buf[pkt.Offset+88:pkt.Offset+116])
+	copy(ts[:], pkt.Buf.Get()[pkt.Offset+88:pkt.Offset+116])
 	return ts
 }
 
 func (pkt HelloPacket) SetTimestamp(empty [28]byte) {
-	copy(pkt.Buf[pkt.Offset+88:pkt.Offset+116], empty[:])
+	copy(pkt.Buf.Get()[pkt.Offset+88:pkt.Offset+116], empty[:])
 }
 
 func (pkt HelloPacket) Plaintext() []byte {
-	return pkt.Buf[pkt.Offset+116 : pkt.Length-pkt.Padding-16]
+	return pkt.Buf.Get()[pkt.Offset+116 : pkt.Length-pkt.Padding-16]
 }
 
 // TODO what if plaintext is too long
 func (pkt HelloPacket) SetPlaintext(pt []byte) HelloPacket {
 	pkt.Length = pkt.Offset + 116 + len(pt) + 16 + pkt.Padding
-	copy(pkt.Buf[pkt.Offset+116:pkt.Length-pkt.Padding], pt) // XXX does this do what i think
-	copy(pkt.Buf[pkt.Length-16:pkt.Length-pkt.Padding], emptyTag[:])
+	copy(pkt.Buf.Get()[pkt.Offset+116:pkt.Length-pkt.Padding], pt) // XXX does this do what i think
+	copy(pkt.Buf.Get()[pkt.Length-16:pkt.Length-pkt.Padding], emptyTag[:])
 	return pkt
 }
 
 func (pkt HelloPacket) Ciphertext() []byte {
-	return pkt.Buf[pkt.Offset+116 : pkt.Length-pkt.Padding]
+	return pkt.Buf.Get()[pkt.Offset+116 : pkt.Length-pkt.Padding]
 }
 
 func (pkt HelloPacket) SetCiphertext(ct []byte) HelloPacket {
 	pkt.Length = pkt.Offset + 116 + len(ct) + pkt.Padding
-	copy(pkt.Buf[pkt.Offset+116:pkt.Length-pkt.Padding], ct)
+	copy(pkt.Buf.Get()[pkt.Offset+116:pkt.Length-pkt.Padding], ct)
 	return pkt
 }
 
@@ -123,65 +123,65 @@ func NewResponsePacket(basepkt rovy.Packet, offset, padding int) ResponsePacket 
 }
 
 func (pkt ResponsePacket) MsgType() uint32 {
-	return binary.LittleEndian.Uint32(pkt.Buf[pkt.Offset+0 : pkt.Offset+4])
+	return binary.LittleEndian.Uint32(pkt.Buf.Get()[pkt.Offset+0 : pkt.Offset+4])
 }
 
 func (pkt ResponsePacket) SetMsgType(msgt uint32) {
-	binary.LittleEndian.PutUint32(pkt.Buf[pkt.Offset+0:pkt.Offset+4], msgt)
+	binary.LittleEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+0:pkt.Offset+4], msgt)
 }
 
 func (pkt ResponsePacket) SenderIndex() uint32 {
-	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+4 : pkt.Offset+8])
+	return binary.BigEndian.Uint32(pkt.Buf.Get()[pkt.Offset+4 : pkt.Offset+8])
 }
 
 func (pkt ResponsePacket) SetSenderIndex(idx uint32) {
-	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+4:pkt.Offset+8], idx)
+	binary.BigEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+4:pkt.Offset+8], idx)
 }
 
 func (pkt ResponsePacket) SessionIndex() uint32 {
-	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+8 : pkt.Offset+12])
+	return binary.BigEndian.Uint32(pkt.Buf.Get()[pkt.Offset+8 : pkt.Offset+12])
 }
 
 func (pkt ResponsePacket) SetSessionIndex(idx uint32) {
-	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+8:pkt.Offset+12], idx)
+	binary.BigEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+8:pkt.Offset+12], idx)
 }
 
 func (pkt ResponsePacket) EphemeralKey() rovy.PublicKey {
-	return rovy.NewPublicKey(pkt.Buf[pkt.Offset+12 : pkt.Offset+44])
+	return rovy.NewPublicKey(pkt.Buf.Get()[pkt.Offset+12 : pkt.Offset+44])
 }
 
 func (pkt ResponsePacket) SetEphemeralKey(key rovy.PublicKey) {
-	copy(pkt.Buf[pkt.Offset+12:pkt.Offset+44], key.Bytes())
+	copy(pkt.Buf.Get()[pkt.Offset+12:pkt.Offset+44], key.Bytes())
 }
 
 func (pkt ResponsePacket) Empty() [16]byte {
 	var empty [16]byte
-	copy(empty[:], pkt.Buf[pkt.Offset+44:pkt.Offset+60])
+	copy(empty[:], pkt.Buf.Get()[pkt.Offset+44:pkt.Offset+60])
 	return empty
 }
 
 func (pkt ResponsePacket) SetEmpty(empty [16]byte) {
-	copy(pkt.Buf[pkt.Offset+44:pkt.Offset+60], empty[:])
+	copy(pkt.Buf.Get()[pkt.Offset+44:pkt.Offset+60], empty[:])
 }
 
 func (pkt ResponsePacket) Plaintext() []byte {
-	return pkt.Buf[pkt.Offset+60 : pkt.Length-pkt.Padding-16]
+	return pkt.Buf.Get()[pkt.Offset+60 : pkt.Length-pkt.Padding-16]
 }
 
 func (pkt ResponsePacket) SetPlaintext(pt []byte) ResponsePacket {
 	pkt.Length = pkt.Offset + 60 + len(pt) + 16 + pkt.Padding
-	copy(pkt.Buf[pkt.Offset+60:pkt.Length-pkt.Padding], pt)
-	copy(pkt.Buf[pkt.Length-pkt.Padding-16:pkt.Length-pkt.Padding], emptyTag[:])
+	copy(pkt.Buf.Get()[pkt.Offset+60:pkt.Length-pkt.Padding], pt)
+	copy(pkt.Buf.Get()[pkt.Length-pkt.Padding-16:pkt.Length-pkt.Padding], emptyTag[:])
 	return pkt
 }
 
 func (pkt ResponsePacket) Ciphertext() []byte {
-	return pkt.Buf[pkt.Offset+60 : pkt.Length-pkt.Padding]
+	return pkt.Buf.Get()[pkt.Offset+60 : pkt.Length-pkt.Padding]
 }
 
 func (pkt ResponsePacket) SetCiphertext(ct []byte) ResponsePacket {
 	pkt.Length = pkt.Offset + 60 + len(ct) + pkt.Padding
-	copy(pkt.Buf[pkt.Offset+60:pkt.Length-pkt.Padding], ct)
+	copy(pkt.Buf.Get()[pkt.Offset+60:pkt.Length-pkt.Padding], ct)
 	return pkt
 }
 
@@ -208,49 +208,49 @@ func NewDataPacket(basepkt rovy.Packet, offset, padding int) DataPacket {
 }
 
 func (pkt DataPacket) MsgType() uint32 {
-	return binary.LittleEndian.Uint32(pkt.Buf[pkt.Offset+0 : pkt.Offset+4])
+	return binary.LittleEndian.Uint32(pkt.Buf.Get()[pkt.Offset+0 : pkt.Offset+4])
 }
 
 func (pkt DataPacket) SetMsgType(msgt uint32) {
-	binary.LittleEndian.PutUint32(pkt.Buf[pkt.Offset+0:pkt.Offset+4], msgt)
+	binary.LittleEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+0:pkt.Offset+4], msgt)
 }
 
 func (pkt DataPacket) SessionIndex() uint32 {
-	return binary.BigEndian.Uint32(pkt.Buf[pkt.Offset+4 : pkt.Offset+8])
+	return binary.BigEndian.Uint32(pkt.Buf.Get()[pkt.Offset+4 : pkt.Offset+8])
 }
 
 func (pkt DataPacket) SetSessionIndex(idx uint32) {
-	binary.BigEndian.PutUint32(pkt.Buf[pkt.Offset+4:pkt.Offset+8], idx)
+	binary.BigEndian.PutUint32(pkt.Buf.Get()[pkt.Offset+4:pkt.Offset+8], idx)
 }
 
 func (pkt DataPacket) Nonce() [8]byte {
 	var nonce [8]byte
-	copy(nonce[:], pkt.Buf[pkt.Offset+8:pkt.Offset+16])
+	copy(nonce[:], pkt.Buf.Get()[pkt.Offset+8:pkt.Offset+16])
 	return nonce
 }
 
 func (pkt DataPacket) SetNonce(nonce [8]byte) {
-	copy(pkt.Buf[pkt.Offset+8:pkt.Offset+16], nonce[:])
+	copy(pkt.Buf.Get()[pkt.Offset+8:pkt.Offset+16], nonce[:])
 }
 
 func (pkt DataPacket) Plaintext() []byte {
-	return pkt.Buf[pkt.Offset+16 : pkt.Length-pkt.Padding-16]
+	return pkt.Buf.Get()[pkt.Offset+16 : pkt.Length-pkt.Padding-16]
 }
 
 func (pkt DataPacket) SetPlaintext(pt []byte) DataPacket {
 	pkt.Length = pkt.Offset + 16 + len(pt) + 16 + pkt.Padding
-	copy(pkt.Buf[pkt.Offset+16:pkt.Length-pkt.Padding], pt)
-	copy(pkt.Buf[pkt.Length-pkt.Padding-16:pkt.Length-pkt.Padding], emptyTag[:])
+	copy(pkt.Buf.Get()[pkt.Offset+16:pkt.Length-pkt.Padding], pt)
+	copy(pkt.Buf.Get()[pkt.Length-pkt.Padding-16:pkt.Length-pkt.Padding], emptyTag[:])
 	return pkt
 }
 
 func (pkt DataPacket) Ciphertext() []byte {
-	return pkt.Buf[pkt.Offset+16 : pkt.Length-pkt.Padding]
+	return pkt.Buf.Get()[pkt.Offset+16 : pkt.Length-pkt.Padding]
 }
 
 func (pkt DataPacket) SetCiphertext(ct []byte) DataPacket {
 	pkt.Length = pkt.Offset + 16 + len(ct) + pkt.Padding
-	copy(pkt.Buf[pkt.Offset+16:pkt.Length-pkt.Padding], ct)
+	copy(pkt.Buf.Get()[pkt.Offset+16:pkt.Length-pkt.Padding], ct)
 	return pkt
 }
 
@@ -290,54 +290,54 @@ func NewPlaintextPacket(basepkt rovy.Packet, offset, padding int) PlaintextPacke
 
 func (pkt PlaintextPacket) MsgType() uint32 {
 	o := pkt.Offset + 0
-	return binary.LittleEndian.Uint32(pkt.Buf[o : o+4])
+	return binary.LittleEndian.Uint32(pkt.Buf.Get()[o : o+4])
 }
 
 func (pkt PlaintextPacket) SetMsgType(msgt uint32) {
 	o := pkt.Offset + 0
-	binary.LittleEndian.PutUint32(pkt.Buf[o:o+4], msgt)
+	binary.LittleEndian.PutUint32(pkt.Buf.Get()[o:o+4], msgt)
 }
 
 func (pkt PlaintextPacket) Signature() (sig [SignatureSize]byte) {
 	o := pkt.Offset + 4
-	copy(sig[:], pkt.Buf[o:o+SignatureSize])
+	copy(sig[:], pkt.Buf.Get()[o:o+SignatureSize])
 	return sig
 }
 
 func (pkt PlaintextPacket) SetSignature(sig [SignatureSize]byte) {
 	o := pkt.Offset + 4
-	copy(pkt.Buf[o:o+SignatureSize], sig[:])
+	copy(pkt.Buf.Get()[o:o+SignatureSize], sig[:])
 }
 
 func (pkt PlaintextPacket) Randomizer() (rnd [RandomizerSize]byte) {
 	o := pkt.Offset + 12
-	copy(rnd[:], pkt.Buf[o:o+RandomizerSize])
+	copy(rnd[:], pkt.Buf.Get()[o:o+RandomizerSize])
 	return rnd
 }
 
 func (pkt PlaintextPacket) SetRandomizer(rnd [RandomizerSize]byte) {
 	o := pkt.Offset + 12
-	copy(pkt.Buf[o:o+RandomizerSize], rnd[:])
+	copy(pkt.Buf.Get()[o:o+RandomizerSize], rnd[:])
 }
 
 func (pkt PlaintextPacket) Sender() rovy.PublicKey {
 	o := pkt.Offset + 20
-	return rovy.NewPublicKey(pkt.Buf[o : o+rovy.PublicKeySize])
+	return rovy.NewPublicKey(pkt.Buf.Get()[o : o+rovy.PublicKeySize])
 }
 
 func (pkt PlaintextPacket) SetSender(key rovy.PublicKey) {
 	o := pkt.Offset + 20
-	copy(pkt.Buf[o:o+rovy.PublicKeySize], key.Bytes())
+	copy(pkt.Buf.Get()[o:o+rovy.PublicKeySize], key.Bytes())
 }
 
 func (pkt PlaintextPacket) Plaintext() []byte {
 	o := pkt.Offset + 52
-	return pkt.Buf[o : pkt.Length-pkt.Padding]
+	return pkt.Buf.Get()[o : pkt.Length-pkt.Padding]
 }
 
 func (pkt PlaintextPacket) SetPlaintext(pt []byte) PlaintextPacket {
 	o := pkt.Offset + 52
 	pkt.Length = o + len(pt) + pkt.Padding
-	copy(pkt.Buf[o:pkt.Length-pkt.Padding], pt)
+	copy(pkt.Buf.Get()[o:pkt.Length-pkt.Padding], pt)
 	return pkt
 }
