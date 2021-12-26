@@ -5,8 +5,8 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
-	rovy "pkt.dev/go-rovy"
-	ringbuf "pkt.dev/go-rovy/util/ringbuf"
+	rovy "github.com/rovynet/go-rovy"
+	ringbuf "github.com/rovynet/go-rovy/util/ringbuf"
 )
 
 // tpt

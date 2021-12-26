@@ -7,11 +7,11 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
-	rovy "pkt.dev/go-rovy"
-	forwarder "pkt.dev/go-rovy/forwarder"
-	routing "pkt.dev/go-rovy/routing"
-	session "pkt.dev/go-rovy/session"
-	ringbuf "pkt.dev/go-rovy/util/ringbuf"
+	rovy "github.com/rovynet/go-rovy"
+	forwarder "github.com/rovynet/go-rovy/forwarder"
+	routing "github.com/rovynet/go-rovy/routing"
+	session "github.com/rovynet/go-rovy/session"
+	ringbuf "github.com/rovynet/go-rovy/util/ringbuf"
 )
 
 const DirectUpperCodec = 0x12347

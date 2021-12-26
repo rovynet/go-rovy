@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
-	rovy "pkt.dev/go-rovy"
-	ikpsk2 "pkt.dev/go-rovy/session/ikpsk2"
+	rovy "github.com/rovynet/go-rovy"
+	ikpsk2 "github.com/rovynet/go-rovy/session/ikpsk2"
 )
 
 var (

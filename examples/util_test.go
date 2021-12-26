@@ -5,8 +5,8 @@ import (
 	"os"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
-	rovy "pkt.dev/go-rovy"
-	node "pkt.dev/go-rovy/node"
+	rovy "github.com/rovynet/go-rovy"
+	node "github.com/rovynet/go-rovy/node"
 )
 
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {

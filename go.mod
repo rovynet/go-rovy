@@ -1,4 +1,4 @@
-module pkt.dev/go-rovy
+module github.com/rovynet/go-rovy
 
 go 1.15
 

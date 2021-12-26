@@ -5,8 +5,8 @@ import (
 	"log"
 	"testing"
 
-	rovy "pkt.dev/go-rovy"
-	forwarder "pkt.dev/go-rovy/forwarder"
+	rovy "github.com/rovynet/go-rovy"
+	forwarder "github.com/rovynet/go-rovy/forwarder"
 )
 
 func BenchmarkHandlePacket(b *testing.B) {

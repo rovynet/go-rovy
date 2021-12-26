@@ -3,9 +3,9 @@ package node
 import (
 	"fmt"
 
-	rovy "pkt.dev/go-rovy"
-	forwarder "pkt.dev/go-rovy/forwarder"
-	session "pkt.dev/go-rovy/session"
+	rovy "github.com/rovynet/go-rovy"
+	forwarder "github.com/rovynet/go-rovy/forwarder"
+	session "github.com/rovynet/go-rovy/session"
 )
 
 // hello send

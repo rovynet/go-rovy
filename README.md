@@ -95,6 +95,7 @@ For the time being, check out the `examples/` directory.
 - [ ] fix endianness once and for all, do what wireguard and cjdns do
 - [ ] fc00: signatures on ping/pong
 - [ ] fc00: multicast ping
+- [ ] perf: fast versions of multiaddr, cid, multihash
 - [ ] perf: lock-free maps for SessionManager and Forwarder
 - [ ] perf: buffer pool
 - [x] perf: ring buffers

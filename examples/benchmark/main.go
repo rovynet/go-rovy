@@ -11,8 +11,8 @@ import (
 	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
-	rovy "pkt.dev/go-rovy"
-	node "pkt.dev/go-rovy/node"
+	rovy "github.com/rovynet/go-rovy"
+	node "github.com/rovynet/go-rovy/node"
 )
 
 const BenchmarkCodec = 0x42002

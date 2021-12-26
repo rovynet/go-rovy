@@ -6,7 +6,7 @@ import (
 	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
-	rovy "pkt.dev/go-rovy"
+	rovy "github.com/rovynet/go-rovy"
 )
 
 func TestRouted(t *testing.T) {

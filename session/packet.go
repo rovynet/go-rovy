@@ -3,7 +3,7 @@ package session
 import (
 	"encoding/binary"
 
-	rovy "pkt.dev/go-rovy"
+	rovy "github.com/rovynet/go-rovy"
 )
 
 var emptyTag [16]byte

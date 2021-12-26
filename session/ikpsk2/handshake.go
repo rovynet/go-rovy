@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/poly1305"
 	"golang.zx2c4.com/wireguard/tai64n"
 
-	rovy "pkt.dev/go-rovy"
+	rovy "github.com/rovynet/go-rovy"
 )
 
 const (

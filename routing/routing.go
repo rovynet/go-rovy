@@ -6,7 +6,7 @@ import (
 	"net"
 	"sync"
 
-	rovy "pkt.dev/go-rovy"
+	rovy "github.com/rovynet/go-rovy"
 )
 
 var (
