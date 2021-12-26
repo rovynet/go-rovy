@@ -1,7 +1,10 @@
 package bufpool
 
 import (
-	"fmt"
+	// "fmt"
+	"log"
+	"runtime"
+	"sync"
 	"time"
 )
 
@@ -23,62 +26,76 @@ func NewBufferPool(poolsize, bufsize int) *BufferPool {
 	for i := 0; i < poolsize; i++ {
 		buf := NewBuffer(bufsize)
 		buf.time = pool.time
+		buf.InUse = false
 		pool.store[i] = buf
 		pool.fifo <- buf
 	}
-	go pool.leaksRoutine()
 	return pool
 }
 
-// TODO: should be called from external only, don't spawn goroutine ourselves
-func (pool *BufferPool) leaksRoutine() {
-	sweepInterval := 1 * time.Second
+func (pool *BufferPool) LeaksRoutine() {
+	sweepInterval := 2 * time.Second
 	leakThreshold := 2 * time.Second
 
-	for _ = range time.Tick(sweepInterval) {
-		pool.time = time.Now()
+	for now := range time.Tick(sweepInterval) {
+		pool.time = now
 
-		for _, buf := range pool.store {
+		for i, buf := range pool.store {
+			// buf.RLock()
 			thrsh := buf.time.Add(leakThreshold)
-			if buf.inuse && pool.time.After(thrsh) {
-				panic(fmt.Sprintf("leaked buffer: pooltime=%s thrsh=%s buf=%+v", pool.time, thrsh, buf))
+			if buf.InUse && now.After(thrsh) {
+				// panic(fmt.Sprintf("leaked buffer: i=%d pooltime=%s thrsh=%s buftime=%s buf=%v", i, pool.time, thrsh, buf.time, buf))
+				log.Printf("leaked buffer: i=%d pooltime=%s thrsh=%s buftime=%s buf=%v", i, pool.time, thrsh, buf.time, buf)
 			}
+			// buf.RUnlock()
 		}
 	}
 }
 
 func (pool *BufferPool) Release(buf *Buffer) {
-	if !buf.inuse {
+	// buf.Lock()
+	// defer buf.Unlock()
+	if !buf.InUse {
 		panic("buffer has already been released")
 	}
-	buf.inuse = false
+	buf.InUse = false
+	buf.callers = []uintptr{}
 	pool.fifo <- buf
 }
 
 func (pool *BufferPool) Get() *Buffer {
 	buf := <-pool.fifo
-	buf.inuse = true
+	if buf.InUse {
+		panic("buffer has not been properly released")
+	}
+	// buf.Lock()
+	// defer buf.Unlock()
 	buf.time = pool.time
+	buf.InUse = true
+	_ = runtime.Callers(0, buf.callers)
 	return buf
 }
 
 type Buffer struct {
-	buf   []byte
-	inuse bool
-	time  time.Time
+	sync.RWMutex
+	Buf     []byte
+	InUse   bool
+	time    time.Time
+	callers []uintptr
 }
 
 func NewBuffer(bufsize int) *Buffer {
 	buf := &Buffer{
-		buf:   make([]byte, bufsize),
-		inuse: false,
+		Buf: make([]byte, bufsize),
 	}
 	return buf
 }
 
 func (buf *Buffer) Get() []byte {
-	if !buf.inuse {
+	// buf.RLock()
+	// defer buf.RUnlock()
+	if !buf.InUse {
 		panic("buffer has already been released")
 	}
-	return buf.buf
+	return buf.Buf
 }

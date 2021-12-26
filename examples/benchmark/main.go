@@ -6,7 +6,6 @@ import (
 	"flag"
 	"log"
 	"os"
-	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -99,7 +98,7 @@ func run() error {
 		if err := nodeA.SendUpper(upkt); err != nil {
 			return err
 		}
-		runtime.Gosched()
+		// runtime.Gosched()
 	}
 
 	time.Sleep(250 * time.Millisecond)

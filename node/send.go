@@ -17,23 +17,28 @@ func (node *Node) helloSendRoutine() error {
 		if pkt.LowerDst.Empty() {
 			if pkt.UpperDst.Empty() {
 				node.Log().Printf("helloSendRoutine: upper packet without UpperDst")
+				node.ReleasePacket(pkt)
 				continue
 			}
 			if err := node.doUpperHelloSend(pkt); err != nil {
 				node.Log().Printf("helloSendRoutine: %s", err)
+				node.ReleasePacket(pkt)
 				continue
 			}
 		} else {
 			if pkt.TptDst == nil {
 				node.Log().Printf("helloSendRoutine: lower packet without TptDst")
+				node.ReleasePacket(pkt)
 				continue
 			}
 			if pkt.LowerDst.Empty() {
 				node.Log().Printf("helloSendRoutine: lower packet without LowerDst")
+				node.ReleasePacket(pkt)
 				continue
 			}
 			if err := node.doLowerHelloSend(pkt); err != nil {
 				node.Log().Printf("helloSendRoutine: %s", err)
+				node.ReleasePacket(pkt)
 				continue
 			}
 		}
@@ -82,11 +87,13 @@ func (node *Node) lowerSendRoutine() {
 
 		if pkt.LowerDst.Empty() {
 			node.Log().Printf("lowerSendRoutine: dropping packet without LowerDst")
+			node.ReleasePacket(pkt)
 			continue
 		}
 
 		if err := node.doLowerSend(pkt); err != nil {
 			node.Log().Printf("lowerSendRoutine: %s", err)
+			node.ReleasePacket(pkt)
 			continue
 		}
 	}
@@ -112,11 +119,13 @@ func (node *Node) upperSendRoutine() {
 
 		if pkt.UpperDst.Empty() {
 			node.Log().Printf("upperSendRoutine: packet without UpperDst")
+			node.ReleasePacket(pkt)
 			continue
 		}
 
 		if err := node.doUpperSend(pkt); err != nil {
 			node.Log().Printf("upperSendRoutine: %s", err)
+			node.ReleasePacket(pkt)
 			continue
 		}
 	}

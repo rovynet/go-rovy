@@ -85,6 +85,8 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		return nil
 	})
 
+	go node.bufpool.LeaksRoutine()
+
 	go node.helloSendRoutine()
 	go node.lowerSendRoutine()
 	go node.upperSendRoutine()

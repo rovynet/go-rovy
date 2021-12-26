@@ -7,6 +7,7 @@ import (
 
 	rovy "go.rovy.net"
 	forwarder "go.rovy.net/forwarder"
+	bufpool "go.rovy.net/util/bufpool"
 )
 
 func BenchmarkHandlePacket(b *testing.B) {
@@ -19,7 +20,9 @@ func BenchmarkHandlePacket(b *testing.B) {
 	fwd.Attach(peeridB, func(_ rovy.LowerPacket) error { return nil })
 	fwd.Attach(peeridC, func(_ rovy.LowerPacket) error { return nil })
 
-	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+	buf := &bufpool.Buffer{Buf: make([]byte, rovy.TptMTU), InUse: true}
+
+	upkt := rovy.NewUpperPacket(rovy.NewPacket(buf))
 	upkt.SetRoute(rovy.NewRoute(0x2, 0x1))
 
 	lpkt := rovy.NewLowerPacket(upkt.Packet)
