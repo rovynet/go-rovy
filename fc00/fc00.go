@@ -10,10 +10,10 @@ import (
 	icmp "golang.org/x/net/icmp"
 	ipv6 "golang.org/x/net/ipv6"
 
-	rovy "github.com/rovynet/go-rovy"
-	forwarder "github.com/rovynet/go-rovy/forwarder"
-	node "github.com/rovynet/go-rovy/node"
-	routing "github.com/rovynet/go-rovy/routing"
+	rovy "go.rovy.net"
+	forwarder "go.rovy.net/forwarder"
+	node "go.rovy.net/node"
+	routing "go.rovy.net/routing"
 )
 
 const Fc00Multicodec = 0x42004

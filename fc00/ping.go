@@ -3,7 +3,7 @@ package fc00
 import (
 	"bytes"
 
-	rovy "github.com/rovynet/go-rovy"
+	rovy "go.rovy.net"
 )
 
 const SignatureSize = 8

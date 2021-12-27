@@ -1,7 +1,7 @@
 package ringbuf
 
 import (
-	rovy "github.com/rovynet/go-rovy"
+	rovy "go.rovy.net"
 )
 
 type RingBuffer struct {

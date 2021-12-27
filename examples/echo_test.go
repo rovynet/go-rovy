@@ -6,7 +6,7 @@ import (
 	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
-	rovy "github.com/rovynet/go-rovy"
+	rovy "go.rovy.net"
 )
 
 func TestEcho(t *testing.T) {

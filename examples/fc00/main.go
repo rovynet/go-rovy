@@ -9,9 +9,9 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 
-	rovy "github.com/rovynet/go-rovy"
-	fc00 "github.com/rovynet/go-rovy/fc00"
-	node "github.com/rovynet/go-rovy/node"
+	rovy "go.rovy.net"
+	fc00 "go.rovy.net/fc00"
+	node "go.rovy.net/node"
 )
 
 func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {

@@ -1,4 +1,4 @@
-module github.com/rovynet/go-rovy
+module go.rovy.net
 
 go 1.15
 

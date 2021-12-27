@@ -9,8 +9,8 @@ import (
 	"time"
 
 	multiaddr "github.com/multiformats/go-multiaddr"
-	rovy "github.com/rovynet/go-rovy"
-	ikpsk2 "github.com/rovynet/go-rovy/session/ikpsk2"
+	rovy "go.rovy.net"
+	ikpsk2 "go.rovy.net/session/ikpsk2"
 )
 
 // TODO: make sure indexes from remote don't overwrite other sessions

@@ -62,7 +62,7 @@ import (
 	"log"
 	"sync"
 
-	rovy "github.com/rovynet/go-rovy"
+	rovy "go.rovy.net"
 )
 
 const (
