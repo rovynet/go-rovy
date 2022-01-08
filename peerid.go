@@ -1,7 +1,6 @@
 package rovy
 
 import (
-	"bytes"
 	"fmt"
 
 	cid "github.com/ipfs/go-cid"
@@ -34,10 +33,6 @@ const (
 	RovyMultiaddrCodec = 0x1a6
 )
 
-var (
-	EmptyPeerID = PeerID{PublicKey{[32]byte{}}}
-)
-
 func init() {
 	cid.Codecs["rovy-key"] = RovyKeyMulticodec
 	cid.CodecToStr[RovyKeyMulticodec] = "rovy-key"
@@ -51,42 +46,63 @@ func init() {
 	})
 }
 
+var EmptyPeerID PeerID
+
 type PeerID struct {
-	pubkey PublicKey
+	b1 uint64
+	b2 uint64
+	b3 uint64
+	b4 uint64
 }
 
-func NewPeerID(pubkey PublicKey) PeerID {
-	return PeerID{pubkey}
+func NewPeerID(pk PublicKey) PeerID {
+	b := pk.Bytes()
+	return PeerID{
+		b1: beUint64(b[:8]),
+		b2: beUint64(b[8:16]),
+		b3: beUint64(b[16:24]),
+		b4: beUint64(b[24:]),
+	}
 }
 
 func PeerIDFromCid(c cid.Cid) (PeerID, error) {
 	if c.Type() != RovyKeyMulticodec {
-		return EmptyPeerID, fmt.Errorf("peerid can't be cid with type %O", c.Type())
+		return PeerID{}, fmt.Errorf("peerid can't be cid with type %O", c.Type())
 	}
 
 	mhash, err := multihash.Decode(c.Hash())
 	if err != nil {
-		return EmptyPeerID, err
+		return PeerID{}, err
 	}
 
+	if mhash.Code != multihash.IDENTITY {
+		return PeerID{}, fmt.Errorf("public key mishhashed as 0x%x", mhash.Code)
+	}
 	if mhash.Length != PublicKeySize {
-		return EmptyPeerID, fmt.Errorf("invalid public key size: %d", mhash.Length)
+		return PeerID{}, fmt.Errorf("invalid public key size: %d", mhash.Length)
 	}
 
 	return NewPeerID(NewPublicKey(mhash.Digest)), nil
 }
 
-func (pid PeerID) Empty() bool {
-	return pid.Equal(EmptyPeerID)
-}
-
-func (pid PeerID) Cid() cid.Cid {
-	mhash, _ := multihash.Sum(pid.pubkey.Bytes(), multihash.IDENTITY, PublicKeySize)
-	return cid.NewCidV1(RovyKeyMulticodec, mhash)
-}
-
 func (pid PeerID) Bytes() []byte {
-	return pid.Cid().Bytes()[:]
+	return pid.Cid().Bytes()
+}
+
+func (pid PeerID) RawBytesTo(b []byte) {
+	_ = b[31]
+	bePutUint64(b[:8], pid.b1)
+	bePutUint64(b[8:16], pid.b2)
+	bePutUint64(b[16:24], pid.b3)
+	bePutUint64(b[24:], pid.b4)
+}
+
+func (pid PeerID) Empty() bool {
+	return pid == EmptyPeerID
+}
+
+func (pid PeerID) Equal(other PeerID) bool {
+	return pid == other
 }
 
 func (pid PeerID) String() string {
@@ -96,12 +112,38 @@ func (pid PeerID) String() string {
 	return pid.Cid().String()
 }
 
-func (pid PeerID) Equal(other PeerID) bool {
-	return bytes.Equal(pid.Bytes(), other.Bytes())
+func (pid PeerID) PublicKey() PublicKey {
+	var b [32]byte
+	bePutUint64(b[:8], pid.b1)
+	bePutUint64(b[8:16], pid.b2)
+	bePutUint64(b[16:24], pid.b3)
+	bePutUint64(b[24:], pid.b4)
+	return NewPublicKey(b[:])
 }
 
-func (pid PeerID) PublicKey() PublicKey {
-	return pid.pubkey
+func (pid PeerID) Cid() cid.Cid {
+	mhash, _ := multihash.Sum(pid.PublicKey().Bytes(), multihash.IDENTITY, PublicKeySize)
+	return cid.NewCidV1(0x73, mhash)
+}
+
+// from stdlib net/netip/leaf_alts.go
+func beUint64(b []byte) uint64 {
+	_ = b[7] // bounds check hint to compiler; see golang.org/issue/14808
+	return uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 |
+		uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56
+}
+
+// from stdlib net/netip/leaf_alts.go
+func bePutUint64(b []byte, v uint64) {
+	_ = b[7] // early bounds check to guarantee safety of writes below
+	b[0] = byte(v >> 56)
+	b[1] = byte(v >> 48)
+	b[2] = byte(v >> 40)
+	b[3] = byte(v >> 32)
+	b[4] = byte(v >> 24)
+	b[5] = byte(v >> 16)
+	b[6] = byte(v >> 8)
+	b[7] = byte(v)
 }
 
 func maddrStr2b(s string) ([]byte, error) {
