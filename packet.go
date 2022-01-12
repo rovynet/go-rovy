@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"log"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	varint "github.com/multiformats/go-varint"
 )
 
@@ -33,8 +32,8 @@ type Queue interface {
 type Packet struct {
 	Buf      []byte
 	Length   int
-	TptSrc   multiaddr.Multiaddr
-	TptDst   multiaddr.Multiaddr
+	TptSrc   UDPMultiaddr
+	TptDst   UDPMultiaddr
 	LowerSrc PeerID
 	LowerDst PeerID
 	UpperSrc PeerID

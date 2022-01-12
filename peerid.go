@@ -46,7 +46,7 @@ func init() {
 	})
 }
 
-var EmptyPeerID PeerID
+var emptyPeerID = PeerID{}
 
 type PeerID struct {
 	b1 uint64
@@ -98,7 +98,7 @@ func (pid PeerID) RawBytesTo(b []byte) {
 }
 
 func (pid PeerID) Empty() bool {
-	return pid == EmptyPeerID
+	return pid == emptyPeerID
 }
 
 func (pid PeerID) Equal(other PeerID) bool {

@@ -170,7 +170,7 @@ func (node *Node) connectedCallback(peerid rovy.PeerID, lower bool) {
 	}
 }
 
-func (node *Node) Listen(lisaddr multiaddr.Multiaddr) error {
+func (node *Node) Listen(lisaddr rovy.UDPMultiaddr) error {
 	tpt, err := NewTransport(lisaddr, node.logger)
 	if err != nil {
 		return err
@@ -204,10 +204,10 @@ func (node *Node) HandleLower(codec uint64, cb LowerHandler) {
 
 // TODO: timeouts
 // TODO: check if we already have a session
-func (node *Node) Connect(peerid rovy.PeerID, raddr multiaddr.Multiaddr) error {
+func (node *Node) Connect(peerid rovy.PeerID, raddr rovy.UDPMultiaddr) error {
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 
-	if raddr != nil {
+	if !raddr.Empty() {
 		pkt.LowerDst = peerid
 		pkt.TptDst = raddr
 		node.helloSendQ.Put(pkt)

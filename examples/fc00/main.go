@@ -2,19 +2,18 @@ package main
 
 import (
 	"log"
+	"net/netip"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-
-	multiaddr "github.com/multiformats/go-multiaddr"
 
 	rovy "go.rovy.net"
 	fc00 "go.rovy.net/fc00"
 	node "go.rovy.net/node"
 )
 
-func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
+func newNode(name string, lisaddr rovy.UDPMultiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.GeneratePrivateKey()
@@ -34,10 +33,10 @@ func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
 }
 
 func run() error {
-	addrA := multiaddr.StringCast("/ip6/::1/udp/12345")
-	addrB := multiaddr.StringCast("/ip6/::1/udp/12346")
-	addrC := multiaddr.StringCast("/ip6/::1/udp/12347")
-	addrD := multiaddr.StringCast("/ip6/::1/udp/12348")
+	addrA := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12345"))
+	addrB := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12346"))
+	addrC := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12347"))
+	addrD := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12348"))
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {
@@ -114,7 +113,7 @@ func run() error {
 		nodeA.Routing().MustGetRoute(nodeB.PeerID()).
 			Join(nodeB.Routing().MustGetRoute(nodeC.PeerID())).
 			Join(nodeC.Routing().MustGetRoute(nodeD.PeerID())))
-	if err := nodeA.Connect(nodeD.PeerID(), nil); err != nil {
+	if err := nodeA.Connect(nodeD.PeerID(), rovy.UDPMultiaddr{}); err != nil {
 		nodeA.Log().Printf("failed to connect nodeA to nodeD: %s", err)
 		return err
 	}

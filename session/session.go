@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
 	ikpsk2 "go.rovy.net/session/ikpsk2"
 )
@@ -26,7 +25,7 @@ type Session struct {
 	stage        int
 	waiters      []chan error
 	handshake    *ikpsk2.Handshake
-	remoteAddr   multiaddr.Multiaddr
+	remoteAddr   rovy.UDPMultiaddr
 	remotePeerID rovy.PeerID
 }
 
@@ -51,11 +50,11 @@ func (s *Session) RemotePeerID() rovy.PeerID {
 	return s.remotePeerID
 }
 
-func (s *Session) RemoteAddr() multiaddr.Multiaddr {
+func (s *Session) RemoteAddr() rovy.UDPMultiaddr {
 	return s.remoteAddr
 }
 
-func (s *Session) SetRemoteAddr(raddr multiaddr.Multiaddr) {
+func (s *Session) SetRemoteAddr(raddr rovy.UDPMultiaddr) {
 	s.remoteAddr = raddr
 }
 

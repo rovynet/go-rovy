@@ -81,7 +81,7 @@ var (
 	ErrLoopRoute      = errors.New("route resulted in loop")
 
 	nullSlotEntry = &slotentry{
-		rovy.EmptyPeerID,
+		rovy.PeerID{},
 		func(pkt rovy.LowerPacket) error {
 			return fmt.Errorf("forwarder: dropping packet for unknown destination from %s via %s -- %#v\n", pkt.LowerSrc, rovy.NewUpperPacket(pkt.Packet).Route(), pkt.Bytes())
 		},
@@ -95,7 +95,7 @@ type slotentry struct {
 
 type sendFunc func(rovy.LowerPacket) error
 
-// XXX: is rovy.PeerID okay as a map index type?
+// XXX: is rovy.PeerID okay as a map index type? yes but string might be faster
 type Forwarder struct {
 	sync.RWMutex
 	slots  map[int]*slotentry

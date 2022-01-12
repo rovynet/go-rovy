@@ -4,12 +4,11 @@ import (
 	"log"
 	"os"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
 	node "go.rovy.net/node"
 )
 
-func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
+func newNode(name string, lisaddr rovy.UDPMultiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.GeneratePrivateKey()

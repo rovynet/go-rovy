@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
 	ikpsk2 "go.rovy.net/session/ikpsk2"
 )
@@ -108,7 +107,7 @@ func (sm *SessionManager) Remove(idx uint32) {
 	}
 }
 
-func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr multiaddr.Multiaddr) (HelloPacket, error) {
+func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr rovy.UDPMultiaddr) (HelloPacket, error) {
 	hs, err := ikpsk2.NewHandshakeInitiator(sm.privkey, peerid.PublicKey())
 	if err != nil {
 		return pkt, err
@@ -119,13 +118,13 @@ func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr
 
 	pkt.SetSenderIndex(idx)
 
-	if raddr != nil {
+	if !raddr.Empty() {
 		s.SetRemoteAddr(raddr)
 	}
 	return s.CreateHello(pkt)
 }
 
-func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr) (ResponsePacket, error) {
+func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr rovy.UDPMultiaddr) (ResponsePacket, error) {
 	var pkt2 ResponsePacket
 
 	hs, err := ikpsk2.NewHandshakeResponder(sm.privkey)
@@ -151,42 +150,42 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr multiaddr.Multiaddr
 
 	s.remotePeerID = rovy.NewPeerID(s.handshake.RemotePublicKey())
 
-	if raddr != nil {
+	if !raddr.Empty() {
 		s.SetRemoteAddr(raddr)
 	}
 
 	return pkt2, nil
 }
 
-func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr multiaddr.Multiaddr) (ResponsePacket, rovy.PeerID, error) {
+func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr rovy.UDPMultiaddr) (ResponsePacket, rovy.PeerID, error) {
 	s, present := sm.Get(pkt.SenderIndex())
 	if !present {
-		return pkt, rovy.EmptyPeerID, UnknownIndexError
+		return pkt, rovy.PeerID{}, UnknownIndexError
 	}
 
 	pkt, err := s.HandleHelloResponse(pkt)
 	if err != nil {
-		return pkt, rovy.EmptyPeerID, err
+		return pkt, rovy.PeerID{}, err
 	}
 
 	sm.Swap(pkt.SenderIndex(), pkt.SessionIndex())
 
-	if raddr != nil {
+	if !raddr.Empty() {
 		s.SetRemoteAddr(raddr)
 	}
 
 	return pkt, s.remotePeerID, nil
 }
 
-func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (multiaddr.Multiaddr, error) {
+func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (rovy.UDPMultiaddr, error) {
 	s, idx, present := sm.Find(peerid)
 	if !present {
-		return nil, fmt.Errorf("no session for %s", peerid)
+		return rovy.UDPMultiaddr{}, fmt.Errorf("no session for %s", peerid)
 	}
 
 	hdr, ct, err := s.handshake.MakeMessage(pkt.Plaintext())
 	if err != nil {
-		return nil, err
+		return rovy.UDPMultiaddr{}, err
 	}
 
 	pkt.SetMsgType(DataMsgType)
@@ -202,14 +201,14 @@ func (sm *SessionManager) HandleData(pkt DataPacket) (rovy.PeerID, bool, error) 
 
 	s, present := sm.Get(pkt.SessionIndex())
 	if !present {
-		return rovy.EmptyPeerID, firstdata, UnknownIndexError
+		return rovy.PeerID{}, firstdata, UnknownIndexError
 	}
 	stage := s.stage
 
 	hdr := ikpsk2.MessageHeader{Nonce: pkt.Nonce()}
 	payloadPlain, err := s.handshake.ConsumeMessage(hdr, pkt.Ciphertext())
 	if err != nil {
-		return rovy.EmptyPeerID, firstdata, err
+		return rovy.PeerID{}, firstdata, err
 	}
 
 	// TODO: instead aead.Open should reuse storage

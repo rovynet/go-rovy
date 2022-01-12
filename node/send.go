@@ -24,7 +24,7 @@ func (node *Node) helloSendRoutine() error {
 				continue
 			}
 		} else {
-			if pkt.TptDst == nil {
+			if pkt.TptDst.Empty() {
 				node.Log().Printf("helloSendRoutine: lower packet without TptDst")
 				continue
 			}
@@ -55,7 +55,7 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 
 func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
 	hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
-	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.UpperDst, nil)
+	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.UpperDst, rovy.UDPMultiaddr{})
 	if err != nil {
 		return err
 	}

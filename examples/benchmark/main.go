@@ -5,19 +5,19 @@ import (
 	"encoding/binary"
 	"flag"
 	"log"
+	"net/netip"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"time"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
 	node "go.rovy.net/node"
 )
 
 const BenchmarkCodec = 0x42002
 
-func newNode(name string, lisaddr multiaddr.Multiaddr) (*node.Node, error) {
+func newNode(name string, lisaddr rovy.UDPMultiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.GeneratePrivateKey()
@@ -51,8 +51,8 @@ func run() error {
 		defer pprof.StopCPUProfile()
 	}
 
-	addrA := multiaddr.StringCast("/ip6/::1/udp/12345")
-	addrB := multiaddr.StringCast("/ip6/::1/udp/12346")
+	addrA := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12345"))
+	addrB := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12346"))
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {

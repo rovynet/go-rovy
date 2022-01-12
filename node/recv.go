@@ -17,7 +17,7 @@ func (node *Node) helloRecvRoutine() error {
 		// Packet only has LowerSrc if it was a data packet during the lower phase.
 		// That means if LowerSrc is set, this is definitely not a lower hello.
 		if pkt.LowerSrc.Empty() {
-			if pkt.TptSrc == nil {
+			if pkt.TptSrc.Empty() {
 				node.Log().Printf("helloRecvRoutine: lower packet without TptSrc")
 				continue
 			}
@@ -67,7 +67,7 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 	case session.HelloMsgType:
 		hellopkt := session.NewHelloPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
 
-		resppkt, err := node.SessionManager().HandleHello(hellopkt, nil)
+		resppkt, err := node.SessionManager().HandleHello(hellopkt, rovy.UDPMultiaddr{})
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 		return nil
 	case session.ResponseMsgType:
 		resppkt := session.NewResponsePacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, nil)
+		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, rovy.UDPMultiaddr{})
 		if err != nil {
 			return err
 		}
