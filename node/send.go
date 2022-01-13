@@ -8,52 +8,50 @@ import (
 	session "go.rovy.net/session"
 )
 
+const ErrDontRelease = -2
+
 // hello send
 
-func (node *Node) helloSendRoutine() error {
+func (node *Node) helloSendRoutine() {
 	for {
 		pkt := node.helloSendQ.Get()
 
 		if pkt.LowerDst.Empty() {
-			if pkt.UpperDst.Empty() {
-				node.Log().Printf("helloSendRoutine: upper packet without UpperDst")
-				continue
-			}
 			if err := node.doUpperHelloSend(pkt); err != nil {
 				node.Log().Printf("helloSendRoutine: %s", err)
 				continue
 			}
 		} else {
-			if pkt.TptDst.Empty() {
-				node.Log().Printf("helloSendRoutine: lower packet without TptDst")
-				continue
-			}
-			if pkt.LowerDst.Empty() {
-				node.Log().Printf("helloSendRoutine: lower packet without LowerDst")
-				continue
-			}
 			if err := node.doLowerHelloSend(pkt); err != nil {
 				node.Log().Printf("helloSendRoutine: %s", err)
 				continue
 			}
 		}
 	}
-	return nil
 }
 
 func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
+	if pkt.TptDst.Empty() {
+		return fmt.Errorf("lower packet without TptDst")
+	}
+	if pkt.LowerDst.Empty() {
+		return fmt.Errorf("lower packet without LowerDst")
+	}
+
 	hellopkt := session.NewHelloPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.LowerDst, pkt.TptDst)
 	if err != nil {
 		return err
 	}
 
-	node.sendTransport(hellopkt.Packet)
-
-	return nil
+	return node.sendTransport(hellopkt.Packet)
 }
 
 func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
+	if pkt.UpperDst.Empty() {
+		return fmt.Errorf("upper packet without UpperDst")
+	}
+
 	hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
 	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.UpperDst, rovy.UDPMultiaddr{})
 	if err != nil {
@@ -80,11 +78,6 @@ func (node *Node) lowerSendRoutine() {
 	for {
 		pkt := node.lowerSendQ.Get()
 
-		if pkt.LowerDst.Empty() {
-			node.Log().Printf("lowerSendRoutine: dropping packet without LowerDst")
-			continue
-		}
-
 		if err := node.doLowerSend(pkt); err != nil {
 			node.Log().Printf("lowerSendRoutine: %s", err)
 			continue
@@ -93,6 +86,10 @@ func (node *Node) lowerSendRoutine() {
 }
 
 func (node *Node) doLowerSend(pkt rovy.Packet) error {
+	if pkt.LowerDst.Empty() {
+		return fmt.Errorf("lowerSendRoutine: dropping packet without LowerDst")
+	}
+
 	datapkt := session.NewDataPacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 
 	raddr, err := node.SessionManager().CreateData(datapkt, datapkt.LowerDst)
@@ -110,11 +107,6 @@ func (node *Node) upperSendRoutine() {
 	for {
 		pkt := node.upperSendQ.Get()
 
-		if pkt.UpperDst.Empty() {
-			node.Log().Printf("upperSendRoutine: packet without UpperDst")
-			continue
-		}
-
 		if err := node.doUpperSend(pkt); err != nil {
 			node.Log().Printf("upperSendRoutine: %s", err)
 			continue
@@ -123,6 +115,10 @@ func (node *Node) upperSendRoutine() {
 }
 
 func (node *Node) doUpperSend(pkt rovy.Packet) error {
+	if pkt.UpperDst.Empty() {
+		return fmt.Errorf("upperSendRoutine: packet without UpperDst")
+	}
+
 	upkt := rovy.NewUpperPacket(pkt)
 
 	if upkt.RouteLen() == forwarder.HopLength {

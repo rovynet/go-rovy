@@ -10,17 +10,13 @@ import (
 
 // hello receive
 
-func (node *Node) helloRecvRoutine() error {
+func (node *Node) helloRecvRoutine() {
 	for {
 		pkt := node.helloRecvQ.Get()
 
 		// Packet only has LowerSrc if it was a data packet during the lower phase.
 		// That means if LowerSrc is set, this is definitely not a lower hello.
 		if pkt.LowerSrc.Empty() {
-			if pkt.TptSrc.Empty() {
-				node.Log().Printf("helloRecvRoutine: lower packet without TptSrc")
-				continue
-			}
 			if err := node.doLowerHelloRecv(pkt); err != nil {
 				node.Log().Printf("helloRecvRoutine: %s", err)
 				continue
@@ -32,10 +28,13 @@ func (node *Node) helloRecvRoutine() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
+	if pkt.TptSrc.Empty() {
+		return fmt.Errorf("lower packet without TptSrc")
+	}
+
 	msgtype := pkt.MsgType()
 	switch msgtype {
 	case session.HelloMsgType:
@@ -54,7 +53,7 @@ func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
 		}
 		node.connectedCallback(peerid, true)
 	default:
-		return fmt.Errorf("dropping packet with unknown MsgType 0x%x", msgtype)
+		return fmt.Errorf("packet with unknown MsgType 0x%x", msgtype)
 	}
 	return nil
 }
@@ -90,7 +89,7 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 		node.connectedCallback(peerid, false)
 		return nil
 	default:
-		return fmt.Errorf("dropping packet with unknown MsgType 0x%x", msgtype)
+		return fmt.Errorf("packet with unknown MsgType 0x%x", msgtype)
 	}
 }
 
@@ -111,7 +110,7 @@ func (node *Node) lowerRecvRoutine() {
 		case session.HelloMsgType, session.ResponseMsgType:
 			node.helloRecvQ.Put(pkt)
 		default:
-			node.Log().Printf("lowerRecvRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
+			node.Log().Printf("lowerRecvRoutine: packet with unknown MsgType 0x%x", msgtype)
 		}
 	}
 }
