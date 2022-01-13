@@ -14,19 +14,24 @@ func (node *Node) helloRecvRoutine() {
 	for {
 		pkt := node.helloRecvQ.Get()
 
+		var fn func(rovy.Packet) error
+
 		// Packet only has LowerSrc if it was a data packet during the lower phase.
 		// That means if LowerSrc is set, this is definitely not a lower hello.
 		if pkt.LowerSrc.Empty() {
-			if err := node.doLowerHelloRecv(pkt); err != nil {
-				node.Log().Printf("helloRecvRoutine: %s", err)
-				continue
-			}
+			fn = node.doLowerHelloRecv
 		} else {
-			if err := node.doUpperHelloRecv(pkt); err != nil {
-				node.Log().Printf("helloRecvRoutine: %s", err)
-				continue
-			}
+			fn = node.doUpperHelloRecv
 		}
+
+		err := fn(pkt)
+		if err == ErrDontRelease {
+			continue
+		}
+		if err != nil {
+			node.Log().Printf("helloRecvRoutine: %s", err)
+		}
+		node.ReleasePacket(pkt)
 	}
 }
 
@@ -44,7 +49,7 @@ func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
 			return err
 		}
 		resppkt.TptDst = hellopkt.TptSrc
-		node.sendTransport(resppkt.Packet)
+		return node.sendTransport(resppkt.Packet)
 	case session.ResponseMsgType:
 		resppkt := session.NewResponsePacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, pkt.TptSrc)
@@ -52,10 +57,10 @@ func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
 			return err
 		}
 		node.connectedCallback(peerid, true)
+		return nil
 	default:
 		return fmt.Errorf("packet with unknown MsgType 0x%x", msgtype)
 	}
-	return nil
 }
 
 func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
@@ -103,14 +108,18 @@ func (node *Node) lowerRecvRoutine() {
 		switch msgtype {
 		case session.DataMsgType:
 			err := node.doLowerRecv(pkt)
-			if err != nil {
-				node.Log().Printf("lowerRecvRoutine: %s", err)
+			if err == ErrDontRelease {
 				continue
 			}
+			if err != nil {
+				node.Log().Printf("lowerRecvRoutine: %s", err)
+			}
+			node.ReleasePacket(pkt)
 		case session.HelloMsgType, session.ResponseMsgType:
 			node.helloRecvQ.Put(pkt)
 		default:
 			node.Log().Printf("lowerRecvRoutine: packet with unknown MsgType 0x%x", msgtype)
+			node.ReleasePacket(pkt)
 		}
 	}
 }
@@ -131,7 +140,7 @@ func (node *Node) doLowerRecv(pkt rovy.Packet) error {
 
 	datapkt.LowerSrc = peerid
 	node.lowerMuxQ.Put(datapkt.Packet)
-	return nil
+	return ErrDontRelease
 }
 
 // lower mux
@@ -140,19 +149,22 @@ func (node *Node) lowerMuxRoutine() {
 	for {
 		pkt := node.lowerMuxQ.Get()
 
-		if pkt.LowerSrc.Empty() {
-			node.Log().Printf("lowerMuxRoutine: dropping packet without LowerSrc")
+		err := node.doLowerMux(pkt)
+		if err == ErrDontRelease {
 			continue
 		}
-
-		if err := node.doLowerMux(pkt); err != nil {
+		if err != nil {
 			node.Log().Printf("lowerMuxRoutine: %s", err)
-			continue
 		}
+		node.ReleasePacket(pkt)
 	}
 }
 
 func (node *Node) doLowerMux(pkt rovy.Packet) error {
+	if pkt.LowerSrc.Empty() {
+		return fmt.Errorf("lowerMuxRoutine: dropping packet without LowerSrc")
+	}
+
 	lowpkt := rovy.NewLowerPacket(pkt)
 
 	codec, err := lowpkt.Codec()
@@ -175,7 +187,10 @@ func (node *Node) doLowerMux(pkt rovy.Packet) error {
 		return fmt.Errorf("dropping packet with unknown lower codec 0x%x from %s", codec, lowpkt.LowerSrc)
 	}
 
-	return cb(lowpkt)
+	if err := cb(lowpkt); err != nil {
+		return err
+	}
+	return ErrDontRelease
 }
 
 // upper recv
@@ -188,14 +203,18 @@ func (node *Node) upperRecvRoutine() {
 		switch msgtype {
 		case session.DataMsgType:
 			err := node.doUpperRecv(pkt)
-			if err != nil {
-				node.Log().Printf("upperRecvRoutine: %s", err)
+			if err == ErrDontRelease {
 				continue
 			}
+			if err != nil {
+				node.Log().Printf("upperRecvRoutine: %s", err)
+			}
+			node.ReleasePacket(pkt)
 		case session.HelloMsgType, session.ResponseMsgType:
 			node.helloRecvQ.Put(pkt)
 		default:
 			node.Log().Printf("upperRecvRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
+			node.ReleasePacket(pkt)
 		}
 	}
 }
@@ -217,7 +236,7 @@ func (node *Node) doUpperRecv(pkt rovy.Packet) error {
 	node.Routing().AddRoute(datapkt.UpperSrc, upkt.Route().Reverse()) // XXX slowness
 
 	node.upperMuxQ.Put(datapkt.Packet)
-	return nil
+	return ErrDontRelease
 }
 
 // upper mux
@@ -226,10 +245,14 @@ func (node *Node) upperMuxRoutine() {
 	for {
 		pkt := node.upperMuxQ.Get()
 
-		if err := node.doUpperMux(pkt); err != nil {
-			node.Log().Printf("upperMuxRoutine: %s", err)
+		err := node.doUpperMux(pkt)
+		if err == ErrDontRelease {
 			continue
 		}
+		if err != nil {
+			node.Log().Printf("upperMuxRoutine: %s", err)
+		}
+		node.ReleasePacket(pkt)
 	}
 }
 
@@ -248,5 +271,8 @@ func (node *Node) doUpperMux(pkt rovy.Packet) error {
 		return fmt.Errorf("dropping packet with unknown upper codec 0x%x from %s", codec, upkt.LowerSrc)
 	}
 
-	return cb(upkt)
+	if err := cb(upkt); err != nil {
+		return err
+	}
+	return ErrDontRelease
 }

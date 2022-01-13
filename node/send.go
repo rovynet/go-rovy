@@ -1,6 +1,7 @@
 package node
 
 import (
+	"errors"
 	"fmt"
 
 	rovy "go.rovy.net"
@@ -8,7 +9,7 @@ import (
 	session "go.rovy.net/session"
 )
 
-const ErrDontRelease = -2
+var ErrDontRelease = errors.New("pls dont release this buffer yet, we handed it off")
 
 // hello send
 
@@ -16,17 +17,21 @@ func (node *Node) helloSendRoutine() {
 	for {
 		pkt := node.helloSendQ.Get()
 
+		var fn func(rovy.Packet) error
 		if pkt.LowerDst.Empty() {
-			if err := node.doUpperHelloSend(pkt); err != nil {
-				node.Log().Printf("helloSendRoutine: %s", err)
-				continue
-			}
+			fn = node.doUpperHelloSend
 		} else {
-			if err := node.doLowerHelloSend(pkt); err != nil {
-				node.Log().Printf("helloSendRoutine: %s", err)
-				continue
-			}
+			fn = node.doLowerHelloSend
 		}
+
+		err := fn(pkt)
+		if err == ErrDontRelease {
+			continue
+		}
+		if err != nil {
+			node.Log().Printf("helloSendRoutine: %s", err)
+		}
+		node.ReleasePacket(pkt)
 	}
 }
 
@@ -44,7 +49,11 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 		return err
 	}
 
-	return node.sendTransport(hellopkt.Packet)
+	if err := node.sendTransport(hellopkt.Packet); err != nil {
+		return err
+	}
+
+	return ErrDontRelease
 }
 
 func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
@@ -69,7 +78,8 @@ func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
 	if err = node.Forwarder().SendPacket(upkt); err != nil {
 		return fmt.Errorf("forwarder: %s", err)
 	}
-	return nil
+
+	return ErrDontRelease
 }
 
 // lower send
@@ -78,10 +88,14 @@ func (node *Node) lowerSendRoutine() {
 	for {
 		pkt := node.lowerSendQ.Get()
 
-		if err := node.doLowerSend(pkt); err != nil {
-			node.Log().Printf("lowerSendRoutine: %s", err)
+		err := node.doLowerSend(pkt)
+		if err == ErrDontRelease {
 			continue
 		}
+		if err != nil {
+			node.Log().Printf("lowerSendRoutine: %s", err)
+		}
+		node.ReleasePacket(pkt)
 	}
 }
 
@@ -98,7 +112,11 @@ func (node *Node) doLowerSend(pkt rovy.Packet) error {
 	}
 
 	datapkt.TptDst = raddr
-	return node.sendTransport(datapkt.Packet)
+	if err := node.sendTransport(datapkt.Packet); err != nil {
+		return err
+	}
+
+	return ErrDontRelease
 }
 
 // upper send
@@ -107,10 +125,14 @@ func (node *Node) upperSendRoutine() {
 	for {
 		pkt := node.upperSendQ.Get()
 
-		if err := node.doUpperSend(pkt); err != nil {
-			node.Log().Printf("upperSendRoutine: %s", err)
+		err := node.doUpperSend(pkt)
+		if err == ErrDontRelease {
 			continue
 		}
+		if err != nil {
+			node.Log().Printf("upperSendRoutine: %s", err)
+		}
+		node.ReleasePacket(pkt)
 	}
 }
 
@@ -138,5 +160,6 @@ func (node *Node) doUpperSend(pkt rovy.Packet) error {
 	if err = node.Forwarder().SendPacket(upkt); err != nil {
 		return fmt.Errorf("forwarder: %s", err)
 	}
-	return nil
+
+	return ErrDontRelease
 }
