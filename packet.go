@@ -29,8 +29,9 @@ type Queue interface {
 	Length() int
 }
 
+// XXX integrate *bufpool.Buffer here...
 type Packet struct {
-	Buf      []byte
+	buf      *bufpool.Buffer
 	Length   int
 	TptSrc   UDPMultiaddr
 	TptDst   UDPMultiaddr

@@ -11,6 +11,7 @@ import (
 	forwarder "go.rovy.net/forwarder"
 	routing "go.rovy.net/routing"
 	session "go.rovy.net/session"
+	bufpool "go.rovy.net/util/bufpool"
 	ringbuf "go.rovy.net/util/ringbuf"
 )
 
@@ -35,6 +36,7 @@ type Node struct {
 	lowerHandlers map[uint64]LowerHandler
 	forwarder     *forwarder.Forwarder
 	routing       *routing.Routing
+	bufs          *bufpool.BufferPool
 
 	RxTpt   uint64
 	RxLower uint64
@@ -62,6 +64,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		upperHandlers: map[uint64]UpperHandler{},
 		lowerHandlers: map[uint64]LowerHandler{},
 		routing:       routing.NewRouting(logger),
+		bufs:          bufpool.NewBufferPool(10240, 1536),
 		helloSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
 		lowerSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
 		upperSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
@@ -91,6 +94,15 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	go node.upperMuxRoutine()
 
 	return node
+}
+
+func (node *Node) AllocatePacket() rovy.Packet {
+	// return node.bufs.Get()
+	return rovy.Packet{}
+}
+
+func (node *Node) ReleasePacket(pkt rovy.Packet) {
+	// node.bufs.Release(pkt.Buf)
 }
 
 func (node *Node) PeerID() rovy.PeerID {
