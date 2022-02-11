@@ -55,7 +55,7 @@ func run() error {
 		return err
 	}
 
-	devA, err := fc00.DefaultTun("rovy0", nodeA.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeA.Log())
+	devA, err := fc00.NetworkManagerTun("rovy0", nodeA.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeA.Log())
 	if err != nil {
 		return err
 	}

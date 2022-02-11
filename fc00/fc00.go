@@ -40,8 +40,6 @@ type devIface interface {
 	Close() error
 }
 
-const tunhdrOffset = 4
-
 type Fc00 struct {
 	node    nodeIface
 	device  devIface
@@ -156,27 +154,23 @@ func (fc *Fc00) verify(ppkt PingPacket) error {
 }
 
 func (fc *Fc00) listenTun() {
-	zeros := []byte{0x0, 0x0, 0x0, 0x0}
-
 	for {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 		buf := pkt.Bytes()[rovy.UpperOffset:]
 
-		n, err := fc.device.Read(buf, 4)
+		n, err := fc.device.Read(buf, 0)
 		if err != nil {
 			fc.log.Printf("fc00: tun read: %s", err)
 			continue
 		}
-		pkt.Length = rovy.UpperOffset + 4 + n
+		pkt.Length = rovy.UpperOffset + n
 
-		if 0 != bytes.Compare([]byte{0x86, 0xdd}, buf[2:4]) {
-			fc.log.Printf("tun: not an ipv6 packet")
+		if buf[0]>>4 != 6 {
+			fc.log.Printf("tun: not an ipv6 packet: %#v buf=%#v", buf[0]>>4, buf[0:16])
 			continue
 		}
-		copy(buf[0:4], zeros)
-		pkt.Buf = pkt.Buf[4:]
 
-		if err := fc.handleTunPacket(buf[4 : 4+n]); err != nil {
+		if err := fc.handleTunPacket(buf[:n]); err != nil {
 			fc.log.Printf("fc00: handleTunPacket: %s", err)
 			continue
 		}
@@ -279,8 +273,6 @@ func (fc *Fc00) handleFc00Packet(src rovy.PeerID, payload []byte) error {
 		return fmt.Errorf("fc00: recv: dst address mismatch")
 	}
 
-	payload = append([]byte{0x0, 0x0, 0x86, 0xdd}, payload...) // XXX slowness
-
-	_, err := fc.device.Write(payload, tunhdrOffset)
+	_, err := fc.device.Write(payload, 0)
 	return err
 }
