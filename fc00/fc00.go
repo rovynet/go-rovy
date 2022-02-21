@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 
+	dns "github.com/miekg/dns"
 	icmp "golang.org/x/net/icmp"
 	ipv6 "golang.org/x/net/ipv6"
 
@@ -37,14 +38,17 @@ type routingIface interface {
 type devIface interface {
 	Read([]byte, int) (int, error)
 	Write([]byte, int) (int, error)
+	MTU() (int, error)
 	Close() error
 }
 
 type Fc00 struct {
-	node    nodeIface
-	device  devIface
-	routing routingIface
-	log     *log.Logger
+	node     nodeIface
+	device   devIface
+	routing  routingIface
+	log      *log.Logger
+	fc001tun devIface
+	fc001dns *dns.Server
 }
 
 func NewFc00(node nodeIface, dev devIface, routing routingIface) *Fc00 {
@@ -54,13 +58,19 @@ func NewFc00(node nodeIface, dev devIface, routing routingIface) *Fc00 {
 	return fc
 }
 
-func (fc *Fc00) Start() error {
+func (fc *Fc00) Start(mtu int, initDns bool) error {
 	fc.node.HandleLower(PingMulticodec, fc.handlePingPacket)
 	fc.node.Handle(Fc00Multicodec, func(upkt rovy.UpperPacket) error {
 		return fc.handleFc00Packet(upkt.UpperSrc, upkt.Payload())
 	})
 
 	go fc.listenTun()
+
+	if initDns {
+		if err := fc.initDns(fc.node.PeerID(), mtu); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -198,9 +208,19 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 	dst := net.IP(buf[24:40])
 
 	// no link-local or multicast stuff yet
-	if dst.IsMulticast() || !src.Equal(fc.node.PeerID().PublicKey().Addr()) {
-		// fc.log.Printf("tun: dropping multicast packet %s -> %s", src, dst)
+	if src[0] == 0xfe || dst[0] == 0xff {
+		// fc.log.Printf("tun: dropping packet %s -> %s", src, dst)
 		return nil
+	}
+
+	if !src.Equal(fc.node.PeerID().PublicKey().Addr()) {
+		fc.log.Printf("tun: dropping packet with illegal src address %s -> %s", src, dst)
+		return nil
+	}
+
+	if dst.Equal(net.ParseIP("fc00::1")) {
+		// fc.log.Printf("tun: packet for fc00::1")
+		return fc.handleDnsRequest(buf)
 	}
 
 	peerid, err := fc.routing.LookupIPv6(dst)

@@ -76,22 +76,22 @@ func run() error {
 	}
 
 	fc00a := fc00.NewFc00(nodeA, devA, nodeA.Routing())
-	if err := fc00a.Start(); err != nil {
+	if err := fc00a.Start(rovy.UpperMTU, true); err != nil {
 		return err
 	}
 
 	fc00b := fc00.NewFc00(nodeB, devB, nodeB.Routing())
-	if err := fc00b.Start(); err != nil {
+	if err := fc00b.Start(rovy.UpperMTU, false); err != nil {
 		return err
 	}
 
 	fc00c := fc00.NewFc00(nodeC, devC, nodeC.Routing())
-	if err := fc00c.Start(); err != nil {
+	if err := fc00c.Start(rovy.UpperMTU, false); err != nil {
 		return err
 	}
 
 	fc00d := fc00.NewFc00(nodeD, devD, nodeD.Routing())
-	if err := fc00d.Start(); err != nil {
+	if err := fc00d.Start(rovy.UpperMTU, false); err != nil {
 		return err
 	}
 
