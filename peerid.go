@@ -1,6 +1,7 @@
 package rovy
 
 import (
+	"encoding/json"
 	"fmt"
 
 	cid "github.com/ipfs/go-cid"
@@ -174,4 +175,32 @@ func maddrB2Str(b []byte) (string, error) {
 func maddrValid(b []byte) error {
 	_, err := cid.Cast(b)
 	return err
+}
+
+func (pid PeerID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(pid.String())
+}
+
+func (pid *PeerID) UnmarshalJSON(b []byte) error {
+	var b32cid string
+	err := json.Unmarshal(b, &b32cid)
+	if err != nil {
+		return fmt.Errorf("jsonstring: %s", err)
+	}
+
+	c, err := cid.Parse(b32cid)
+	if err != nil {
+		return fmt.Errorf("cid: %s", err)
+	}
+
+	pid2, err := PeerIDFromCid(c)
+	if err != nil {
+		return fmt.Errorf("peerid: %s", err)
+	}
+
+	pid.b1 = pid2.b1
+	pid.b2 = pid2.b2
+	pid.b3 = pid2.b3
+	pid.b4 = pid2.b4
+	return nil
 }

@@ -51,6 +51,10 @@ func (privkey PrivateKey) clamp() {
 	privkey.bytes[31] = (privkey.bytes[31] & 127) | 64
 }
 
+func (privkey PrivateKey) Bytes() [PrivateKeySize]byte {
+	return privkey.bytes
+}
+
 func (privkey PrivateKey) PublicKey() PublicKey {
 	var pubkey PublicKey
 	curve25519.ScalarBaseMult(&pubkey.bytes, &privkey.bytes)
