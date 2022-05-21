@@ -16,8 +16,6 @@ type Client struct {
 	logger *log.Logger
 }
 
-type PeerAPI Client
-
 func NewClient(sock string, logger *log.Logger) *Client {
 	c := &Client{sock, logger}
 	return c
@@ -53,6 +51,18 @@ func (c *Client) Info() (ni rovyapi.NodeInfo, err error) {
 	}
 
 	return ni, err
+}
+
+func (c *Client) Stop() error {
+	hc := c.makeClient()
+
+	res, err := hc.Get("http://unix/v0/stop")
+	if err != nil {
+		return err
+	}
+	_ = res
+
+	return nil
 }
 
 var _ rovyapi.NodeAPI = &Client{}

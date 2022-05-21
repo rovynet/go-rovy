@@ -1,109 +1,109 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"os"
+	"path/filepath"
 
-	multibase "github.com/multiformats/go-multibase"
+	homedir "github.com/mitchellh/go-homedir"
 	cli "github.com/urfave/cli/v2"
-	rovy "go.rovy.net"
+
 	rovyapic "go.rovy.net/api/client"
-	rovyapis "go.rovy.net/api/server"
-	rovynode "go.rovy.net/node"
 )
 
-const DefaultSocket = "/tmp/rovy.sock"
+const DefaultDirectory = "~/.rovy"
+const SocketName = "api.sock"
+
+var app = &cli.App{
+	Name:    "rovy",
+	Version: "0.0.0",
+	Commands: []*cli.Command{
+		initCmd,
+		startCmd,
+		infoCmd,
+		stopCmd,
+	},
+}
 
 func main() {
-	app := &cli.App{
-		Name:    "rovy",
-		Version: "0.0.0",
-		Commands: []*cli.Command{{
-			Name:   "run",
-			Action: runCmd,
-		}, {
-			Name:   "info",
-			Action: infoCmd,
-		}},
-	}
-
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("error: %s\n", err)
 	}
 }
 
-func isatty_unix(fd *os.File) bool {
-	stat, _ := fd.Stat()
-	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		return false
-	} else {
-		return true
-	}
+var directoryFlag = &cli.StringFlag{
+	Name:    "directory",
+	Aliases: []string{"D"},
+	Value:   DefaultDirectory,
 }
 
-func runCmd(c *cli.Context) error {
-	logger := log.New(c.App.ErrWriter, "", log.Ltime|log.Lshortfile)
+var socketFlag = &cli.StringFlag{
+	Name:    "socket",
+	Aliases: []string{"S"},
+	Value:   filepath.Join(DefaultDirectory, SocketName),
+}
 
-	var privkey rovy.PrivateKey
-	var sock string
+func newLogger(c *cli.Context) *log.Logger {
+	return log.New(c.App.ErrWriter, "", log.Ltime|log.Lshortfile)
+}
 
-	if isatty_unix(os.Stdin) {
-		logger.Printf("starting with random ephemeral config")
-		privkey2, err := rovy.GeneratePrivateKey()
-		if err != nil {
-			return err
-		}
-		privkey = privkey2
-		sock = DefaultSocket
-	} else {
-		logger.Printf("starting with config from stdin")
-		input := new(struct {
-			privkey string
-			sock    string
-		})
-		if err := json.NewDecoder(os.Stdin).Decode(input); err != nil {
-			return err
-		}
-		_, privbytes, err := multibase.Decode(input.privkey)
-		if err != nil {
-			return err
-		}
-		privkey = rovy.NewPrivateKey(privbytes)
-		sock = input.sock
-	}
+func exitErr(format string, a ...any) cli.ExitCoder {
+	return cli.Exit(fmt.Sprintf(format, a...), 1)
+}
 
-	node := rovynode.NewNode(privkey, logger)
-	logger.Printf("we are /rovy/%s", node.PeerID())
+var infoCmd = &cli.Command{
+	Name:   "info",
+	Action: infoCmdFunc,
+	Flags: []cli.Flag{
+		directoryFlag,
+		socketFlag,
+	},
+}
 
-	apilis, err := net.Listen("unix", sock)
+func infoCmdFunc(c *cli.Context) error {
+	logger := newLogger(c)
+
+	socket, err := getSocket(c)
 	if err != nil {
-		return err
+		return exitErr("getsocket: %s", err)
 	}
-	api := rovyapis.NewServer(node, logger)
-	go api.Serve(apilis)
-	logger.Printf("api ready on http://unix%s", sock)
 
-	select {}
-
-	return nil
-}
-
-func infoCmd(c *cli.Context) error {
-	logger := log.New(c.App.ErrWriter, "", log.Ltime|log.Lshortfile)
-
-	api := rovyapic.NewClient(DefaultSocket, logger)
-
+	api := rovyapic.NewClient(socket, logger)
 	ni, err := api.Info()
 	if err != nil {
-		return err
+		return exitErr("api: %s", err)
 	}
 
-	// logger.Printf("infoCmd: %+v", ni)
-
+	// TODO: prettyprint if isatty, json otherwise
 	fmt.Fprintf(os.Stdout, "PeerID: %s\n", ni.PeerID)
 
 	return nil
 }
+
+func getSocket(c *cli.Context) (string, error) {
+	var socket string
+	directory, err := homedir.Expand(c.String("directory"))
+	if err != nil {
+		return socket, err
+	}
+	if c.IsSet("directory") {
+		socket = filepath.Join(directory, SocketName)
+	} else {
+		socket = c.String("socket")
+		socket, err = homedir.Expand(socket)
+		if err != nil {
+			return socket, err
+		}
+	}
+	return socket, nil
+}
+
+// func isatty_unix(fd *os.File) bool {
+// 	stat, _ := fd.Stat()
+// 	if (stat.Mode() & os.ModeCharDevice) == 0 {
+// 		return false
+// 	} else {
+// 		return true
+// 	}
+// }

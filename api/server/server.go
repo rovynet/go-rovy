@@ -24,6 +24,7 @@ func (s *Server) Serve(lis net.Listener) {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/v0/info", s.serveInfo)
+	router.HandleFunc("/v0/stop", s.serveStop)
 
 	srv := &http.Server{Handler: router}
 	srv.Serve(lis)
@@ -42,5 +43,11 @@ func (s *Server) serveInfo(w http.ResponseWriter, r *http.Request) {
 	out = append(out, 0x0a) // newline
 	_, _ = w.Write(out)
 
+	s.logger.Printf("api request %s -> ok", r.RequestURI)
+}
+
+func (s *Server) serveStop(w http.ResponseWriter, r *http.Request) {
+	// s.node.Stop()
+	w.WriteHeader(http.StatusOK)
 	s.logger.Printf("api request %s -> ok", r.RequestURI)
 }

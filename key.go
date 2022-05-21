@@ -22,7 +22,7 @@ type PrivateKey struct {
 
 func NewPrivateKey(b []byte) PrivateKey {
 	pk := PrivateKey{}
-	copy(pk.bytes[:0], b)
+	copy(pk.bytes[:32], b[:PrivateKeySize])
 	return pk
 }
 
@@ -53,6 +53,10 @@ func (privkey PrivateKey) clamp() {
 
 func (privkey PrivateKey) Bytes() [PrivateKeySize]byte {
 	return privkey.bytes
+}
+
+func (privkey PrivateKey) BytesSlice() []byte {
+	return privkey.bytes[:]
 }
 
 func (privkey PrivateKey) PublicKey() PublicKey {

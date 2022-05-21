@@ -16,4 +16,5 @@ type PeerInfo struct {
 
 type NodeAPI interface {
 	Info() (NodeInfo, error)
+	Stop() error
 }
