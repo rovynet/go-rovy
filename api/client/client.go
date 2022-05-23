@@ -14,28 +14,23 @@ import (
 type Client struct {
 	sock   string
 	logger *log.Logger
+	http   http.Client
 }
 
 func NewClient(sock string, logger *log.Logger) *Client {
-	c := &Client{sock, logger}
-	return c
-}
-
-func (c *Client) makeClient() *http.Client {
 	hc := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", c.sock)
+				return net.Dial("unix", sock)
 			},
 		},
 	}
-	return &hc
+	c := &Client{sock, logger, hc}
+	return c
 }
 
 func (c *Client) Info() (ni rovyapi.NodeInfo, err error) {
-	hc := c.makeClient()
-
-	res, err := hc.Get("http://unix/v0/info")
+	res, err := c.http.Get("http://unix/v0/info")
 	if err != nil {
 		return ni, err
 	}
@@ -54,9 +49,7 @@ func (c *Client) Info() (ni rovyapi.NodeInfo, err error) {
 }
 
 func (c *Client) Stop() error {
-	hc := c.makeClient()
-
-	res, err := hc.Get("http://unix/v0/stop")
+	res, err := c.http.Get("http://unix/v0/stop")
 	if err != nil {
 		return err
 	}
