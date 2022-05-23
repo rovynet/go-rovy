@@ -17,6 +17,7 @@ import (
 	rovy "go.rovy.net"
 	rovyapic "go.rovy.net/api/client"
 	rovyapis "go.rovy.net/api/server"
+	rovyfc00 "go.rovy.net/fc00"
 	rovynode "go.rovy.net/node"
 )
 
@@ -111,6 +112,13 @@ func startCmdFunc(c *cli.Context) error {
 	// }
 	_ = config
 
+	// if !ephemeral && !stdin {
+	if !stdin {
+		if err = configureFc00(socket, node, logger); err != nil {
+			return exitErr("failed to configure fc00: %s", err)
+		}
+	}
+
 	select {
 	// XXX shutdown needs to break this select
 	}
@@ -171,6 +179,26 @@ func checkSocket(socket string) error {
 	// someone else using it
 	sockconn.Close()
 	return fmt.Errorf("used by someone else")
+}
+
+func configureFc00(socket string, node *rovynode.Node, logger *log.Logger) error {
+	ip6a := node.PeerID().PublicKey().Addr()
+	tunif, err := rovyfc00.NetworkManagerTun(rovyfc00.TunIfname, ip6a, rovy.UpperMTU, logger)
+	if err != nil {
+		return fmt.Errorf("networkmanager: %s", err)
+	}
+
+	tunfd := tunif.File()
+
+	api := rovyapic.NewClient(socket, logger)
+	err = (*rovyapic.Fc00Client)(api).Start(tunfd)
+	if err != nil {
+		return fmt.Errorf("api: %s", err)
+	}
+
+	logger.Printf("started fc00 endpoint %s using NetworkManager", ip6a)
+
+	return nil
 }
 
 var stopCmd = &cli.Command{

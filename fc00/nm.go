@@ -55,7 +55,7 @@ func NetworkManagerTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (
 			return nil, err
 		}
 	} else {
-		logger.Printf("tun interface %s doesn't exist, NetworkManager will create it", ifname)
+		logger.Printf("tun interface %s doesn't exist, have NetworkManager create it...", ifname)
 	}
 
 	// // TODO: first check if there's an active connection we must reuse
@@ -65,7 +65,6 @@ func NetworkManagerTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (
 	// 	connPresent = false
 	// }
 
-	logger.Printf("creating tun interface %s...", ifname)
 	settingspath, err := createNMConn(sysbus, ifname, ip6, mtu)
 	if err != nil {
 		return nil, fmt.Errorf("createNMConn: %s", err)
@@ -77,13 +76,13 @@ func NetworkManagerTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (
 		}
 	}
 
-	logger.Printf("tunfd=%+v settingspath=%+v", tunfd, settingspath)
+	// logger.Printf("tunfd=%+v settingspath=%+v", tunfd, settingspath)
 
 	devpath, err := getNMDevice(sysbus, ifname) // NetworkManager/Device/%d
 	if err != nil {
 		return nil, err
 	}
-	logger.Printf("devpath=%+v", devpath)
+	// logger.Printf("devpath=%+v", devpath)
 
 	var activeconnpath dbus.ObjectPath
 	err = sysbus.Object(nmdest, nmpath).CallWithContext(context.TODO(),
@@ -92,7 +91,7 @@ func NetworkManagerTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (
 	if err != nil {
 		return nil, fmt.Errorf("ActivateConnection: %s", err)
 	}
-	logger.Printf("activeconnpath=%+v", activeconnpath)
+	// logger.Printf("activeconnpath=%+v", activeconnpath)
 
 	dev, _, err := tun.CreateUnmonitoredTUNFromFD(tunfd)
 	return dev, err

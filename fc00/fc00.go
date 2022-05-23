@@ -20,6 +20,8 @@ import (
 const Fc00Multicodec = 0x42004
 const PingMulticodec = 0x42005
 
+const TunIfname = "rovy0"
+
 type nodeIface interface {
 	PeerID() rovy.PeerID
 	Handle(uint64, node.UpperHandler)

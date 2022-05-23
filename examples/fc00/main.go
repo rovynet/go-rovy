@@ -60,17 +60,17 @@ func run() error {
 		return err
 	}
 
-	devB, err := fc00.DefaultTun("rovy1", nodeB.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeB.Log())
+	devB, err := fc00.NetlinkTun("rovy1", nodeB.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeB.Log())
 	if err != nil {
 		return err
 	}
 
-	devC, err := fc00.DefaultTun("rovy2", nodeC.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeC.Log())
+	devC, err := fc00.NetlinkTun("rovy2", nodeC.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeC.Log())
 	if err != nil {
 		return err
 	}
 
-	devD, err := fc00.DefaultTunWithNamespace("rovy3", nodeD.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeD.Log())
+	devD, err := fc00.NetlinkTunWithNamespace("rovy3", nodeD.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeD.Log())
 	if err != nil {
 		return err
 	}

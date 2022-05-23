@@ -25,17 +25,24 @@ func (s *Server) Serve(lis net.Listener) {
 
 	router.HandleFunc("/v0/info", s.serveInfo)
 	router.HandleFunc("/v0/stop", s.serveStop)
+	router.HandleFunc("/v0/fc00/start", s.serveFc00Start) // not part of THE api
 
 	srv := &http.Server{Handler: router}
-	srv.Serve(lis)
+	if err := srv.Serve(lis); err != nil {
+		// return err
+	}
+}
+
+func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
+	s.logger.Printf("api: request %s -> error: %s", r.RequestURI, err)
+	w.WriteHeader(http.StatusInternalServerError)
 }
 
 func (s *Server) serveInfo(w http.ResponseWriter, r *http.Request) {
 	ni, _ := s.node.Info()
 	out, err := json.Marshal(ni)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		s.logger.Printf("api: request %s -> error: %s", r.URL.Path, err)
+		s.writeError(w, r, err)
 		return
 	}
 

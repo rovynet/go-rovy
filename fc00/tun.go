@@ -15,7 +15,18 @@ import (
 	tun "golang.zx2c4.com/wireguard/tun"
 )
 
-func DefaultTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (tun.Device, error) {
+type Device tun.Device
+
+func DefaultTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (Device, error) {
+	return NetlinkTun(ifname, ip6, mtu, logger)
+}
+
+func PreconfiguredTUN(fd int) (Device, error) {
+	dev, _, err := tun.CreateUnmonitoredTUNFromFD(fd)
+	return Device(dev), err
+}
+
+func NetlinkTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (Device, error) {
 	fd, err := bindTun(ifname)
 	if err != nil {
 		return nil, err
@@ -34,7 +45,8 @@ func DefaultTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (tun.Dev
 
 	err = netlink.LinkSetMTU(link, mtu)
 	if err != nil {
-
+		dev.Close()
+		return nil, fmt.Errorf("LinkSetMTU: %s", err)
 	}
 
 	nladdr, err := netlink.ParseAddr(ip6.String() + "/128")
@@ -68,10 +80,10 @@ func DefaultTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (tun.Dev
 		logger.Printf("added route %s => %s", ip6cidr, ifname)
 	}
 
-	return dev, nil
+	return Device(dev), nil
 }
 
-func DefaultTunWithNamespace(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (tun.Device, error) {
+func NetlinkTunWithNamespace(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (Device, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -87,7 +99,7 @@ func DefaultTunWithNamespace(ifname string, ip6 net.IP, mtu int, logger *log.Log
 	}
 	defer newns.Close()
 
-	dev, err := DefaultTun(ifname, ip6, mtu, logger)
+	dev, err := NetlinkTun(ifname, ip6, mtu, logger)
 	netns.Set(origns)
 	return dev, err
 }
