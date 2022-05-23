@@ -25,6 +25,17 @@ var app = &cli.App{
 		stopCmd,
 		peerCmd,
 	},
+	// Metadata: map[string]interface{}{},
+	// Before: func(c *cli.Context) error {
+	// 	sigs := make(chan os.Signal, 1)
+	// 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	// 	go func() {
+	// 		<-sigs
+	// 		os.Exit(1)
+	// 	}()
+	// },
+	// After: func(c *cli.Context) error {},
 }
 
 func main() {
