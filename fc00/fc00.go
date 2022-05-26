@@ -79,7 +79,6 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 	ppkt := NewPingPacket(lpkt.Packet)
 
 	if !ppkt.IsDestination() {
-		// fc.log.Printf("handlePingPacket: forwarding")
 		return fc.node.Forwarder().HandlePacket(lpkt)
 	}
 
@@ -92,8 +91,6 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 	fwdhdr[0] = fwdhdr[0] + 1
 
 	route := rovy.NewRoute(fwdhdr[2 : 2+fwdhdr[0]]...).Reverse()
-
-	// fc.log.Printf("handlePingPacket: lowerSrc=%s fwdhdr=%#v revroute=%s reqid=%#v", lpkt.LowerSrc, fwdhdr, route, ppkt.RequestId())
 
 	if ppkt.IsReply() {
 		if err := fc.verify(ppkt); err != nil {
@@ -117,18 +114,36 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 			Body: body,
 		}
 
-		icmpdata, err := msg.Marshal(icmp.IPv6PseudoHeader(src2, dst2))
+		// about traceroute on fedora:
+		//
+		// firewalld drops these replies although they're fine.
+		// it probably recognizes the hops as local interfaces
+		// and partially blocks incoming cross-interface icmp.
+		//
+		// to verify, try traceroute non-local peerings: laptop->desktop->server
+		// or temporarily shutdown firewalld.
+		//
+		chdr := icmp.IPv6PseudoHeader(src2, dst2)
+		cbuf := append(chdr, 0x3, 0x0, 0, 0)
+		cbody, err := msg.Body.Marshal(ipv6.ICMPTypeTimeExceeded.Protocol())
 		if err != nil {
-			return fmt.Errorf("fc00: icmp packet construction error: %s", err)
+			return fmt.Errorf("fc00: icmp checksuming error: %s", err)
 		}
+		cbuf = append(cbuf, cbody...)
+		lenoff := 2 * net.IPv6len
+		binary.BigEndian.PutUint32(cbuf[lenoff:lenoff+4], uint32(len(cbuf)-len(chdr)))
+		csum := icmpChecksum(cbuf)
+		cbuf[len(chdr)+2] ^= byte(csum)
+		cbuf[len(chdr)+3] ^= byte(csum >> 8)
+		icmpdata := cbuf[len(chdr):]
 
 		// TODO: make sure the resulting packet doesn't exceed MTU
 		ilen := len(icmpdata)
 		p2 := make([]byte, 40+ilen)
-		copy(p2[0:4], buf[0:4])
+		copy(p2[0:4], buf[0:4]) // copying the src flowlabel might be stupid
 		binary.BigEndian.PutUint16(p2[4:6], uint16(ilen))
 		p2[6] = 58
-		p2[7] = 255
+		p2[7] = 64
 		copy(p2[8:24], src2)
 		copy(p2[24:40], dst2)
 		copy(p2[40:], icmpdata)
@@ -151,6 +166,21 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 	lpkt2 := rovy.NewLowerPacket(ppkt2.Packet)
 	lpkt2.SetCodec(PingMulticodec)
 	return fc.node.Forwarder().SendRaw(lpkt2)
+}
+
+// From golang.org/x/net/icmp
+func icmpChecksum(b []byte) uint16 {
+	csumcv := len(b) - 1 // checksum coverage
+	s := uint32(0)
+	for i := 0; i < csumcv; i += 2 {
+		s += uint32(b[i+1])<<8 | uint32(b[i])
+	}
+	if csumcv&1 == 0 {
+		s += uint32(b[csumcv])
+	}
+	s = s>>16 + s&0xffff
+	s = s + s>>16
+	return ^uint16(s)
 }
 
 // TODO implement me
@@ -269,7 +299,9 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		return fc.node.Forwarder().SendRaw(lpkt)
 	}
 
-	fc.log.Printf("tun: fc00 packet %s -> %s dropped (ttl=%d, nexthdr=%d)", src, dst, hops, nexthdr)
+	fc.log.Printf(
+		"tun: dropped outgoing %s -> %s - ttl is too low for non-icmp (nexthdr=%d)",
+		src, dst, nexthdr)
 
 	return nil
 }
