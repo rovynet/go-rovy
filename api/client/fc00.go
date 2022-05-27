@@ -56,6 +56,7 @@ func (c *Fc00Client) Start(tunfd *os.File) error {
 	if err != nil {
 		return fmt.Errorf("params: %s", err)
 	}
+	// TODO: check for status code
 	_, err = c.http.Post("http://unix/v0/fc00/start", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("http: %s", err)

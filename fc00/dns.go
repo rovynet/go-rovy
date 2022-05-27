@@ -1,16 +1,12 @@
 package rovyfc00
 
 import (
-	"io"
 	"log"
 	"net"
-	"net/http"
 	"strings"
 
 	cid "github.com/ipfs/go-cid"
 	dns "github.com/miekg/dns"
-	netip "golang.zx2c4.com/go118/netip"
-	netstack "golang.zx2c4.com/wireguard/tun/netstack"
 
 	rovy "go.rovy.net"
 )
@@ -69,14 +65,7 @@ func dnsHandlerFunc(localPid rovy.PeerID, w dns.ResponseWriter, r *dns.Msg) {
 }
 
 func (fc *Fc00) initDns(localPid rovy.PeerID, mtu int) error {
-	fc001 := netip.MustParseAddr("fc00::1")
-
-	tun, tnet, err := netstack.CreateNetTUN([]netip.Addr{fc001}, []netip.Addr{fc001}, mtu)
-	if err != nil {
-		return err
-	}
-
-	pktconn, err := tnet.ListenUDP(&net.UDPAddr{Port: 53})
+	pktconn, err := fc.fc001net.ListenUDP(&net.UDPAddr{Port: 53})
 	if err != nil {
 		return err
 	}
@@ -90,38 +79,6 @@ func (fc *Fc00) initDns(localPid rovy.PeerID, mtu int) error {
 		}
 	}()
 
-	lis, err := tnet.ListenTCP(&net.TCPAddr{Port: 80})
-	if err != nil {
-		return err
-	}
-	go func() {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, "Hello world!\n")
-		})
-		if err = http.Serve(lis, mux); err != nil {
-			fc.log.Printf("http: %s", err)
-		}
-	}()
-
-	go func() {
-		for {
-			pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
-			buf := pkt.Bytes()[rovy.UpperOffset:]
-
-			if _, err := fc.fc001tun.Read(buf, 0); err != nil {
-				fc.log.Printf("dns: tun read: %s", err)
-				continue
-			}
-
-			if _, err = fc.device.Write(buf, 0); err != nil {
-				fc.log.Printf("dns: tun write: %s", err)
-				continue
-			}
-		}
-	}()
-
-	fc.fc001tun = tun
 	fc.fc001dns = serv
 	return nil
 }

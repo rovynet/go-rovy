@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
+	"net/netip"
 
 	dns "github.com/miekg/dns"
 	icmp "golang.org/x/net/icmp"
 	ipv6 "golang.org/x/net/ipv6"
 
 	rovy "go.rovy.net"
+	rovygvtun "go.rovy.net/fc00/gvisor"
 	forwarder "go.rovy.net/forwarder"
 	node "go.rovy.net/node"
 	routing "go.rovy.net/routing"
@@ -37,30 +41,24 @@ type routingIface interface {
 	LookupIPv6(net.IP) (rovy.PeerID, error)
 }
 
-type devIface interface {
-	Read([]byte, int) (int, error)
-	Write([]byte, int) (int, error)
-	MTU() (int, error)
-	Close() error
-}
-
 type Fc00 struct {
 	node     nodeIface
-	device   devIface
+	device   Device
 	routing  routingIface
 	log      *log.Logger
-	fc001tun devIface
+	fc001net *rovygvtun.GvisorNet
+	fc001tun Device
 	fc001dns *dns.Server
 }
 
-func NewFc00(node nodeIface, dev devIface, routing routingIface) *Fc00 {
+func NewFc00(node nodeIface, dev Device, routing routingIface) *Fc00 {
 	fc := &Fc00{
 		node: node, log: node.Log(), device: dev, routing: routing,
 	}
 	return fc
 }
 
-func (fc *Fc00) Start(mtu int, initDns bool) error {
+func (fc *Fc00) Start(mtu int) error {
 	fc.node.HandleLower(PingMulticodec, fc.handlePingPacket)
 	fc.node.Handle(Fc00Multicodec, func(upkt rovy.UpperPacket) error {
 		return fc.handleFc00Packet(upkt.UpperSrc, upkt.Payload())
@@ -68,11 +66,55 @@ func (fc *Fc00) Start(mtu int, initDns bool) error {
 
 	go fc.listenTun()
 
-	if initDns {
-		if err := fc.initDns(fc.node.PeerID(), mtu); err != nil {
-			return err
-		}
+	if err := fc.initFc001(mtu); err != nil {
+		return err
 	}
+
+	if err := fc.initDns(fc.node.PeerID(), mtu); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (fc *Fc00) initFc001(mtu int) error {
+	ftun, fnet, err := rovygvtun.NewGvisorTUN(netip.MustParseAddr("fc00::1"), mtu, fc.log)
+	if err != nil {
+		return err
+	}
+	fc.fc001tun = ftun
+	fc.fc001net = fnet
+
+	go func() {
+		for {
+			pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+			buf := pkt.Bytes()[rovy.UpperOffset:]
+
+			if _, err := fc.fc001tun.Read(buf, 0); err != nil {
+				fc.log.Printf("dns: tun read: %s", err)
+				continue
+			}
+
+			if _, err = fc.device.Write(buf, 0); err != nil {
+				fc.log.Printf("dns: tun write: %s", err)
+				continue
+			}
+		}
+	}()
+
+	lis, err := fc.fc001net.ListenTCP(&net.TCPAddr{Port: 80})
+	if err != nil {
+		return err
+	}
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, "Hello world!\n")
+		})
+		if err = http.Serve(lis, mux); err != nil {
+			fc.log.Printf("http: %s", err)
+		}
+	}()
 
 	return nil
 }

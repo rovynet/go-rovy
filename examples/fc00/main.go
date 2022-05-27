@@ -10,6 +10,7 @@ import (
 
 	rovy "go.rovy.net"
 	fc00 "go.rovy.net/fc00"
+	rovygvisor "go.rovy.net/fc00/gvisor"
 	node "go.rovy.net/node"
 )
 
@@ -60,38 +61,41 @@ func run() error {
 		return err
 	}
 
-	devB, err := fc00.NetlinkTun("rovy1", nodeB.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeB.Log())
+	ip6aB, _ := netip.AddrFromSlice([]byte(nodeB.PeerID().PublicKey().Addr()))
+	devB, _, err := rovygvisor.NewGvisorTUN(ip6aB, rovy.UpperMTU, nodeB.Log())
 	if err != nil {
 		return err
 	}
 
-	devC, err := fc00.NetlinkTun("rovy2", nodeC.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeC.Log())
+	ip6aC, _ := netip.AddrFromSlice([]byte(nodeC.PeerID().PublicKey().Addr()))
+	devC, _, err := rovygvisor.NewGvisorTUN(ip6aC, rovy.UpperMTU, nodeC.Log())
 	if err != nil {
 		return err
 	}
 
-	devD, err := fc00.NetlinkTunWithNamespace("rovy3", nodeD.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeD.Log())
+	ip6aD, _ := netip.AddrFromSlice([]byte(nodeD.PeerID().PublicKey().Addr()))
+	devD, _, err := rovygvisor.NewGvisorTUN(ip6aD, rovy.UpperMTU, nodeD.Log())
 	if err != nil {
 		return err
 	}
 
 	fc00a := fc00.NewFc00(nodeA, devA, nodeA.Routing())
-	if err := fc00a.Start(rovy.UpperMTU, true); err != nil {
+	if err := fc00a.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
 	fc00b := fc00.NewFc00(nodeB, devB, nodeB.Routing())
-	if err := fc00b.Start(rovy.UpperMTU, false); err != nil {
+	if err := fc00b.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
 	fc00c := fc00.NewFc00(nodeC, devC, nodeC.Routing())
-	if err := fc00c.Start(rovy.UpperMTU, false); err != nil {
+	if err := fc00c.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
 	fc00d := fc00.NewFc00(nodeD, devD, nodeD.Routing())
-	if err := fc00d.Start(rovy.UpperMTU, false); err != nil {
+	if err := fc00d.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
