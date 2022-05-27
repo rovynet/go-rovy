@@ -61,7 +61,7 @@ func (s *Server) serveFc00Start(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: check if the device has correct address and mtu
-	tunif, err := rovyfc00.PreconfiguredTUN(fds[0])
+	tunif, err := rovyfc00.FileTUN(fds[0])
 	if err != nil {
 		s.writeError(w, r, fmt.Errorf("tun: %s", err))
 		return

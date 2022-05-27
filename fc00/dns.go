@@ -1,4 +1,4 @@
-package fc00
+package rovyfc00
 
 import (
 	"io"
