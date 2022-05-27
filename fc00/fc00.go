@@ -11,7 +11,6 @@ import (
 	"net/netip"
 
 	dns "github.com/miekg/dns"
-	icmp "golang.org/x/net/icmp"
 	ipv6 "golang.org/x/net/ipv6"
 
 	rovy "go.rovy.net"
@@ -70,7 +69,7 @@ func (fc *Fc00) Start(mtu int) error {
 		return err
 	}
 
-	if err := fc.initDns(fc.node.PeerID(), mtu); err != nil {
+	if err := fc.initDns(); err != nil {
 		return err
 	}
 
@@ -109,131 +108,14 @@ func (fc *Fc00) initFc001(mtu int) error {
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, "Hello world!\n")
+			ip6a := fc.node.PeerID().PublicKey().Addr()
+			io.WriteString(w, fmt.Sprintf("Hello from fc00::1 on %s\n", ip6a))
 		})
 		if err = http.Serve(lis, mux); err != nil {
 			fc.log.Printf("http: %s", err)
 		}
 	}()
 
-	return nil
-}
-
-func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
-	ppkt := NewPingPacket(lpkt.Packet)
-
-	if !ppkt.IsDestination() {
-		return fc.node.Forwarder().HandlePacket(lpkt)
-	}
-
-	prevrt, err := fc.node.Routing().GetRoute(lpkt.LowerSrc)
-	if err != nil {
-		return err
-	}
-	fwdhdr := ppkt.Buf[ppkt.Offset+4 : ppkt.Offset+20]
-	fwdhdr[2+fwdhdr[0]] = prevrt.Bytes()[0]
-	fwdhdr[0] = fwdhdr[0] + 1
-
-	route := rovy.NewRoute(fwdhdr[2 : 2+fwdhdr[0]]...).Reverse()
-
-	if ppkt.IsReply() {
-		if err := fc.verify(ppkt); err != nil {
-			return err
-		}
-
-		buf := ppkt.Payload()
-
-		dst := fc.node.PeerID().PublicKey().Addr()
-		if 0 != bytes.Compare(buf[8:24], dst) {
-			return fmt.Errorf("fc00: recv: dst address mismatch -- expected %#v -- got %#v", dst, buf[8:24])
-		}
-
-		src2 := ppkt.Sender().Addr()
-		dst2 := dst
-
-		body := &icmp.TimeExceeded{Data: buf[:]}
-		msg := icmp.Message{
-			Type: ipv6.ICMPTypeTimeExceeded,
-			Code: 0,
-			Body: body,
-		}
-
-		// about traceroute on fedora:
-		//
-		// firewalld drops these replies although they're fine.
-		// it probably recognizes the hops as local interfaces
-		// and partially blocks incoming cross-interface icmp.
-		//
-		// to verify, try traceroute non-local peerings: laptop->desktop->server
-		// or temporarily shutdown firewalld.
-		//
-		chdr := icmp.IPv6PseudoHeader(src2, dst2)
-		cbuf := append(chdr, 0x3, 0x0, 0, 0)
-		cbody, err := msg.Body.Marshal(ipv6.ICMPTypeTimeExceeded.Protocol())
-		if err != nil {
-			return fmt.Errorf("fc00: icmp checksuming error: %s", err)
-		}
-		cbuf = append(cbuf, cbody...)
-		lenoff := 2 * net.IPv6len
-		binary.BigEndian.PutUint32(cbuf[lenoff:lenoff+4], uint32(len(cbuf)-len(chdr)))
-		csum := icmpChecksum(cbuf)
-		cbuf[len(chdr)+2] ^= byte(csum)
-		cbuf[len(chdr)+3] ^= byte(csum >> 8)
-		icmpdata := cbuf[len(chdr):]
-
-		// TODO: make sure the resulting packet doesn't exceed MTU
-		ilen := len(icmpdata)
-		p2 := make([]byte, 40+ilen)
-		copy(p2[0:4], buf[0:4]) // copying the src flowlabel might be stupid
-		binary.BigEndian.PutUint16(p2[4:6], uint16(ilen))
-		p2[6] = 58
-		p2[7] = 64
-		copy(p2[8:24], src2)
-		copy(p2[24:40], dst2)
-		copy(p2[40:], icmpdata)
-
-		return fc.handleFc00Packet(rovy.NewPeerID(ppkt.Sender()), p2)
-	}
-
-	ppkt2 := NewPingPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
-	ppkt2.LowerSrc = fc.node.PeerID()
-	ppkt2.SetRoute(route)
-	ppkt2.SetSender(fc.node.PeerID().PublicKey())
-	ppkt2.SetIsReply(true)
-	ppkt2 = ppkt2.SetPayload(ppkt.Payload())
-
-	ppkt2, err = fc.sign(ppkt2)
-	if err != nil {
-		return err
-	}
-
-	lpkt2 := rovy.NewLowerPacket(ppkt2.Packet)
-	lpkt2.SetCodec(PingMulticodec)
-	return fc.node.Forwarder().SendRaw(lpkt2)
-}
-
-// From golang.org/x/net/icmp
-func icmpChecksum(b []byte) uint16 {
-	csumcv := len(b) - 1 // checksum coverage
-	s := uint32(0)
-	for i := 0; i < csumcv; i += 2 {
-		s += uint32(b[i+1])<<8 | uint32(b[i])
-	}
-	if csumcv&1 == 0 {
-		s += uint32(b[csumcv])
-	}
-	s = s>>16 + s&0xffff
-	s = s + s>>16
-	return ^uint16(s)
-}
-
-// TODO implement me
-func (fc *Fc00) sign(ppkt PingPacket) (PingPacket, error) {
-	return ppkt, nil
-}
-
-// TODO implement me
-func (fc *Fc00) verify(ppkt PingPacket) error {
 	return nil
 }
 
@@ -294,7 +176,8 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 
 	if dst.Equal(net.ParseIP("fc00::1")) {
 		// fc.log.Printf("tun: packet for fc00::1")
-		return fc.handleDnsRequest(buf)
+		_, err := fc.fc001tun.Write(buf, 0)
+		return err
 	}
 
 	peerid, err := fc.routing.LookupIPv6(dst)

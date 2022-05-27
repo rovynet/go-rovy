@@ -11,12 +11,11 @@ import (
 	rovy "go.rovy.net"
 )
 
-func (fc *Fc00) handleDnsRequest(buf []byte) error {
-	_, err := fc.fc001tun.Write(buf, 0)
-	return err
+type DNSHandler struct {
+	LocalPeerID rovy.PeerID
 }
 
-func dnsHandlerFunc(localPid rovy.PeerID, w dns.ResponseWriter, r *dns.Msg) {
+func (h DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	qtype := r.Question[0].Qtype
 	qname := r.Question[0].Name
 
@@ -25,10 +24,10 @@ func dnsHandlerFunc(localPid rovy.PeerID, w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
 
-	if qname == "local.rovy." {
+	if qname == "localhost.rovy." {
 		rr := &dns.AAAA{
 			Hdr:  dns.RR_Header{Name: qname, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 0},
-			AAAA: localPid.PublicKey().Addr(),
+			AAAA: h.LocalPeerID.PublicKey().Addr(),
 		}
 		m.Answer = append(m.Answer, rr)
 		w.WriteMsg(m)
@@ -64,15 +63,16 @@ func dnsHandlerFunc(localPid rovy.PeerID, w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(m)
 }
 
-func (fc *Fc00) initDns(localPid rovy.PeerID, mtu int) error {
+func (fc *Fc00) initDns() error {
 	pktconn, err := fc.fc001net.ListenUDP(&net.UDPAddr{Port: 53})
 	if err != nil {
 		return err
 	}
-	dns.HandleFunc("rovy.", func(w dns.ResponseWriter, r *dns.Msg) {
-		dnsHandlerFunc(localPid, w, r)
-	})
-	serv := &dns.Server{Net: "udp6", PacketConn: pktconn}
+	serv := &dns.Server{
+		Net:        "udp6",
+		PacketConn: pktconn,
+		Handler:    DNSHandler{fc.node.PeerID()},
+	}
 	go func() {
 		if err = serv.ActivateAndServe(); err != nil {
 			fc.log.Printf("dns: %s", err)
