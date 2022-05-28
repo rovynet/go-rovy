@@ -10,28 +10,32 @@ import (
 
 // hello receive
 
-func (node *Node) helloRecvRoutine() {
+// TODO remove error return
+func (node *Node) helloRecvRoutine() error {
 	for {
-		pkt := node.helloRecvQ.Get()
-
-		// Packet only has LowerSrc if it was a data packet during the lower phase.
-		// That means if LowerSrc is set, this is definitely not a lower hello.
-		if pkt.LowerSrc.Empty() {
-			if pkt.TptSrc.Empty() {
-				node.Log().Printf("helloRecvRoutine: lower packet without TptSrc")
-				continue
-			}
-			if err := node.doLowerHelloRecv(pkt); err != nil {
-				node.Log().Printf("helloRecvRoutine: %s", err)
-				continue
-			}
-		} else {
-			if err := node.doUpperHelloRecv(pkt); err != nil {
-				node.Log().Printf("helloRecvRoutine: %s", err)
-				continue
+		select {
+		case pkt := <-node.helloRecvQ.Chan():
+			// Packet only has LowerSrc if it was a data packet during the lower phase.
+			// That means if LowerSrc is set, this is definitely not a lower hello.
+			if pkt.LowerSrc.Empty() {
+				if pkt.TptSrc.Empty() {
+					node.Log().Printf("helloRecvRoutine: lower packet without TptSrc")
+					continue
+				}
+				if err := node.doLowerHelloRecv(pkt); err != nil {
+					node.Log().Printf("helloRecvRoutine: %s", err)
+					continue
+				}
+			} else {
+				if err := node.doUpperHelloRecv(pkt); err != nil {
+					node.Log().Printf("helloRecvRoutine: %s", err)
+					continue
+				}
 			}
 		}
 	}
+	node.Log().Printf("helloRecvRoutine: exiting")
+	return nil
 }
 
 func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
@@ -97,20 +101,21 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 
 func (node *Node) lowerRecvRoutine() {
 	for {
-		pkt := node.lowerRecvQ.Get()
-
-		msgtype := pkt.MsgType()
-		switch msgtype {
-		case session.DataMsgType:
-			err := node.doLowerRecv(pkt)
-			if err != nil {
-				node.Log().Printf("lowerRecvRoutine: %s", err)
-				continue
+		select {
+		case pkt := <-node.lowerRecvQ.Chan():
+			msgtype := pkt.MsgType()
+			switch msgtype {
+			case session.DataMsgType:
+				err := node.doLowerRecv(pkt)
+				if err != nil {
+					node.Log().Printf("lowerRecvRoutine: %s", err)
+					continue
+				}
+			case session.HelloMsgType, session.ResponseMsgType:
+				node.helloRecvQ.Put(pkt)
+			default:
+				node.Log().Printf("lowerRecvRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
 			}
-		case session.HelloMsgType, session.ResponseMsgType:
-			node.helloRecvQ.Put(pkt)
-		default:
-			node.Log().Printf("lowerRecvRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
 		}
 	}
 }
@@ -138,16 +143,16 @@ func (node *Node) doLowerRecv(pkt rovy.Packet) error {
 
 func (node *Node) lowerMuxRoutine() {
 	for {
-		pkt := node.lowerMuxQ.Get()
-
-		if pkt.LowerSrc.Empty() {
-			node.Log().Printf("lowerMuxRoutine: dropping packet without LowerSrc")
-			continue
-		}
-
-		if err := node.doLowerMux(pkt); err != nil {
-			node.Log().Printf("lowerMuxRoutine: %s", err)
-			continue
+		select {
+		case pkt := <-node.lowerMuxQ.Chan():
+			if pkt.LowerSrc.Empty() {
+				node.Log().Printf("lowerMuxRoutine: dropping packet without LowerSrc")
+				continue
+			}
+			if err := node.doLowerMux(pkt); err != nil {
+				node.Log().Printf("lowerMuxRoutine: %s", err)
+				continue
+			}
 		}
 	}
 }
@@ -182,20 +187,21 @@ func (node *Node) doLowerMux(pkt rovy.Packet) error {
 
 func (node *Node) upperRecvRoutine() {
 	for {
-		pkt := node.upperRecvQ.Get()
-
-		msgtype := pkt.Buf[rovy.UpperOffset]
-		switch msgtype {
-		case session.DataMsgType:
-			err := node.doUpperRecv(pkt)
-			if err != nil {
-				node.Log().Printf("upperRecvRoutine: %s", err)
-				continue
+		select {
+		case pkt := <-node.upperRecvQ.Chan():
+			msgtype := pkt.Buf[rovy.UpperOffset]
+			switch msgtype {
+			case session.DataMsgType:
+				err := node.doUpperRecv(pkt)
+				if err != nil {
+					node.Log().Printf("upperRecvRoutine: %s", err)
+					continue
+				}
+			case session.HelloMsgType, session.ResponseMsgType:
+				node.helloRecvQ.Put(pkt)
+			default:
+				node.Log().Printf("upperRecvRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
 			}
-		case session.HelloMsgType, session.ResponseMsgType:
-			node.helloRecvQ.Put(pkt)
-		default:
-			node.Log().Printf("upperRecvRoutine: dropping packet with unknown MsgType 0x%x", msgtype)
 		}
 	}
 }
@@ -224,11 +230,12 @@ func (node *Node) doUpperRecv(pkt rovy.Packet) error {
 
 func (node *Node) upperMuxRoutine() {
 	for {
-		pkt := node.upperMuxQ.Get()
-
-		if err := node.doUpperMux(pkt); err != nil {
-			node.Log().Printf("upperMuxRoutine: %s", err)
-			continue
+		select {
+		case pkt := <-node.upperMuxQ.Chan():
+			if err := node.doUpperMux(pkt); err != nil {
+				node.Log().Printf("upperMuxRoutine: %s", err)
+				continue
+			}
 		}
 	}
 }

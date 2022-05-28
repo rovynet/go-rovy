@@ -33,12 +33,23 @@ func (rb *RingBuffer) Get() rovy.Packet {
 	return <-rb.ch
 }
 
+func (rb *RingBuffer) Chan() chan rovy.Packet {
+	return rb.ch
+}
+
 func (rb *RingBuffer) Capacity() int {
 	return cap(rb.ch)
 }
 
 func (rb *RingBuffer) Length() int {
 	return len(rb.ch)
+}
+
+func (rb *RingBuffer) Close() {
+	for len(rb.ch) > 0 {
+		_ = <-rb.ch
+	}
+	close(rb.ch)
 }
 
 func (rb *RingBuffer) Dropped() uint64 {

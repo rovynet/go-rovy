@@ -25,8 +25,10 @@ type Queue interface {
 	Put(Packet)
 	PutWithBackpressure(Packet)
 	Get() Packet
+	Chan() chan Packet
 	Capacity() int
 	Length() int
+	Close()
 }
 
 type Packet struct {
