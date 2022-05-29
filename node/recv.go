@@ -11,10 +11,17 @@ import (
 // hello receive
 
 // TODO remove error return
-func (node *Node) helloRecvRoutine() error {
+func (node *Node) helloRecvRoutine() {
 	for {
 		select {
-		case pkt := <-node.helloRecvQ.Chan():
+		case pkt, ok := <-node.helloRecvQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("helloRecvRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			// Packet only has LowerSrc if it was a data packet during the lower phase.
 			// That means if LowerSrc is set, this is definitely not a lower hello.
 			if pkt.LowerSrc.Empty() {
@@ -35,7 +42,6 @@ func (node *Node) helloRecvRoutine() error {
 		}
 	}
 	node.Log().Printf("helloRecvRoutine: exiting")
-	return nil
 }
 
 func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
@@ -102,7 +108,14 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 func (node *Node) lowerRecvRoutine() {
 	for {
 		select {
-		case pkt := <-node.lowerRecvQ.Chan():
+		case pkt, ok := <-node.lowerRecvQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("lowerRecvRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			msgtype := pkt.MsgType()
 			switch msgtype {
 			case session.DataMsgType:
@@ -118,6 +131,7 @@ func (node *Node) lowerRecvRoutine() {
 			}
 		}
 	}
+	node.Log().Printf("lowerRecvRoutine: exiting")
 }
 
 func (node *Node) doLowerRecv(pkt rovy.Packet) error {
@@ -144,7 +158,14 @@ func (node *Node) doLowerRecv(pkt rovy.Packet) error {
 func (node *Node) lowerMuxRoutine() {
 	for {
 		select {
-		case pkt := <-node.lowerMuxQ.Chan():
+		case pkt, ok := <-node.lowerMuxQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("lowerMuxRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			if pkt.LowerSrc.Empty() {
 				node.Log().Printf("lowerMuxRoutine: dropping packet without LowerSrc")
 				continue
@@ -155,6 +176,7 @@ func (node *Node) lowerMuxRoutine() {
 			}
 		}
 	}
+	node.Log().Printf("lowerMuxRoutine: exiting")
 }
 
 func (node *Node) doLowerMux(pkt rovy.Packet) error {
@@ -188,7 +210,14 @@ func (node *Node) doLowerMux(pkt rovy.Packet) error {
 func (node *Node) upperRecvRoutine() {
 	for {
 		select {
-		case pkt := <-node.upperRecvQ.Chan():
+		case pkt, ok := <-node.upperRecvQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("upperReceiveRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			msgtype := pkt.Buf[rovy.UpperOffset]
 			switch msgtype {
 			case session.DataMsgType:
@@ -204,6 +233,7 @@ func (node *Node) upperRecvRoutine() {
 			}
 		}
 	}
+	node.Log().Printf("upperRecvRoutine: exiting")
 }
 
 func (node *Node) doUpperRecv(pkt rovy.Packet) error {
@@ -231,13 +261,21 @@ func (node *Node) doUpperRecv(pkt rovy.Packet) error {
 func (node *Node) upperMuxRoutine() {
 	for {
 		select {
-		case pkt := <-node.upperMuxQ.Chan():
+		case pkt, ok := <-node.upperMuxQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("upperMuxRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			if err := node.doUpperMux(pkt); err != nil {
 				node.Log().Printf("upperMuxRoutine: %s", err)
 				continue
 			}
 		}
 	}
+	node.Log().Printf("upperMuxRoutine: exiting")
 }
 
 func (node *Node) doUpperMux(pkt rovy.Packet) error {

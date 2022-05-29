@@ -60,7 +60,7 @@ func (s *Server) serveInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveStop(w http.ResponseWriter, r *http.Request) {
-	// s.node.Stop()
+	s.node.Stop()
 	w.WriteHeader(http.StatusOK)
 	s.logger.Printf("api request %s -> ok", r.RequestURI)
 }

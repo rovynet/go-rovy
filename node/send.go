@@ -13,7 +13,14 @@ import (
 func (node *Node) helloSendRoutine() {
 	for {
 		select {
-		case pkt := <-node.helloSendQ.Chan():
+		case pkt, ok := <-node.helloSendQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("helloSendRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			if pkt.LowerDst.Empty() {
 				if pkt.UpperDst.Empty() {
 					node.Log().Printf("helloSendRoutine: upper packet without UpperDst")
@@ -39,6 +46,7 @@ func (node *Node) helloSendRoutine() {
 			}
 		}
 	}
+	node.Log().Printf("helloSendRoutine: exiting")
 }
 
 func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
@@ -79,7 +87,14 @@ func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
 func (node *Node) lowerSendRoutine() {
 	for {
 		select {
-		case pkt := <-node.lowerSendQ.Chan():
+		case pkt, ok := <-node.lowerSendQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("lowerSendRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			if pkt.LowerDst.Empty() {
 				node.Log().Printf("lowerSendRoutine: dropping packet without LowerDst")
 				continue
@@ -90,6 +105,7 @@ func (node *Node) lowerSendRoutine() {
 			}
 		}
 	}
+	node.Log().Printf("lowerSendRoutine: exiting")
 }
 
 func (node *Node) doLowerSend(pkt rovy.Packet) error {
@@ -109,7 +125,14 @@ func (node *Node) doLowerSend(pkt rovy.Packet) error {
 func (node *Node) upperSendRoutine() {
 	for {
 		select {
-		case pkt := <-node.upperSendQ.Chan():
+		case pkt, ok := <-node.upperSendQ.Chan():
+			if !ok {
+				break
+			}
+			if cap(pkt.Buf) == 0 {
+				node.Log().Printf("upperSendRoutine: packet buffer has 0 capacity")
+				continue
+			}
 			if pkt.UpperDst.Empty() {
 				node.Log().Printf("upperSendRoutine: packet without UpperDst")
 				continue
@@ -120,6 +143,7 @@ func (node *Node) upperSendRoutine() {
 			}
 		}
 	}
+	node.Log().Printf("upperSendRoutine: exiting")
 }
 
 func (node *Node) doUpperSend(pkt rovy.Packet) error {

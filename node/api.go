@@ -9,6 +9,15 @@ func (node *Node) Info() (rovyapi.NodeInfo, error) {
 }
 
 func (node *Node) Stop() error {
+	node.helloSendQ.Close()
+	node.lowerSendQ.Close()
+	node.upperSendQ.Close()
+	node.helloRecvQ.Close()
+	node.lowerRecvQ.Close()
+	node.lowerMuxQ.Close()
+	node.upperRecvQ.Close()
+	node.upperMuxQ.Close()
+	// TODO more closing todo here
 	return nil
 }
 

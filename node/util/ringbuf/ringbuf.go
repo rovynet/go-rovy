@@ -29,6 +29,7 @@ func (rb *RingBuffer) PutWithBackpressure(pkt rovy.Packet) {
 	rb.ch <- pkt
 }
 
+// XXX returns empty packet if chan is closed
 func (rb *RingBuffer) Get() rovy.Packet {
 	return <-rb.ch
 }
