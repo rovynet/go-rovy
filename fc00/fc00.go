@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"log"
 	"net"
-	"net/http"
 	"net/netip"
 
 	dns "github.com/miekg/dns"
@@ -17,7 +15,7 @@ import (
 	rovygvtun "go.rovy.net/fc00/gvisor"
 	forwarder "go.rovy.net/forwarder"
 	node "go.rovy.net/node"
-	routing "go.rovy.net/routing"
+	rovyrt "go.rovy.net/routing"
 )
 
 const Fc00Multicodec = 0x42004
@@ -30,7 +28,7 @@ type nodeIface interface {
 	Handle(uint64, node.UpperHandler)
 	HandleLower(uint64, node.LowerHandler)
 	Forwarder() *forwarder.Forwarder
-	Routing() *routing.Routing
+	Routing() *rovyrt.Routing
 	SendUpper(rovy.UpperPacket) error
 	Log() *log.Logger
 }
@@ -45,14 +43,14 @@ type Fc00 struct {
 	device   Device
 	routing  routingIface
 	log      *log.Logger
-	fc001net *rovygvtun.GvisorNet
+	fc001net rovygvtun.GvisorNet
 	fc001tun Device
 	fc001dns *dns.Server
 }
 
-func NewFc00(node nodeIface, dev Device, routing routingIface) *Fc00 {
+func NewFc00(node nodeIface, dev Device) *Fc00 {
 	fc := &Fc00{
-		node: node, log: node.Log(), device: dev, routing: routing,
+		node: node, log: node.Log(), device: dev, routing: node.Routing(),
 	}
 	return fc
 }
@@ -98,21 +96,6 @@ func (fc *Fc00) initFc001(mtu int) error {
 				fc.log.Printf("dns: tun write: %s", err)
 				continue
 			}
-		}
-	}()
-
-	lis, err := fc.fc001net.ListenTCP(&net.TCPAddr{Port: 80})
-	if err != nil {
-		return err
-	}
-	go func() {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			ip6a := fc.node.PeerID().PublicKey().Addr()
-			io.WriteString(w, fmt.Sprintf("Hello from fc00::1 on %s\n", ip6a))
-		})
-		if err = http.Serve(lis, mux); err != nil {
-			fc.log.Printf("http: %s", err)
 		}
 	}()
 

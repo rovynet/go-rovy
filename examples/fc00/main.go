@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"log"
+	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/signal"
@@ -74,27 +78,27 @@ func run() error {
 	}
 
 	ip6aD, _ := netip.AddrFromSlice([]byte(nodeD.PeerID().PublicKey().Addr()))
-	devD, _, err := rovygvisor.NewGvisorTUN(ip6aD, rovy.UpperMTU, nodeD.Log())
+	devD, netD, err := rovygvisor.NewGvisorTUN(ip6aD, rovy.UpperMTU, nodeD.Log())
 	if err != nil {
 		return err
 	}
 
-	fc00a := fc00.NewFc00(nodeA, devA, nodeA.Routing())
+	fc00a := fc00.NewFc00(nodeA, devA)
 	if err := fc00a.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
-	fc00b := fc00.NewFc00(nodeB, devB, nodeB.Routing())
+	fc00b := fc00.NewFc00(nodeB, devB)
 	if err := fc00b.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
-	fc00c := fc00.NewFc00(nodeC, devC, nodeC.Routing())
+	fc00c := fc00.NewFc00(nodeC, devC)
 	if err := fc00c.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
-	fc00d := fc00.NewFc00(nodeD, devD, nodeD.Routing())
+	fc00d := fc00.NewFc00(nodeD, devD)
 	if err := fc00d.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
@@ -123,6 +127,24 @@ func run() error {
 	}
 
 	nodeA.Routing().PrintTable(nodeA.Log())
+
+	lis, err := netD.ListenTCP(&net.TCPAddr{Port: 80})
+	if err != nil {
+		return err
+	}
+	pid := nodeD.PeerID().String()
+	ip6a := nodeD.PeerID().PublicKey().Addr().String()
+	nodeD.Log().Printf("open http://%s.rovy", pid)
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, fmt.Sprintf("Hello from\n/rovy/%s\n/ip6/%s\n", pid, ip6a))
+		})
+		if err = http.Serve(lis, mux); err != nil {
+			nodeD.Log().Printf("http: %s", err)
+			return
+		}
+	}()
 
 	select {}
 }

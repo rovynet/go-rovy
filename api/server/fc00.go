@@ -69,7 +69,7 @@ func (s *Server) serveFc00Start(w http.ResponseWriter, r *http.Request) {
 
 	node := s.node.(*rovynode.Node)
 
-	fc00 := rovyfc00.NewFc00(node, tunif, node.Routing())
+	fc00 := rovyfc00.NewFc00(node, tunif)
 	if err := fc00.Start(rovy.UpperMTU); err != nil {
 		s.writeError(w, r, fmt.Errorf("start: %s", err))
 		return
