@@ -70,7 +70,7 @@ func startCmdFunc(c *cli.Context) error {
 		}
 
 		keyfile = c.String("keyfile")
-		ephemeral = keyfile == "?"
+		ephemeral = keyfile == "@"
 		stdin = keyfile == "-"
 		if !ephemeral && !stdin {
 			keyfile, err = homedir.Expand(keyfile)
@@ -128,7 +128,7 @@ func startCmdFunc(c *cli.Context) error {
 
 func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privkey rovy.PrivateKey, err error) {
 	switch keyfile {
-	case "?":
+	case "@":
 		logger.Printf("starting with ephemeral private key and no configuration")
 		privkey, err = rovy.GeneratePrivateKey()
 		if err != nil {
@@ -146,7 +146,7 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 		}
 		privkey = rovy.NewPrivateKey(b)
 	default:
-		return privkey, fmt.Errorf("TODO: reading from keyfile not implemented yet, use `-K -` or `-K ?`")
+		return privkey, fmt.Errorf("TODO: reading from keyfile not implemented yet, use `-K -` or `-K @`")
 	}
 
 	// Just for printf debugging:
