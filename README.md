@@ -19,25 +19,37 @@ Rovy aims to tear down artifical barriers in internetworking, make routing and t
 
 The protocols making up Rovy are pretty closely related to the ideas and concepts of [cjdns](https://github.com/cjdelisle/cjdns) and [libp2p](https://libp2p.io).
 
-Right now (late 2021) Rovy is an early work-in-progress with some foundational parts in place and working, and many of the more interesting parts still missing.
+Right now (mid 2022) Rovy is an early work-in-progress with some foundational parts in place and working, while many of the more interesting parts are still missing.
 
 ## Usage
 
-There is no CLI yet, just a bunch of smoketests :-)
-
 ```sh
-> go test -v ./examples
-> go run ./examples/benchmark
-> go test -bench=. ./forwarder
+> go install go.rovy.net/cmd/rovy@latest
+> rovy start -K @
+00:45:36 start.go:132: starting with ephemeral private key
+00:45:36 start.go:94: we are /rovy/bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
+00:45:36 start.go:106: api socket ready at http:/home/user/.rovy/api.sock
+00:45:36 start.go:199: started fc00 endpoint fc78:4ece:63c9:903c:5a54:cb0c:fda3:39cf using NetworkManager
+...
+> rovy info
+PeerID: bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
+
+> ping fc00::1
+> ip addr show rovy0
+> nmcli
+> resolvectl
 ```
 
 To test IPv6 networking over Rovy's TUN interface, run traceroute against the IPv6 address of `nodeD` from the following command's output:
 ```
-> go build -o rovy-fc00 ./examples/fc00 && sudo ./rovy-fc00
+> go run ./examples/fc00
 ...
-[nodeD] 02:28:45 main.go:32: /ip6/fcc7:6ea0:d8bb:448a:4d82:fcc0:982c:ceed
+[nodeD] 02:28:45 main.go:32: /rovy/bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm
+[nodeD] 02:28:45 main.go:32: /ip6/fc75:d625:ca71:1e82:7636:37ea:3e8a:aa63
 ...
-> mtr -n fcc7:6ea0:d8bb:448a:4d82:fcc0:982c:ceed
+> curl http://bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm.rovy
+Hello world!
+> mtr bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm.rovy
 ```
 
 ---
@@ -62,6 +74,9 @@ For the time being, check out the `examples/` directory.
 
 ## Roadmap
 
+### fc00 before commit
+
+
 ### Epics
 
 - [x] [IKpsk2](https://noiseprotocol.org/noise.html) handshake
@@ -69,7 +84,7 @@ For the time being, check out the `examples/` directory.
 - [x] fc00::/8 network via TUN interface
 - [x] ICMP traceroutes for fc00::/8
 - [ ] Minimum-viable routing
-- [ ] Daemon and CLI
+- [x] Daemon and CLI
 - [ ] Local peer discovery
 - [ ] DNS server for global routing lookups (this is technically cheating)
 - [ ] 1 Gbps routed throughput on fc00::/8
@@ -80,10 +95,11 @@ For the time being, check out the `examples/` directory.
 - [ ] Roaming and multi-homing
 - [ ] Creative ways of facilitating peering
 - [ ] Jumbo frames, path-specific MTU
-- [ ] Node management, modifying the node, shutting down
 
 ### Next
 
+- [ ] fc00: clean up tun when shutting down
+- [ ] node: clean shutdown
 - [x] remove multigram table negotiation, it doesn't make sense much sense at the moment
 - [ ] make multigram varints exactly 4 bytes long, padding + length restriction
 - [ ] unify lowerpacket and upperpacket in one packet type, which tracks state (lower, upper, tpt) and gives access to respective payload slices
@@ -94,7 +110,17 @@ For the time being, check out the `examples/` directory.
 - [ ] constants for sizes and offsets
 - [ ] fix endianness once and for all, do what wireguard and cjdns do
 - [ ] fc00: signatures on ping/pong
-- [ ] fc00: multicast ping
+- [x] fc00: less verbose error handling
+- [ ] fc00: ping ff02::1%rovy
+- [ ] fc00: reverse dns
+- [ ] fc00: clarify the fc00 api interface
+- [x] fc00: embedded virtual tun device
+- [ ] fc00: node keeps track of fc00 service
+- [ ] fc00: expose fc00 start command in cli
+- [ ] fc00: fc00 stop and status commands
+- [ ] fc00: default-deny and fc00 ports command
+- [ ] fc00: define fc00::/64 as unroutable
+- [ ] fc00: learn routes from traceroute replies
 - [ ] perf: fast versions of multiaddr, cid, multihash
 - [ ] perf: lock-free maps for SessionManager and Forwarder
 - [ ] perf: buffer pool
@@ -104,27 +130,7 @@ For the time being, check out the `examples/` directory.
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission
 - [ ] session: research whether hello/response payload construction is okay
-
-### Project TODOs
-
-- [x] ASN + IP addrs
-- [x] Basic website
-- [ ] Git repo and issue tracker
-- [ ] CI for tests
-- [ ] CI for performance
-- [ ] Squat twitter account
-- [ ] Multicodec registrations
-  - 0x73    /rovy/v0/peerid (same codec for cid and multiaddr)
-  -         /rovy/v0/route (same codec for route and multiaddr)
-  - 0x1     /rovy/v0/hello
-  - 0x2     /rovy/v0/response
-  - 0x3     /rovy/v0/cookie
-  - 0x4     /rovy/v0/message
-  - 0x12345 /rovy/v0/fwd
-  - 0x12346 /rovy/v0/fwdctl
-  - 0x12347 /rovy/v0/directupper
-  - 0x42004 /rovy/v0/fc00
-  - 0x42005 /rovy/v0/fc00trace
+- [ ] multicodec registrations
 
 
 ## Notes
