@@ -1,14 +1,28 @@
 
+# Current
+
+- [x] load and use keyfile
+- [x] /maddrfmt support
+- [x] start command doing configuration
+- [ ] init command
+- [ ] client/peer functions
+- [ ] server/peer functions
+- [ ] node/peer functions
+
+
 # Tasks
 
-- [x] [IKpsk2](https://noiseprotocol.org/noise.html) handshake
+- [x] Noise IKpsk2 handshake
 - [x] Forwarding/Switching using route labels
 - [x] fc00::/8 network via TUN interface
 - [x] ICMP traceroutes for fc00::/8
 - [x] Daemon and CLI
 - [ ] Configuration
 - [ ] Local peer discovery
+- [ ] Basic unified tests for CLI, HTTP API, Go API
 - [ ] TLS termination and re-encryption
+- [ ] Systemd unit file for servers
+- [ ] Reloadable config
 - [ ] Minimum-viable routing
 - [ ] 1 Gbps routed throughput on fc00::/8
 - [ ] DHT for decentral global and local routing lookups
@@ -18,10 +32,8 @@
 ## Foundation
 
 - [ ] Context wiring
-- [ ] Basic unified tests for CLI, HTTP API, Go API
-- [ ] Document core Go API
 - [ ] Clean shutdown
-- [ ] Systemd unit file for servers
+- [ ] netip.Addr and rovy.Multiaddr everywhere
 - [ ] fc00: signatures on ping/pong
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission
