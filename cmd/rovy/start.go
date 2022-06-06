@@ -11,17 +11,17 @@ import (
 	"strings"
 
 	homedir "github.com/mitchellh/go-homedir"
-	multibase "github.com/multiformats/go-multibase"
 	cli "github.com/urfave/cli/v2"
 
 	rovy "go.rovy.net"
 	rovyapic "go.rovy.net/api/client"
 	rovyapis "go.rovy.net/api/server"
+	rovycfg "go.rovy.net/cmd/rovy/config"
 	rovyfc00 "go.rovy.net/fc00"
 	rovynode "go.rovy.net/node"
 )
 
-const KeyfileName = "private.key"
+const KeyfileName = "keyfile.toml"
 const ConfigName = "config.toml"
 
 var startCmd = &cli.Command{
@@ -112,9 +112,22 @@ func startCmdFunc(c *cli.Context) error {
 	// }
 	_ = config
 
-	// if !ephemeral && !stdin {
 	if !stdin {
-		if err = configureFc00(socket, node, logger); err != nil {
+		var cfg *rovycfg.Config
+		if !ephemeral {
+			cfg, err = rovycfg.LoadConfig(config)
+			if err != nil {
+				return exitErr("failed to load config: %s", err)
+			}
+		} else {
+			cfg = rovycfg.DefaultConfig()
+		}
+
+		if err = configurePeering(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
+			return exitErr("failed to configure peering: %s", err)
+		}
+
+		if err = configureFc00(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
 			return exitErr("failed to configure fc00: %s", err)
 		}
 	}
@@ -129,24 +142,25 @@ func startCmdFunc(c *cli.Context) error {
 func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privkey rovy.PrivateKey, err error) {
 	switch keyfile {
 	case "@":
-		logger.Printf("starting with ephemeral private key and no configuration")
 		privkey, err = rovy.GeneratePrivateKey()
 		if err != nil {
 			return privkey, fmt.Errorf("error generating private key: %s", err)
 		}
 	case "-":
-		logger.Printf("starting with private key from stdin and no configuration")
 		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			return privkey, fmt.Errorf("error reading from stdin: %s", err)
 		}
-		_, b, err := multibase.Decode(line)
+		privkey, err = rovy.ParsePrivateKey(line)
 		if err != nil {
-			return privkey, fmt.Errorf("error decoding multibase private key: %s", err)
+			return privkey, fmt.Errorf("error decoding private key: %s", err)
 		}
-		privkey = rovy.NewPrivateKey(b)
 	default:
-		return privkey, fmt.Errorf("TODO: reading from keyfile not implemented yet, use `-K -` or `-K @`")
+		kf, err := rovycfg.LoadKeyfile(keyfile)
+		if err != nil {
+			return privkey, fmt.Errorf("keyfile: %s", err)
+		}
+		return kf.PrivateKey, nil
 	}
 
 	// Just for printf debugging:
@@ -155,7 +169,6 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 	// 	return privkey, fmt.Errorf("error encoding multibase private key: %s", err)
 	// }
 	// logger.Printf("key: %s", privstr)
-
 	return privkey, nil
 }
 
@@ -181,22 +194,31 @@ func checkSocket(socket string) error {
 	return fmt.Errorf("used by someone else")
 }
 
-func configureFc00(socket string, node *rovynode.Node, logger *log.Logger) error {
+// TODO: do the actual configuration using api/client module
+func configurePeering(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
+	return nil
+}
+
+// TODO: make use of actual config
+func configureFc00(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
+	if !cfg.Fc00.Enabled {
+		return nil
+	}
+
 	ip6a := node.PeerID().PublicKey().Addr()
-	tunif, err := rovyfc00.NetworkManagerTun(rovyfc00.TunIfname, ip6a, rovy.UpperMTU, logger)
+	tunif, err := rovyfc00.NetworkManagerTun(cfg.Fc00.Ifname, ip6a, rovy.UpperMTU, node.Log())
 	if err != nil {
 		return fmt.Errorf("networkmanager: %s", err)
 	}
 
 	tunfd := tunif.File()
 
-	api := rovyapic.NewClient(socket, logger)
 	err = (*rovyapic.Fc00Client)(api).Start(tunfd)
 	if err != nil {
 		return fmt.Errorf("api: %s", err)
 	}
 
-	logger.Printf("started fc00 endpoint %s using NetworkManager", ip6a)
+	node.Log().Printf("started fc00 endpoint %s using NetworkManager", ip6a)
 
 	return nil
 }

@@ -12,6 +12,7 @@ require (
 	github.com/multiformats/go-multibase v0.0.3
 	github.com/multiformats/go-multihash v0.0.16
 	github.com/multiformats/go-varint v0.0.6
+	github.com/pelletier/go-toml/v2 v2.0.1
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/vishvananda/netlink v1.1.1-0.20211101163509-b10eb8fe5cf6
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
@@ -21,6 +22,7 @@ require (
 	golang.zx2c4.com/go118/netip v0.0.0-20211105124833-002a02cb0e53
 	golang.zx2c4.com/wireguard v0.0.0-20211116201604-de7c702ace45
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220202223031-3b95c81cc178
+	gvisor.dev/gvisor v0.0.0-20211020211948-f76a604701b6
 )
 
 require (
@@ -39,7 +41,6 @@ require (
 	golang.org/x/tools v0.1.6-0.20210726203631-07bc1bf47fb2 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
-	gvisor.dev/gvisor v0.0.0-20211020211948-f76a604701b6 // indirect
 )
 
 //replace golang.zx2c4.com/wireguard => ../wireguard-go

@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/curve25519"
+
+	multibase "github.com/multiformats/go-multibase"
 )
 
 const (
@@ -44,6 +46,22 @@ func GeneratePrivateKey() (PrivateKey, error) {
 	}
 
 	return GeneratePrivateKey()
+}
+
+func ParsePrivateKey(str string) (PrivateKey, error) {
+	_, b, err := multibase.Decode(str)
+	if err != nil {
+		return PrivateKey{}, err
+	}
+	return NewPrivateKey(b), nil
+}
+
+func MustParsePrivateKey(str string) PrivateKey {
+	privkey, err := ParsePrivateKey(str)
+	if err != nil {
+		panic(err)
+	}
+	return privkey
 }
 
 func (privkey PrivateKey) clamp() {
