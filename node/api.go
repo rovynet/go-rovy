@@ -12,4 +12,8 @@ func (node *Node) Stop() error {
 	return nil
 }
 
+func (node *Node) Fc00() rovyapi.Fc00API {
+	return nil // not implemented here
+}
+
 var _ rovyapi.NodeAPI = &Node{}

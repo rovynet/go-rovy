@@ -213,7 +213,7 @@ func configureFc00(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Nod
 
 	tunfd := tunif.File()
 
-	err = (*rovyapic.Fc00Client)(api).Start(tunfd)
+	err = api.Fc00().Start(tunfd)
 	if err != nil {
 		return fmt.Errorf("api: %s", err)
 	}

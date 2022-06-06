@@ -58,4 +58,8 @@ func (c *Client) Stop() error {
 	return nil
 }
 
+func (c *Client) Fc00() rovyapi.Fc00API {
+	return (*Fc00Client)(c)
+}
+
 var _ rovyapi.NodeAPI = &Client{}
