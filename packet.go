@@ -32,8 +32,8 @@ type Queue interface {
 type Packet struct {
 	Buf      []byte
 	Length   int
-	TptSrc   UDPMultiaddr
-	TptDst   UDPMultiaddr
+	TptSrc   Multiaddr
+	TptDst   Multiaddr
 	LowerSrc PeerID
 	LowerDst PeerID
 	UpperSrc PeerID

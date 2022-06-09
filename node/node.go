@@ -5,7 +5,6 @@ import (
 	"log"
 	"sync"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	rovy "go.rovy.net"
 	forwarder "go.rovy.net/forwarder"
@@ -101,7 +100,7 @@ func (node *Node) Log() *log.Logger {
 	return node.logger
 }
 
-func (node *Node) Adresses() (addrs []multiaddr.Multiaddr) {
+func (node *Node) Adresses() (addrs []rovy.Multiaddr) {
 	for _, lis := range node.transports {
 		addrs = append(addrs, lis.LocalMultiaddr())
 	}
@@ -170,7 +169,7 @@ func (node *Node) connectedCallback(peerid rovy.PeerID, lower bool) {
 	}
 }
 
-func (node *Node) Listen(lisaddr rovy.UDPMultiaddr) error {
+func (node *Node) Listen(lisaddr rovy.Multiaddr) error {
 	tpt, err := NewTransport(lisaddr, node.logger)
 	if err != nil {
 		return err
@@ -204,7 +203,7 @@ func (node *Node) HandleLower(codec uint64, cb LowerHandler) {
 
 // TODO: timeouts
 // TODO: check if we already have a session
-func (node *Node) Connect(peerid rovy.PeerID, raddr rovy.UDPMultiaddr) error {
+func (node *Node) Connect(peerid rovy.PeerID, raddr rovy.Multiaddr) error {
 	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 
 	if !raddr.Empty() {

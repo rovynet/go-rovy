@@ -55,7 +55,7 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 
 func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
 	hellopkt := session.NewHelloPacket(pkt, rovy.UpperOffset, rovy.UpperPadding)
-	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.UpperDst, rovy.UDPMultiaddr{})
+	hellopkt, err := node.SessionManager().CreateHello(hellopkt, pkt.UpperDst, rovy.Multiaddr{})
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,6 @@ package examples_test
 
 import (
 	"bytes"
-	"net/netip"
 	"testing"
 	"time"
 
@@ -15,17 +14,17 @@ func TestRouted(t *testing.T) {
 	payload := []byte{0x42, 0x42, 0x42, 0x42}
 	payload2 := []byte{0x0, 0x0, 0x0, 0x0}
 
-	addrA := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12340"))
-	addrB := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12341"))
-	addrC := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12342"))
-	addrD := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12343"))
-	addrE := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12344"))
-	addrF := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12345"))
-	addrG := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12346"))
-	addrH := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12347"))
-	addrI := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12348"))
-	addrJ := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12349"))
-	addrK := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12350"))
+	addrA := rovy.MustParseMultiaddr("/ip6/::1/udp/12340")
+	addrB := rovy.MustParseMultiaddr("/ip6/::1/udp/12341")
+	addrC := rovy.MustParseMultiaddr("/ip6/::1/udp/12342")
+	addrD := rovy.MustParseMultiaddr("/ip6/::1/udp/12343")
+	addrE := rovy.MustParseMultiaddr("/ip6/::1/udp/12344")
+	addrF := rovy.MustParseMultiaddr("/ip6/::1/udp/12345")
+	addrG := rovy.MustParseMultiaddr("/ip6/::1/udp/12346")
+	addrH := rovy.MustParseMultiaddr("/ip6/::1/udp/12347")
+	addrI := rovy.MustParseMultiaddr("/ip6/::1/udp/12348")
+	addrJ := rovy.MustParseMultiaddr("/ip6/::1/udp/12349")
+	addrK := rovy.MustParseMultiaddr("/ip6/::1/udp/12350")
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {
@@ -241,7 +240,7 @@ func TestRouted(t *testing.T) {
 
 	// nodeA.Routing().PrintTable(nodeA.Log())
 
-	if err := nodeA.Connect(nodeK.PeerID(), rovy.UDPMultiaddr{}); err != nil {
+	if err := nodeA.Connect(nodeK.PeerID(), rovy.Multiaddr{}); err != nil {
 		nodeA.Log().Printf("failed to connect nodeA to nodeK: %s", err)
 		t.Error(err)
 		return

@@ -2,7 +2,6 @@ package examples_test
 
 import (
 	"bytes"
-	"net/netip"
 	"testing"
 	"time"
 
@@ -15,8 +14,8 @@ func TestEcho(t *testing.T) {
 	payload := []byte{0x42, 0x42, 0x42, 0x42}
 	payload2 := []byte{0x0, 0x0, 0x0, 0x0}
 
-	addrA := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12245"))
-	addrB := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12246"))
+	addrA := rovy.MustParseMultiaddr("/ip6/::1/udp/12245")
+	addrB := rovy.MustParseMultiaddr("/ip6/::1/udp/12246")
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {

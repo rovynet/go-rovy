@@ -107,7 +107,7 @@ func (sm *SessionManager) Remove(idx uint32) {
 	}
 }
 
-func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr rovy.UDPMultiaddr) (HelloPacket, error) {
+func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr rovy.Multiaddr) (HelloPacket, error) {
 	hs, err := ikpsk2.NewHandshakeInitiator(sm.privkey, peerid.PublicKey())
 	if err != nil {
 		return pkt, err
@@ -124,7 +124,7 @@ func (sm *SessionManager) CreateHello(pkt HelloPacket, peerid rovy.PeerID, raddr
 	return s.CreateHello(pkt)
 }
 
-func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr rovy.UDPMultiaddr) (ResponsePacket, error) {
+func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr rovy.Multiaddr) (ResponsePacket, error) {
 	var pkt2 ResponsePacket
 
 	hs, err := ikpsk2.NewHandshakeResponder(sm.privkey)
@@ -157,7 +157,7 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr rovy.UDPMultiaddr) 
 	return pkt2, nil
 }
 
-func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr rovy.UDPMultiaddr) (ResponsePacket, rovy.PeerID, error) {
+func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr rovy.Multiaddr) (ResponsePacket, rovy.PeerID, error) {
 	s, present := sm.Get(pkt.SenderIndex())
 	if !present {
 		return pkt, rovy.PeerID{}, UnknownIndexError
@@ -177,15 +177,15 @@ func (sm *SessionManager) HandleResponse(pkt ResponsePacket, raddr rovy.UDPMulti
 	return pkt, s.remotePeerID, nil
 }
 
-func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (rovy.UDPMultiaddr, error) {
+func (sm *SessionManager) CreateData(pkt DataPacket, peerid rovy.PeerID) (rovy.Multiaddr, error) {
 	s, idx, present := sm.Find(peerid)
 	if !present {
-		return rovy.UDPMultiaddr{}, fmt.Errorf("no session for %s", peerid)
+		return rovy.Multiaddr{}, fmt.Errorf("no session for %s", peerid)
 	}
 
 	hdr, ct, err := s.handshake.MakeMessage(pkt.Plaintext())
 	if err != nil {
-		return rovy.UDPMultiaddr{}, err
+		return rovy.Multiaddr{}, err
 	}
 
 	pkt.SetMsgType(DataMsgType)

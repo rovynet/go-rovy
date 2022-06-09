@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	cid "github.com/ipfs/go-cid"
-	multiaddr "github.com/multiformats/go-multiaddr"
 	multihash "github.com/multiformats/go-multihash"
 )
 
@@ -29,22 +28,11 @@ const (
 	//
 	// TODO: officially register the multicodec number
 	RovyKeyMulticodec = 0x73
-
-	// TODO: officially register the multicodec number
-	RovyMultiaddrCodec = 0x1a6
 )
 
 func init() {
 	cid.Codecs["rovy-key"] = RovyKeyMulticodec
 	cid.CodecToStr[RovyKeyMulticodec] = "rovy-key"
-
-	multiaddr.AddProtocol(multiaddr.Protocol{
-		Name:       "rovy",
-		Code:       RovyMultiaddrCodec,
-		VCode:      multiaddr.CodeToVarint(RovyMultiaddrCodec),
-		Size:       multiaddr.LengthPrefixedVarSize,
-		Transcoder: multiaddr.NewTranscoderFromFunctions(maddrStr2b, maddrB2Str, maddrValid),
-	})
 }
 
 var emptyPeerID = PeerID{}
@@ -145,36 +133,6 @@ func bePutUint64(b []byte, v uint64) {
 	b[5] = byte(v >> 16)
 	b[6] = byte(v >> 8)
 	b[7] = byte(v)
-}
-
-func maddrStr2b(s string) ([]byte, error) {
-	c, err := cid.Decode(s)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse rovy addr: '%s' %s", s, err)
-	}
-
-	if ty := c.Type(); ty == RovyKeyMulticodec {
-		return c.Bytes(), nil
-	} else {
-		return nil, fmt.Errorf("failed to parse rovy addr: '%s' has invalid codec %d", s, ty)
-	}
-}
-
-func maddrB2Str(b []byte) (string, error) {
-	c, err := cid.Cast(b)
-	if err != nil {
-		return "", err
-	}
-	pid, err := PeerIDFromCid(c)
-	if err != nil {
-		return "", err
-	}
-	return pid.String(), nil
-}
-
-func maddrValid(b []byte) error {
-	_, err := cid.Cast(b)
-	return err
 }
 
 func (pid PeerID) MarshalJSON() ([]byte, error) {

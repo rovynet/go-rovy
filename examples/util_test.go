@@ -8,7 +8,7 @@ import (
 	node "go.rovy.net/node"
 )
 
-func newNode(name string, lisaddr rovy.UDPMultiaddr) (*node.Node, error) {
+func newNode(name string, lisaddr rovy.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.GeneratePrivateKey()

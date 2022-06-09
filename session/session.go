@@ -25,7 +25,7 @@ type Session struct {
 	stage        int
 	waiters      []chan error
 	handshake    *ikpsk2.Handshake
-	remoteAddr   rovy.UDPMultiaddr
+	remoteAddr   rovy.Multiaddr
 	remotePeerID rovy.PeerID
 }
 
@@ -50,11 +50,11 @@ func (s *Session) RemotePeerID() rovy.PeerID {
 	return s.remotePeerID
 }
 
-func (s *Session) RemoteAddr() rovy.UDPMultiaddr {
+func (s *Session) RemoteAddr() rovy.Multiaddr {
 	return s.remoteAddr
 }
 
-func (s *Session) SetRemoteAddr(raddr rovy.UDPMultiaddr) {
+func (s *Session) SetRemoteAddr(raddr rovy.Multiaddr) {
 	s.remoteAddr = raddr
 }
 

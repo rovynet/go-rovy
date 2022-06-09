@@ -11,133 +11,70 @@ import (
 	multiaddr "github.com/multiformats/go-multiaddr"
 )
 
-type UDPMultiaddr struct {
-	ip netip.AddrPort
-}
+const (
+	// TODO: officially register the multicodec numbers
+	RovyMultiaddrCodec = 0x1a6
+	MultiaddrFmtCodec  = 0x34
+)
 
-var emptyUDPMultiaddr = UDPMultiaddr{}
-
-func NewUDPMultiaddr(ip netip.AddrPort) UDPMultiaddr {
-	return UDPMultiaddr{ip}
-}
-
-func (ma UDPMultiaddr) AddrPort() netip.AddrPort {
-	return ma.ip
-}
-
-func (ma UDPMultiaddr) Empty() bool {
-	return ma == emptyUDPMultiaddr
-}
-
-func (ma UDPMultiaddr) Equal(other multiaddr.Multiaddr) bool {
-	return bytes.Equal(ma.Bytes(), other.Bytes())
-}
-
-func (ma UDPMultiaddr) Bytes() []byte {
-	out := make([]byte, 21)
-	i := 16
-	if ma.ip.Addr().Is4() {
-		i = 4
-		out[0] = 0x4 // varint multicodec for /ip4, code=4
-		copy(out[1:5], ma.ip.Addr().AsSlice())
-	} else {
-		out[0] = 0x29 // varint multicodec for /ip6, code=41
-		copy(out[1:17], ma.ip.Addr().AsSlice())
+var (
+	udp4protocols = []multiaddr.Protocol{
+		multiaddr.ProtocolWithCode(multiaddr.P_IP4),
+		multiaddr.ProtocolWithCode(multiaddr.P_UDP),
 	}
-	out[i+1] = 0x91 // varint multicodec for /udp, code=273
-	out[i+2] = 0x02
-	out[i+3] = byte(ma.ip.Port() >> 8)
-	out[i+4] = byte(ma.ip.Port())
-	return out
-}
-
-func (ma UDPMultiaddr) String() string {
-	port := strconv.FormatUint(uint64(ma.ip.Port()), 10)
-	if ma.ip.Addr().Is4() {
-		return "/ip4/" + ma.ip.Addr().String() + "/udp/" + port
-	} else {
-		return "/ip6/" + ma.ip.Addr().String() + "/udp/" + port
+	udp6protocols = []multiaddr.Protocol{
+		multiaddr.ProtocolWithCode(multiaddr.P_IP6),
+		multiaddr.ProtocolWithCode(multiaddr.P_UDP),
 	}
-}
-
-var ip4protocols = []multiaddr.Protocol{
-	multiaddr.ProtocolWithCode(multiaddr.P_IP4),
-	multiaddr.ProtocolWithCode(multiaddr.P_UDP),
-}
-var ip6protocols = []multiaddr.Protocol{
-	multiaddr.ProtocolWithCode(multiaddr.P_IP6),
-	multiaddr.ProtocolWithCode(multiaddr.P_UDP),
-}
-var rovyProtocol = multiaddr.ProtocolWithCode(RovyMultiaddrCodec)
-
-func (ma UDPMultiaddr) Protocols() []multiaddr.Protocol {
-	if ma.ip.Addr().Is4() {
-		return ip4protocols
-	} else {
-		return ip6protocols
+	rovyProtocol = multiaddr.Protocol{
+		Name:       "rovy",
+		Code:       RovyMultiaddrCodec,
+		VCode:      multiaddr.CodeToVarint(RovyMultiaddrCodec),
+		Size:       multiaddr.LengthPrefixedVarSize,
+		Transcoder: multiaddr.NewTranscoderFromFunctions(maddrStr2b, maddrB2Str, maddrValid),
 	}
-}
-
-func (ma UDPMultiaddr) ValueForProtocol(code int) (string, error) {
-	if code == multiaddr.P_IP4 && ma.ip.Addr().Is4() {
-		return ma.ip.Addr().String(), nil
-	} else if code == multiaddr.P_IP6 && ma.ip.Addr().Is6() {
-		return ma.ip.Addr().String(), nil
-	} else if code == multiaddr.P_UDP {
-		return strconv.FormatUint(uint64(ma.ip.Port()), 10), nil
-	}
-	return "", fmt.Errorf("can't get address value for protocol 0x%x", code)
-}
-
-func (ma UDPMultiaddr) Encapsulate(inner multiaddr.Multiaddr) multiaddr.Multiaddr {
-	panic("not yet implemented")
-	return nil
-}
-
-func (ma UDPMultiaddr) Decapsulate(outer multiaddr.Multiaddr) multiaddr.Multiaddr {
-	panic("not yet implemented")
-	return nil
-}
-
-func (ma UDPMultiaddr) MarshalBinary() ([]byte, error) {
-	panic("not yet implemented")
-	return nil, nil
-}
-
-func (ma UDPMultiaddr) UnmarshalBinary(data []byte) error {
-	panic("not yet implemented")
-	return nil
-}
-
-func (ma UDPMultiaddr) MarshalText() ([]byte, error) {
-	panic("not yet implemented")
-	return nil, nil
-}
-
-func (ma UDPMultiaddr) UnmarshalText(data []byte) error {
-	panic("not yet implemented")
-	return nil
-}
-
-func (ma UDPMultiaddr) MarshalJSON() ([]byte, error) {
-	panic("not yet implemented")
-	return nil, nil
-}
-
-func (ma UDPMultiaddr) UnmarshalJSON(data []byte) error {
-	panic("not yet implemented")
-	return nil
-}
+)
 
 func init() {
+	multiaddr.AddProtocol(rovyProtocol)
 	multiaddr.AddProtocol(multiaddr.Protocol{
 		Name:       "maddrfmt",
-		Code:       0x34,
-		VCode:      multiaddr.CodeToVarint(0x34),
+		Code:       MultiaddrFmtCodec,
+		VCode:      multiaddr.CodeToVarint(MultiaddrFmtCodec),
 		Size:       multiaddr.LengthPrefixedVarSize,
 		Path:       true,
 		Transcoder: multiaddr.NewTranscoderFromFunctions(maddrfmtStr2b, maddrfmtB2Str, nil),
 	})
+}
+
+func maddrStr2b(s string) ([]byte, error) {
+	c, err := cid.Decode(s)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse rovy addr: '%s' %s", s, err)
+	}
+
+	if ty := c.Type(); ty == RovyKeyMulticodec {
+		return c.Bytes(), nil
+	} else {
+		return nil, fmt.Errorf("failed to parse rovy addr: '%s' has invalid codec %d", s, ty)
+	}
+}
+
+func maddrB2Str(b []byte) (string, error) {
+	c, err := cid.Cast(b)
+	if err != nil {
+		return "", err
+	}
+	pid, err := PeerIDFromCid(c)
+	if err != nil {
+		return "", err
+	}
+	return pid.String(), nil
+}
+
+func maddrValid(b []byte) error {
+	_, err := cid.Cast(b)
+	return err
 }
 
 func maddrfmtStr2b(s string) ([]byte, error) {
@@ -150,8 +87,8 @@ func maddrfmtB2Str(b []byte) (string, error) {
 
 type Multiaddr struct {
 	IP     netip.AddrPort
-	More   multiaddr.Multiaddr
 	PeerID PeerID
+	More   multiaddr.Multiaddr
 }
 
 func MustParseMultiaddr(addr string) Multiaddr {
@@ -275,9 +212,9 @@ func (ma Multiaddr) String() string {
 func (ma Multiaddr) Protocols() []multiaddr.Protocol {
 	var protos []multiaddr.Protocol
 	if ma.IP.Addr().Is4() {
-		protos = ip4protocols
+		protos = udp4protocols
 	} else {
-		protos = ip6protocols
+		protos = udp6protocols
 	}
 	if ma.More != nil {
 		protos = append(protos, ma.More.Protocols()...)

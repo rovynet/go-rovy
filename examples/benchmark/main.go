@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"log"
-	"net/netip"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -17,7 +16,7 @@ import (
 
 const BenchmarkCodec = 0x42002
 
-func newNode(name string, lisaddr rovy.UDPMultiaddr) (*node.Node, error) {
+func newNode(name string, lisaddr rovy.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	privkey, err := rovy.GeneratePrivateKey()
@@ -51,8 +50,8 @@ func run() error {
 		defer pprof.StopCPUProfile()
 	}
 
-	addrA := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12345"))
-	addrB := rovy.NewUDPMultiaddr(netip.MustParseAddrPort("[::1]:12346"))
+	addrA := rovy.MustParseMultiaddr("/ip6/::1/udp/12345")
+	addrB := rovy.MustParseMultiaddr("/ip6/::1/udp/12346")
 
 	nodeA, err := newNode("nodeA", addrA)
 	if err != nil {

@@ -67,7 +67,7 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 	case session.HelloMsgType:
 		hellopkt := session.NewHelloPacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
 
-		resppkt, err := node.SessionManager().HandleHello(hellopkt, rovy.UDPMultiaddr{})
+		resppkt, err := node.SessionManager().HandleHello(hellopkt, rovy.Multiaddr{})
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func (node *Node) doUpperHelloRecv(pkt rovy.Packet) error {
 		return nil
 	case session.ResponseMsgType:
 		resppkt := session.NewResponsePacket(upkt.Packet, rovy.UpperOffset, rovy.UpperPadding)
-		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, rovy.UDPMultiaddr{})
+		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, rovy.Multiaddr{})
 		if err != nil {
 			return err
 		}
