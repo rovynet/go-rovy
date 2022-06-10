@@ -2,6 +2,7 @@ package rovy
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"strconv"
@@ -297,11 +298,20 @@ func (ma *Multiaddr) UnmarshalText(data []byte) error {
 }
 
 func (ma *Multiaddr) MarshalJSON() ([]byte, error) {
-	panic("not yet implemented")
-	return nil, nil
+	return json.Marshal(ma.String())
 }
 
 func (ma *Multiaddr) UnmarshalJSON(data []byte) error {
-	panic("not yet implemented")
-	return nil
+	if len(data) == 0 {
+		*ma = Multiaddr{}
+		return nil
+	}
+
+	var v string
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	var err error
+	*ma, err = ParseMultiaddr(v)
+	return err
 }
