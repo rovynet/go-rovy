@@ -150,10 +150,10 @@ func getNMConnSettings(ifname string, ip6 netip.Addr, mtu int) nmConnectionSetti
 		"ipv6": map[string]dbus.Variant{
 			"method": dbus.MakeVariant("manual"),
 			"address-data": dbus.MakeVariant([]map[string]interface{}{
-				map[string]interface{}{"address": ip6.String(), "prefix": uint32(128)},
+				{"address": ip6.String(), "prefix": uint32(128)},
 			}),
 			"route-data": dbus.MakeVariant([]map[string]interface{}{
-				map[string]interface{}{"dest": "fc00::", "prefix": uint32(8)},
+				{"dest": "fc00::", "prefix": uint32(8)},
 			}),
 			"dns":        dbus.MakeVariant([][]byte{dns6[:]}),
 			"dns-search": dbus.MakeVariant([]string{"~rovy."}),
