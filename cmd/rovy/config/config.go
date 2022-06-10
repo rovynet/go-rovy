@@ -84,9 +84,9 @@ func DefaultConfig() *Config {
 	cfg := &Config{
 		Peer: Peer{
 			Dialers: []rovy.Multiaddr{
-				rovy.MustParseMultiaddr("/maddrfmt/ip6/udp"),
-				rovy.MustParseMultiaddr("/maddrfmt/ip4/udp"),
-				// rovy.MustParseMultiaddr("/maddrfmt/ethif"),
+				rovy.MustParseMultiaddr("/proto/ip6/udp"),
+				rovy.MustParseMultiaddr("/proto/ip4/udp"),
+				// rovy.MustParseMultiaddr("/proto/ethif"),
 			},
 			Listeners: []rovy.Multiaddr{
 				rovy.MustParseMultiaddr("/ip6/::/udp/1312"),

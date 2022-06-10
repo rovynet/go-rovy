@@ -13,8 +13,8 @@ import (
 
 const (
 	// TODO: officially register the multicodec numbers
-	RovyMultiaddrCodec = 0x1a6
-	MultiaddrFmtCodec  = 0x34
+	RovyMultiaddrCodec  = 0x1a6
+	ProtoMultiaddrCodec = 0x34
 )
 
 var (
@@ -33,18 +33,19 @@ var (
 		Size:       multiaddr.LengthPrefixedVarSize,
 		Transcoder: multiaddr.NewTranscoderFromFunctions(maddrStr2b, maddrB2Str, maddrValid),
 	}
+	protoProtocol = multiaddr.Protocol{
+		Name:       "proto",
+		Code:       ProtoMultiaddrCodec,
+		VCode:      multiaddr.CodeToVarint(ProtoMultiaddrCodec),
+		Size:       multiaddr.LengthPrefixedVarSize,
+		Path:       true,
+		Transcoder: multiaddr.NewTranscoderFromFunctions(protoMaddrStr2b, protoMaddrB2Str, nil),
+	}
 )
 
 func init() {
 	multiaddr.AddProtocol(rovyProtocol)
-	multiaddr.AddProtocol(multiaddr.Protocol{
-		Name:       "maddrfmt",
-		Code:       MultiaddrFmtCodec,
-		VCode:      multiaddr.CodeToVarint(MultiaddrFmtCodec),
-		Size:       multiaddr.LengthPrefixedVarSize,
-		Path:       true,
-		Transcoder: multiaddr.NewTranscoderFromFunctions(maddrfmtStr2b, maddrfmtB2Str, nil),
-	})
+	multiaddr.AddProtocol(protoProtocol)
 }
 
 func maddrStr2b(s string) ([]byte, error) {
@@ -77,11 +78,11 @@ func maddrValid(b []byte) error {
 	return err
 }
 
-func maddrfmtStr2b(s string) ([]byte, error) {
+func protoMaddrStr2b(s string) ([]byte, error) {
 	return []byte(s), nil
 }
 
-func maddrfmtB2Str(b []byte) (string, error) {
+func protoMaddrB2Str(b []byte) (string, error) {
 	return string(b), nil
 }
 
