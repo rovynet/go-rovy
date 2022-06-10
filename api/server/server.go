@@ -26,6 +26,13 @@ func (s *Server) Serve(lis net.Listener) {
 	router.HandleFunc("/v0/info", s.serveInfo)
 	router.HandleFunc("/v0/stop", s.serveStop)
 	router.HandleFunc("/v0/fc00/start", s.serveFc00Start) // not part of THE api
+	router.HandleFunc("/v0/peer/status", s.servePeerStatus)
+	router.HandleFunc("/v0/peer/enable", s.servePeerEnable)
+	// router.HandleFunc("/v0/peer/disable", s.servePeerDisable)
+	router.HandleFunc("/v0/peer/listen", s.servePeerListen)
+	// router.HandleFunc("/v0/peer/close", s.servePeerClose)
+	router.HandleFunc("/v0/peer/connect", s.servePeerConnect)
+	// router.HandleFunc("/v0/peer/disconnect", s.servePeerDisconnect)
 
 	srv := &http.Server{Handler: router}
 	if err := srv.Serve(lis); err != nil {

@@ -16,4 +16,8 @@ func (node *Node) Fc00() rovyapi.Fc00API {
 	return nil // not implemented here
 }
 
+func (node *Node) Peer() rovyapi.PeerAPI {
+	return (*PeerAPI)(node)
+}
+
 var _ rovyapi.NodeAPI = &Node{}

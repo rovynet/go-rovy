@@ -4,10 +4,10 @@
 - [x] load and use keyfile
 - [x] /maddrfmt support
 - [x] start command doing configuration
+- [x] command scaffolding for peer commands
+- [ ] go vet, go fmt -w -s
+- [ ] dialers, listeners, connect
 - [ ] init command
-- [ ] client/peer functions
-- [ ] server/peer functions
-- [ ] node/peer functions
 
 
 # Tasks

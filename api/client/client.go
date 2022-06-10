@@ -62,4 +62,8 @@ func (c *Client) Fc00() rovyapi.Fc00API {
 	return (*Fc00Client)(c)
 }
 
+func (c *Client) Peer() rovyapi.PeerAPI {
+	return (*PeerClient)(c)
+}
+
 var _ rovyapi.NodeAPI = &Client{}

@@ -23,6 +23,7 @@ var app = &cli.App{
 		startCmd,
 		infoCmd,
 		stopCmd,
+		peerCmd,
 	},
 }
 
