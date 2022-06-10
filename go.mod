@@ -16,11 +16,11 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/vishvananda/netlink v1.1.1-0.20211101163509-b10eb8fe5cf6
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
-	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
-	golang.org/x/net v0.0.0-20211205041911-012df41ee64c
-	golang.org/x/sys v0.0.0-20211205182925-97ca703d548d
+	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/net v0.0.0-20220607020251-c690dde0001d
+	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68
 	golang.zx2c4.com/go118/netip v0.0.0-20211105124833-002a02cb0e53
-	golang.zx2c4.com/wireguard v0.0.0-20211116201604-de7c702ace45
+	golang.zx2c4.com/wireguard v0.0.0-20220601130007-6a08d81f6bc4
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220202223031-3b95c81cc178
 	gvisor.dev/gvisor v0.0.0-20211020211948-f76a604701b6
 )
