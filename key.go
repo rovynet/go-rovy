@@ -3,7 +3,7 @@ package rovy
 import (
 	"bytes"
 	"crypto/rand"
-	"net"
+	"net/netip"
 
 	"golang.org/x/crypto/blake2s"
 	"golang.org/x/crypto/curve25519"
@@ -28,6 +28,14 @@ func NewPrivateKey(b []byte) PrivateKey {
 	return pk
 }
 
+func MustGeneratePrivateKey() PrivateKey {
+	privkey, err := GeneratePrivateKey()
+	if err != nil {
+		panic(err)
+	}
+	return privkey
+}
+
 func GeneratePrivateKey() (PrivateKey, error) {
 	var privkey PrivateKey
 	_, err := rand.Read(privkey.bytes[:])
@@ -37,7 +45,7 @@ func GeneratePrivateKey() (PrivateKey, error) {
 
 	privkey.clamp()
 
-	ipv6 := privkey.PublicKey().Addr()
+	ipv6 := privkey.PublicKey().IPAddr().As16()
 	if err != nil {
 		return PrivateKey{}, err
 	}
@@ -103,8 +111,9 @@ func (pubkey PublicKey) Bytes() []byte {
 	return pubkey.bytes[:]
 }
 
-func (pubkey PublicKey) Addr() net.IP {
-	hash := blake2s.Sum256(pubkey.bytes[:])
-	h := blake2s.Sum256(hash[:])
-	return net.IP(h[16:32])
+func (pubkey PublicKey) IPAddr() netip.Addr {
+	h1 := blake2s.Sum256(pubkey.bytes[:])
+	h2 := blake2s.Sum256(h1[:])
+	ip, _ := netip.AddrFromSlice(h2[16:32])
+	return ip
 }

@@ -86,7 +86,8 @@ func maddrfmtB2Str(b []byte) (string, error) {
 }
 
 type Multiaddr struct {
-	IP     netip.AddrPort
+	IP     netip.Addr
+	Port   uint16
 	PeerID PeerID
 	More   multiaddr.Multiaddr
 }
@@ -103,15 +104,19 @@ func ParseMultiaddr(addr string) (ma Multiaddr, err error) {
 	a := strings.Split(addr, "/")
 	a = a[1:]
 	if len(a) >= 4 && a[0] == "ip6" && a[2] == "udp" {
-		if ma.IP, err = netip.ParseAddrPort("[" + a[1] + "]:" + a[3]); err != nil {
+		ip, err := netip.ParseAddrPort("[" + a[1] + "]:" + a[3])
+		if err != nil {
 			return ma, err
 		}
+		ma.IP, ma.Port = ip.Addr(), ip.Port()
 		a = a[4:]
 	}
 	if len(a) >= 4 && a[0] == "ip4" && a[2] == "udp" {
-		if ma.IP, err = netip.ParseAddrPort(a[1] + ":" + a[3]); err != nil {
+		ip, err := netip.ParseAddrPort(a[1] + ":" + a[3])
+		if err != nil {
 			return ma, err
 		}
+		ma.IP, ma.Port = ip.Addr(), ip.Port()
 		a = a[4:]
 	}
 	if len(a) >= 2 && a[0] == "rovy" {
@@ -134,6 +139,14 @@ func ParseMultiaddr(addr string) (ma Multiaddr, err error) {
 	return ma, nil
 }
 
+func FromAddrPort(ip netip.AddrPort) Multiaddr {
+	return Multiaddr{IP: ip.Addr(), Port: ip.Port()}
+}
+
+func (ma Multiaddr) AddrPort() netip.AddrPort {
+	return netip.AddrPortFrom(ma.IP, ma.Port)
+}
+
 func (ma Multiaddr) Empty() bool {
 	return ma == Multiaddr{}
 }
@@ -144,10 +157,12 @@ func (ma Multiaddr) Equal(other multiaddr.Multiaddr) bool {
 
 func (ma Multiaddr) Bytes() []byte {
 	l := 0
-	if ma.IP.Addr().Is4() {
-		l += 9
-	} else {
-		l += 21
+	if ma.IP.IsValid() {
+		if ma.IP.Is4() {
+			l += 9
+		} else {
+			l += 21
+		}
 	}
 	if ma.More != nil {
 		mb := ma.More.Bytes()
@@ -160,20 +175,22 @@ func (ma Multiaddr) Bytes() []byte {
 	buf := make([]byte, l)
 	n := 0
 
-	if ma.IP.Addr().Is4() {
-		buf[0] = 0x4 // varint multicodec for /ip4, code=4
-		copy(buf[1:5], ma.IP.Addr().AsSlice())
-		n += 5
-	} else {
-		buf[0] = 0x29 // varint multicodec for /ip6, code=41
-		copy(buf[1:17], ma.IP.Addr().AsSlice())
-		n += 17
+	if ma.IP.IsValid() {
+		if ma.IP.Is4() {
+			buf[0] = 0x4 // varint multicodec for /ip4, code=4
+			copy(buf[1:5], ma.IP.AsSlice())
+			n += 5
+		} else {
+			buf[0] = 0x29 // varint multicodec for /ip6, code=41
+			copy(buf[1:17], ma.IP.AsSlice())
+			n += 17
+		}
+		buf[n+0] = 0x91 // varint multicodec for /udp, code=273
+		buf[n+1] = 0x02
+		buf[n+2] = byte(ma.Port >> 8)
+		buf[n+3] = byte(ma.Port)
+		n += 4
 	}
-	buf[n+0] = 0x91 // varint multicodec for /udp, code=273
-	buf[n+1] = 0x02
-	buf[n+2] = byte(ma.IP.Port() >> 8)
-	buf[n+3] = byte(ma.IP.Port())
-	n += 4
 
 	if ma.More != nil {
 		mb := ma.More.Bytes()
@@ -193,13 +210,16 @@ func (ma Multiaddr) Bytes() []byte {
 
 func (ma Multiaddr) String() string {
 	var out string
-	if ma.IP.Addr().Is4() {
-		out += "/ip4/"
-	} else {
-		out += "/ip6/"
+	if ma.IP.IsValid() {
+		if ma.IP.Is4() {
+			out += "/ip4/" + ma.IP.String()
+		} else {
+			out += "/ip6/" + ma.IP.String()
+		}
+		if ma.Port > 0 {
+			out += "/udp/" + strconv.FormatUint(uint64(ma.Port), 10)
+		}
 	}
-	port := strconv.FormatUint(uint64(ma.IP.Port()), 10)
-	out += ma.IP.Addr().String() + "/udp/" + port
 	if ma.More != nil {
 		out += ma.More.String()
 	}
@@ -211,10 +231,12 @@ func (ma Multiaddr) String() string {
 
 func (ma Multiaddr) Protocols() []multiaddr.Protocol {
 	var protos []multiaddr.Protocol
-	if ma.IP.Addr().Is4() {
-		protos = udp4protocols
-	} else {
-		protos = udp6protocols
+	if ma.IP.IsValid() {
+		if ma.IP.Is4() {
+			protos = udp4protocols
+		} else {
+			protos = udp6protocols
+		}
 	}
 	if ma.More != nil {
 		protos = append(protos, ma.More.Protocols()...)
@@ -226,12 +248,12 @@ func (ma Multiaddr) Protocols() []multiaddr.Protocol {
 }
 
 func (ma Multiaddr) ValueForProtocol(code int) (string, error) {
-	if code == multiaddr.P_IP4 && ma.IP.Addr().Is4() {
-		return ma.IP.Addr().String(), nil
-	} else if code == multiaddr.P_IP6 && ma.IP.Addr().Is6() {
-		return ma.IP.Addr().String(), nil
-	} else if code == multiaddr.P_UDP {
-		return strconv.FormatUint(uint64(ma.IP.Port()), 10), nil
+	if code == multiaddr.P_IP4 && ma.IP.Is4() {
+		return ma.IP.String(), nil
+	} else if code == multiaddr.P_IP6 && ma.IP.Is6() {
+		return ma.IP.String(), nil
+	} else if code == multiaddr.P_UDP && ma.IP.IsValid() {
+		return strconv.FormatUint(uint64(ma.Port), 10), nil
 	}
 	if code == RovyMultiaddrCodec && ma.PeerID != emptyPeerID {
 		return ma.PeerID.String(), nil

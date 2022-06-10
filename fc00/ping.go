@@ -55,12 +55,12 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 
 		buf := ppkt.Payload()
 
-		dst := fc.node.PeerID().PublicKey().Addr()
+		dst := fc.ip.AsSlice()
 		if 0 != bytes.Compare(buf[8:24], dst) {
 			return fmt.Errorf("fc00: recv: dst address mismatch -- expected %#v -- got %#v", dst, buf[8:24])
 		}
 
-		src2 := ppkt.Sender().Addr()
+		src2 := ppkt.Sender().IPAddr().AsSlice()
 		dst2 := dst
 
 		body := &icmp.TimeExceeded{Data: buf[:]}

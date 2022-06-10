@@ -54,8 +54,7 @@ func LoadKeyfile(path string) (*Keyfile, error) {
 	if kf.PeerID != rovy.NewPeerID(kf.PrivateKey.PublicKey()) {
 		return nil, fmt.Errorf("wrong PeerID in keyfile: %s", kf.PeerID)
 	}
-	ip, _ := netip.AddrFromSlice([]byte(kf.PrivateKey.PublicKey().Addr()))
-	if kf.IPAddr != ip {
+	if kf.IPAddr != kf.PrivateKey.PublicKey().IPAddr() {
 		return nil, fmt.Errorf("wrong IPAddr in keyfile: %s", kf.IPAddr)
 	}
 

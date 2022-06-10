@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"net/netip"
 
 	"golang.org/x/sys/unix"
@@ -32,7 +31,7 @@ const cloneDevicePath = "/dev/net/tun"
 const ifReqSize = unix.IFNAMSIZ + 64
 const nmdest = "org.freedesktop.NetworkManager"
 
-func NetworkManagerTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (tun.Device, error) {
+func NetworkManagerTun(ifname string, ip6 netip.Addr, mtu int, logger *log.Logger) (tun.Device, error) {
 	devPresent, err := checkTunExists(ifname)
 	if err != nil {
 		return nil, fmt.Errorf("checkTunExists: %s", err)
@@ -98,7 +97,7 @@ func NetworkManagerTun(ifname string, ip6 net.IP, mtu int, logger *log.Logger) (
 }
 
 // returns path to /org/freedesktop/NetworkManager/Settings/%d
-func createNMConn(bus *dbus.Conn, ifname string, ip6 net.IP, mtu int) (dbus.ObjectPath, error) {
+func createNMConn(bus *dbus.Conn, ifname string, ip6 netip.Addr, mtu int) (dbus.ObjectPath, error) {
 	nm := bus.Object(
 		nmdest,
 		dbus.ObjectPath("/org/freedesktop/NetworkManager/Settings"),
@@ -134,7 +133,7 @@ func getNMDevice(bus *dbus.Conn, ifname string) (dbus.ObjectPath, error) {
 
 type nmConnectionSettings map[string]map[string]dbus.Variant
 
-func getNMConnSettings(ifname string, ip6 net.IP, mtu int) nmConnectionSettings {
+func getNMConnSettings(ifname string, ip6 netip.Addr, mtu int) nmConnectionSettings {
 	dns6 := netip.MustParseAddr("fc00::1").As16()
 	return nmConnectionSettings{
 		"connection": map[string]dbus.Variant{

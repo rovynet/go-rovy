@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"net"
 	"net/netip"
 
 	dns "github.com/miekg/dns"
@@ -23,6 +22,12 @@ const PingMulticodec = 0x42005
 
 const TunIfname = "rovy0"
 
+var (
+	linklocalPrefix = netip.MustParsePrefix("fe80::/64")
+	multicastPrefix = netip.MustParsePrefix("ff00::/8")
+	fc001Addr       = netip.MustParseAddr("fc00::1")
+)
+
 type nodeIface interface {
 	PeerID() rovy.PeerID
 	Handle(uint64, node.UpperHandler)
@@ -35,14 +40,15 @@ type nodeIface interface {
 
 type routingIface interface {
 	GetRoute(rovy.PeerID) (rovy.Route, error)
-	LookupIPv6(net.IP) (rovy.PeerID, error)
+	LookupIPv6(netip.Addr) (rovy.PeerID, error)
 }
 
 type Fc00 struct {
 	node     nodeIface
-	device   Device
 	routing  routingIface
 	log      *log.Logger
+	ip       netip.Addr
+	device   Device
 	fc001net rovygvtun.GvisorNet
 	fc001tun Device
 	fc001dns *dns.Server
@@ -50,7 +56,7 @@ type Fc00 struct {
 
 func NewFc00(node nodeIface, dev Device) *Fc00 {
 	fc := &Fc00{
-		node: node, log: node.Log(), device: dev, routing: node.Routing(),
+		node: node, ip: node.PeerID().PublicKey().IPAddr(), log: node.Log(), device: dev, routing: node.Routing(),
 	}
 	return fc
 }
@@ -75,7 +81,7 @@ func (fc *Fc00) Start(mtu int) error {
 }
 
 func (fc *Fc00) initFc001(mtu int) error {
-	ftun, fnet, err := rovygvtun.NewGvisorTUN(netip.MustParseAddr("fc00::1"), mtu, fc.log)
+	ftun, fnet, err := rovygvtun.NewGvisorTUN(fc001Addr, mtu, fc.log)
 	if err != nil {
 		return err
 	}
@@ -143,21 +149,19 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 
 	nexthdr := buf[6]
 	hops := int(buf[7])
-	src := net.IP(buf[8:24])
-	dst := net.IP(buf[24:40])
+	src, _ := netip.AddrFromSlice(buf[8:24])
+	dst, _ := netip.AddrFromSlice(buf[24:40])
 
-	// no link-local or multicast stuff yet
-	if src[0] == 0xfe || dst[0] == 0xff {
-		// fc.log.Printf("tun: dropping packet %s -> %s", src, dst)
+	if linklocalPrefix.Contains(src) || multicastPrefix.Contains(dst) {
 		return nil
 	}
 
-	if !src.Equal(fc.node.PeerID().PublicKey().Addr()) {
+	if src != fc.ip {
 		fc.log.Printf("tun: dropping packet with illegal src address %s -> %s", src, dst)
 		return nil
 	}
 
-	if dst.Equal(net.ParseIP("fc00::1")) {
+	if dst == fc001Addr {
 		// fc.log.Printf("tun: packet for fc00::1")
 		_, err := fc.fc001tun.Write(buf, 0)
 		return err
@@ -194,7 +198,7 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		ppkt := NewPingPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
 		ppkt.LowerSrc = fc.node.PeerID()
 		ppkt.SetRoute(rt)
-		ppkt.SetSender(fc.node.PeerID().PublicKey())
+		ppkt.SetSender(ppkt.LowerSrc.PublicKey())
 		ppkt.SetIsReply(false)
 		ppkt = ppkt.SetPayload(buf)
 
@@ -228,10 +232,10 @@ func (fc *Fc00) handleFc00Packet(src rovy.PeerID, payload []byte) error {
 	if payload[0]>>4 != 0x6 {
 		return fmt.Errorf("fc00: recv: not an ipv6 packet")
 	}
-	if 0 != bytes.Compare(payload[8:24], src.PublicKey().Addr()) {
+	if 0 != bytes.Compare(payload[8:24], src.PublicKey().IPAddr().AsSlice()) {
 		return fmt.Errorf("fc00: recv: src address mismatch")
 	}
-	if 0 != bytes.Compare(payload[24:40], fc.node.PeerID().PublicKey().Addr()) {
+	if 0 != bytes.Compare(payload[24:40], fc.ip.AsSlice()) {
 		return fmt.Errorf("fc00: recv: dst address mismatch")
 	}
 

@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/netip"
 	"os"
 	"os/signal"
 	"runtime"
@@ -21,19 +20,15 @@ import (
 func newNode(name string, lisaddr rovy.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
-	privkey, err := rovy.GeneratePrivateKey()
-	if err != nil {
+	node := node.NewNode(rovy.MustGeneratePrivateKey(), logger)
+
+	if err := node.Listen(lisaddr); err != nil {
 		return nil, err
 	}
 
-	node := node.NewNode(privkey, logger)
-
-	if err = node.Listen(lisaddr); err != nil {
-		return nil, err
-	}
-
-	logger.Printf("%s/rovy/%s", lisaddr, node.PeerID())
-	logger.Printf("/ip6/%s", node.PeerID().PublicKey().Addr())
+	lisaddr.PeerID = node.PeerID()
+	logger.Printf("%s", lisaddr)
+	logger.Printf("%s", node.IPAddr())
 	return node, nil
 }
 
@@ -60,25 +55,22 @@ func run() error {
 		return err
 	}
 
-	devA, err := fc00.NetworkManagerTun("rovy0", nodeA.PeerID().PublicKey().Addr(), rovy.UpperMTU, nodeA.Log())
+	devA, err := fc00.NetworkManagerTun("rovy0", nodeA.IPAddr(), rovy.UpperMTU, nodeA.Log())
 	if err != nil {
 		return err
 	}
 
-	ip6aB, _ := netip.AddrFromSlice([]byte(nodeB.PeerID().PublicKey().Addr()))
-	devB, _, err := rovygvisor.NewGvisorTUN(ip6aB, rovy.UpperMTU, nodeB.Log())
+	devB, _, err := rovygvisor.NewGvisorTUN(nodeB.IPAddr(), rovy.UpperMTU, nodeB.Log())
 	if err != nil {
 		return err
 	}
 
-	ip6aC, _ := netip.AddrFromSlice([]byte(nodeC.PeerID().PublicKey().Addr()))
-	devC, _, err := rovygvisor.NewGvisorTUN(ip6aC, rovy.UpperMTU, nodeC.Log())
+	devC, _, err := rovygvisor.NewGvisorTUN(nodeC.IPAddr(), rovy.UpperMTU, nodeC.Log())
 	if err != nil {
 		return err
 	}
 
-	ip6aD, _ := netip.AddrFromSlice([]byte(nodeD.PeerID().PublicKey().Addr()))
-	devD, netD, err := rovygvisor.NewGvisorTUN(ip6aD, rovy.UpperMTU, nodeD.Log())
+	devD, netD, err := rovygvisor.NewGvisorTUN(nodeD.IPAddr(), rovy.UpperMTU, nodeD.Log())
 	if err != nil {
 		return err
 	}
@@ -132,13 +124,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	pid := nodeD.PeerID().String()
-	ip6a := nodeD.PeerID().PublicKey().Addr().String()
-	nodeD.Log().Printf("open http://%s.rovy", pid)
+	nodeD.Log().Printf("open http://%s.rovy", nodeD.PeerID())
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, fmt.Sprintf("Hello from\n/rovy/%s\n/ip6/%s\n", pid, ip6a))
+			io.WriteString(w, fmt.Sprintf("Hello from\n%s\n%s\n", nodeD.Multiaddr(), nodeD.IPAddr()))
 		})
 		if err = http.Serve(lis, mux); err != nil {
 			nodeD.Log().Printf("http: %s", err)

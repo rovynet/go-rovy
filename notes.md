@@ -33,7 +33,7 @@
 
 - [ ] Context wiring
 - [ ] Clean shutdown
-- [ ] netip.Addr and rovy.Multiaddr everywhere
+- [x] netip.Addr and rovy.Multiaddr everywhere
 - [ ] fc00: signatures on ping/pong
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission

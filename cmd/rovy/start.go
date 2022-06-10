@@ -205,8 +205,7 @@ func configureFc00(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Nod
 		return nil
 	}
 
-	ip6a := node.PeerID().PublicKey().Addr()
-	tunif, err := rovyfc00.NetworkManagerTun(cfg.Fc00.Ifname, ip6a, rovy.UpperMTU, node.Log())
+	tunif, err := rovyfc00.NetworkManagerTun(cfg.Fc00.Ifname, node.IPAddr(), rovy.UpperMTU, node.Log())
 	if err != nil {
 		return fmt.Errorf("networkmanager: %s", err)
 	}
@@ -218,7 +217,7 @@ func configureFc00(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Nod
 		return fmt.Errorf("api: %s", err)
 	}
 
-	node.Log().Printf("started fc00 endpoint %s using NetworkManager", ip6a)
+	node.Log().Printf("started fc00 endpoint %s using NetworkManager", node.IPAddr())
 
 	return nil
 }

@@ -25,7 +25,7 @@ type Transport struct {
 }
 
 func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error) {
-	udpaddr := net.UDPAddrFromAddrPort(lisaddr.IP)
+	udpaddr := net.UDPAddrFromAddrPort(lisaddr.AddrPort())
 	conn, err := net.ListenUDP("udp", udpaddr)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,8 @@ func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error
 }
 
 func (tpt *Transport) LocalMultiaddr() rovy.Multiaddr {
-	return rovy.Multiaddr{IP: netip.MustParseAddrPort(tpt.conn.LocalAddr().String())}
+	ip := netip.MustParseAddrPort(tpt.conn.LocalAddr().String())
+	return rovy.Multiaddr{IP: ip.Addr(), Port: ip.Port()}
 }
 
 func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
@@ -55,7 +56,7 @@ func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
 		}
 
 		pkt.Length = n
-		pkt.TptSrc = rovy.Multiaddr{IP: raddr}
+		pkt.TptSrc = rovy.Multiaddr{IP: raddr.Addr(), Port: raddr.Port()}
 		recvQ.Put(pkt)
 	}
 }
@@ -70,7 +71,7 @@ func (tpt *Transport) SendRoutine() {
 
 		// tpt.logger.Printf("SendRoutine: writeTo: TptDst=%+v LowerDst=%+v UpperDst=%+v", pkt.TptDst, pkt.LowerDst, pkt.UpperDst)
 
-		_, err := tpt.conn.WriteToUDPAddrPort(pkt.Bytes(), pkt.TptDst.IP)
+		_, err := tpt.conn.WriteToUDPAddrPort(pkt.Bytes(), pkt.TptDst.AddrPort())
 		if err != nil {
 			tpt.logger.Printf("SendRoutine: %s", err)
 		}

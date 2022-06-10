@@ -27,7 +27,7 @@ func (h DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	if qname == "localhost.rovy." {
 		rr := &dns.AAAA{
 			Hdr:  dns.RR_Header{Name: qname, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 0},
-			AAAA: h.LocalPeerID.PublicKey().Addr(),
+			AAAA: net.IP(h.LocalPeerID.PublicKey().IPAddr().AsSlice()),
 		}
 		m.Answer = append(m.Answer, rr)
 		w.WriteMsg(m)
@@ -57,7 +57,7 @@ func (h DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 	rr := &dns.AAAA{
 		Hdr:  dns.RR_Header{Name: qname, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 0},
-		AAAA: pid.PublicKey().Addr(),
+		AAAA: net.IP(pid.PublicKey().IPAddr().AsSlice()),
 	}
 	m.Answer = append(m.Answer, rr)
 	w.WriteMsg(m)

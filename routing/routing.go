@@ -3,7 +3,7 @@ package routing
 import (
 	"errors"
 	"log"
-	"net"
+	"net/netip"
 	"sync"
 
 	rovy "go.rovy.net"
@@ -17,14 +17,14 @@ var (
 type Routing struct {
 	sync.RWMutex
 	table  map[rovy.PeerID][]rovy.Route
-	ipv6   map[string]rovy.PeerID
+	ipv6   map[netip.Addr]rovy.PeerID
 	logger *log.Logger
 }
 
 func NewRouting(logger *log.Logger) *Routing {
 	return &Routing{
 		table:  make(map[rovy.PeerID][]rovy.Route),
-		ipv6:   make(map[string]rovy.PeerID),
+		ipv6:   make(map[netip.Addr]rovy.PeerID),
 		logger: logger,
 	}
 }
@@ -45,7 +45,7 @@ func (r *Routing) AddRoute(peerid rovy.PeerID, route rovy.Route) {
 		r.table[peerid] = []rovy.Route{route}
 	}
 
-	r.ipv6[peerid.PublicKey().Addr().String()] = peerid
+	r.ipv6[peerid.PublicKey().IPAddr()] = peerid
 }
 
 func (r *Routing) GetRoute(peerid rovy.PeerID) (rovy.Route, error) {
@@ -68,8 +68,8 @@ func (r *Routing) MustGetRoute(peerid rovy.PeerID) rovy.Route {
 	return route
 }
 
-func (r *Routing) LookupIPv6(ipaddr net.IP) (rovy.PeerID, error) {
-	pid, present := r.ipv6[ipaddr.String()]
+func (r *Routing) LookupIPv6(ipaddr netip.Addr) (rovy.PeerID, error) {
+	pid, present := r.ipv6[ipaddr]
 	if !present {
 		return rovy.PeerID{}, errors.New("address unknown: " + ipaddr.String())
 	}
