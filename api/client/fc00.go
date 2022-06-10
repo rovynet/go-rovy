@@ -31,22 +31,22 @@ func (c *Fc00Client) Start(tunfd *os.File) error {
 
 	go func() {
 		defer l.Close()
-		conn, err := l.Accept()
-		if err != nil {
-			c.logger.Printf("accept: %s", err)
+		conn, err2 := l.Accept()
+		if err2 != nil {
+			c.logger.Printf("accept: %s", err2)
 			return
 		}
 		defer conn.Close()
 
-		apifd, err := conn.(*net.UnixConn).File()
-		if err != nil {
-			c.logger.Printf("unixconn: %s", err)
+		apifd, err2 := conn.(*net.UnixConn).File()
+		if err2 != nil {
+			c.logger.Printf("unixconn: %s", err2)
 			return
 		}
 
 		msg := unix.UnixRights(int(tunfd.Fd())) // 4 bytes per fd
-		if err := unix.Sendmsg(int(apifd.Fd()), nil, msg, nil, 0); err != nil {
-			c.logger.Printf("sendmsg: %s", err)
+		if err2 := unix.Sendmsg(int(apifd.Fd()), nil, msg, nil, 0); err2 != nil {
+			c.logger.Printf("sendmsg: %s", err2)
 			return
 		}
 	}()
