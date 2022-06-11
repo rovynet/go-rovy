@@ -144,6 +144,7 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 		if err != nil {
 			return privkey, fmt.Errorf("error generating private key: %s", err)
 		}
+		return privkey, nil
 	case "-":
 		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
@@ -153,6 +154,7 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 		if err != nil {
 			return privkey, fmt.Errorf("error decoding private key: %s", err)
 		}
+		return privkey, nil
 	default:
 		kf, err := rovycfg.LoadKeyfile(keyfile)
 		if err != nil {
@@ -160,14 +162,6 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 		}
 		return kf.PrivateKey, nil
 	}
-
-	// Just for printf debugging:
-	// privstr, err := multibase.Encode(multibase.Base64, privkey.BytesSlice())
-	// if err != nil {
-	// 	return privkey, fmt.Errorf("error encoding multibase private key: %s", err)
-	// }
-	// logger.Printf("key: %s", privstr)
-	return privkey, nil
 }
 
 func checkSocket(socket string) error {

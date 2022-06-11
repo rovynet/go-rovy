@@ -268,6 +268,10 @@ func (ma Multiaddr) ValueForProtocol(code int) (string, error) {
 	return "", fmt.Errorf("can't get address value for protocol 0x%x", code)
 }
 
+func (ma *Multiaddr) MarshalText() ([]byte, error) {
+	return []byte(ma.String()), nil
+}
+
 func (ma *Multiaddr) UnmarshalText(data []byte) error {
 	new, err := ParseMultiaddr(string(data))
 	if err != nil {

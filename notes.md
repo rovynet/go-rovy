@@ -7,7 +7,7 @@
 - [x] command scaffolding for peer commands
 - [x] go vet, go fmt -w -s
 - [ ] dialers, listeners, connect
-- [ ] init command
+- [x] init command
 
 
 # Tasks
@@ -17,7 +17,7 @@
 - [x] fc00::/8 network via TUN interface
 - [x] ICMP traceroutes for fc00::/8
 - [x] Daemon and CLI
-- [ ] Configuration
+- [x] Configuration
 - [ ] Local peer discovery
 - [ ] Basic unified tests for CLI, HTTP API, Go API
 - [ ] TLS termination and re-encryption

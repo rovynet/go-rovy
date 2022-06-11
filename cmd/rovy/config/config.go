@@ -61,7 +61,24 @@ func LoadKeyfile(path string) (*Keyfile, error) {
 	return &kf, nil
 }
 
-func SaveKeyfile(path string, cfg *Keyfile) error {
+func SaveKeyfile(path string, kf *Keyfile) error {
+	str := fmt.Sprintf(`#
+# Rovy Keyfile
+#
+# Privatekey is base64-encoded with a Multibase header.
+# PeerID is the base32-encoded public key, prefixed with the "bafzqai" CID header.
+# IPAddr is bytes 16 to 31 of the public key's double Blake2s-256 hash.
+#
+# For a PrivateKey and PeerID to be valid, their IPAddr must be within fc00::/8.
+#
+PrivateKey = '%s'
+PeerID = '%s'
+IPAddr = '%s'
+`, kf.PrivateKey, kf.PeerID, kf.IPAddr)
+
+	if err := os.WriteFile(path, []byte(str), 0600); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -118,5 +135,13 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func SaveConfig(path string, cfg *Config) error {
+	b, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path, b, 0600); err != nil {
+		return err
+	}
 	return nil
 }

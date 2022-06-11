@@ -85,6 +85,10 @@ func (privkey PrivateKey) BytesSlice() []byte {
 	return privkey.bytes[:]
 }
 
+func (privkey PrivateKey) String() string {
+	return multibase.MustNewEncoder(multibase.Base64).Encode(privkey.bytes[:])
+}
+
 func (privkey PrivateKey) PublicKey() PublicKey {
 	var pubkey PublicKey
 	curve25519.ScalarBaseMult(&pubkey.bytes, &privkey.bytes)
