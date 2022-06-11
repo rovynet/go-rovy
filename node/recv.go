@@ -10,7 +10,7 @@ import (
 
 // hello receive
 
-func (node *Node) helloRecvRoutine() error {
+func (node *Node) helloRecvRoutine() {
 	for {
 		pkt := node.helloRecvQ.Get()
 
@@ -32,7 +32,6 @@ func (node *Node) helloRecvRoutine() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {

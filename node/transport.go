@@ -65,7 +65,7 @@ func (tpt *Transport) SendRoutine() {
 	for {
 		pkt := tpt.sendQ.Get()
 		if pkt.TptDst.Empty() {
-			tpt.logger.Printf("SendRoutine: dropping packet without TptSrc", pkt)
+			tpt.logger.Printf("SendRoutine: dropping packet without TptSrc")
 			continue
 		}
 

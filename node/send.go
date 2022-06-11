@@ -10,7 +10,7 @@ import (
 
 // hello send
 
-func (node *Node) helloSendRoutine() error {
+func (node *Node) helloSendRoutine() {
 	for {
 		pkt := node.helloSendQ.Get()
 
@@ -38,7 +38,6 @@ func (node *Node) helloSendRoutine() error {
 			}
 		}
 	}
-	return nil
 }
 
 func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {

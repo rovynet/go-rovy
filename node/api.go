@@ -5,7 +5,7 @@ import (
 )
 
 func (node *Node) Info() (rovyapi.NodeInfo, error) {
-	return rovyapi.NodeInfo{node.PeerID()}, nil
+	return rovyapi.NodeInfo{PeerID: node.PeerID()}, nil
 }
 
 func (node *Node) Stop() error {

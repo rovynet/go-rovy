@@ -268,26 +268,6 @@ func (ma Multiaddr) ValueForProtocol(code int) (string, error) {
 	return "", fmt.Errorf("can't get address value for protocol 0x%x", code)
 }
 
-func (ma Multiaddr) Decapsulate(outer multiaddr.Multiaddr) multiaddr.Multiaddr {
-	panic("not yet implemented")
-	return nil
-}
-
-func (ma *Multiaddr) MarshalBinary() ([]byte, error) {
-	panic("not yet implemented")
-	return nil, nil
-}
-
-func (ma *Multiaddr) UnmarshalBinary(data []byte) error {
-	panic("not yet implemented")
-	return nil
-}
-
-func (ma *Multiaddr) MarshalText() ([]byte, error) {
-	panic("not yet implemented")
-	return nil, nil
-}
-
 func (ma *Multiaddr) UnmarshalText(data []byte) error {
 	new, err := ParseMultiaddr(string(data))
 	if err != nil {

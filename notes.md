@@ -5,7 +5,7 @@
 - [x] /maddrfmt support
 - [x] start command doing configuration
 - [x] command scaffolding for peer commands
-- [ ] go vet, go fmt -w -s
+- [x] go vet, go fmt -w -s
 - [ ] dialers, listeners, connect
 - [ ] init command
 

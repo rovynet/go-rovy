@@ -135,8 +135,6 @@ func startCmdFunc(c *cli.Context) error {
 	select {
 	// XXX shutdown needs to break this select
 	}
-
-	return nil
 }
 
 func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privkey rovy.PrivateKey, err error) {
