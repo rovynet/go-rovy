@@ -91,61 +91,7 @@
 
 
 ---
-# API+CLI sketches
 
-## Commands & Config
-
-* rovy peer list
-* rovy peer connect /ip4/1.2.3.4/tcp/41132/rovy/bafzqai321
-* rovy peer persist /rovy/bafzqai321
-* rovy peer disconnect /rovy/bafzqai321
-
-* rovy fc00 start --nm
-* sudo rovy fc00 start --netlink
-* rovy fc00 start --existing
-* rovy fc00 stop
-* rovy fc00 allow /tcp/80 /tcp/443
-* rovy fc00 allow /tcp/0 /udp/0
-
-* sudo rovy peer listen /ethif/wlp3s0
-
-* rovy cert add /dns/example.rovy
-* rovy cert renew /dns/example.rovy
-
-
-- rovy transport // list enabled/disabled for each
-- rovy transport enable ip6
-- rovy transport enable ip4
-- rovy transport disable eth
-- rovy listener // list listeners
-- rovy listener start /ip6/::/udp/1312
-- rovy listener start /ip4/0.0.0.0/udp/1312
-- sudo rovy listener start /ethif/wlp3s0
-- rovy listener stop /ethif/wlp3s0
-- rovy discovery enable linklocal
-- rovy discovery enable bootstrap // no, just do this via `rovy peer connect`
-- rovy fc00 start --nm --ifname rovy0
-- sudo rovy fc00 start --netlink --ifname rovy2
-- rovy fc00 allow /tcp/0 /udp/0
-- rovy fc00 deny /icmp
-
-
-```
-/v0/transport/list
-/v0/transport/enable?ip6
-/v0/transport/disable?ip4
-/v0/listener/start?/ip6/::/udp/1312
-/v0/listener/start?/ethif/wlp3s0&socket=/tmp/rovy-eth.sock
-/v0/listener/stop?/...
-/v0/discovery/enable?linklocal
-/v0/discovery/disable?
-/v0/peer/connect?/dns/bootstrap.rovy.net/rovy/bafzqai321
-/v0/fc00/start?ifname=rovy0&socket=/tmp/rovy-tun.sock
-/v0/fc00/allow?/tcp/0&/udp/0
-/v0/fc00/deny?/icmp
-```
-
----
 # Random Notes
 
 Steps to take for higher throughput:
