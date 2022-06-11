@@ -37,13 +37,6 @@ func NetworkManagerTun(ifname string, ip6 netip.Addr, mtu int, logger *log.Logge
 		return nil, fmt.Errorf("checkTunExists: %s", err)
 	}
 
-	sysbus, err := dbus.SystemBus()
-	if err != nil {
-		return nil, fmt.Errorf("dbus: %w", err)
-	}
-	nmpath := dbus.ObjectPath("/org/freedesktop/NetworkManager")
-	nullpath := dbus.ObjectPath("/")
-
 	var tunfd int
 	if devPresent {
 		// if rovy0 is present, we first want to check if it's used by someone else.
@@ -57,22 +50,16 @@ func NetworkManagerTun(ifname string, ip6 netip.Addr, mtu int, logger *log.Logge
 		logger.Printf("tun interface %s doesn't exist, have NetworkManager create it...", ifname)
 	}
 
-	// // TODO: first check if there's an active connection we must reuse
-	// connpath, err = getNMConn(sysbus, ifname) // NetworkManager/Device/%d
-	// connPresent := true
-	// if err != nil {
-	// 	connPresent = false
-	// }
+	sysbus, err := dbus.SystemBus()
+	if err != nil {
+		return nil, fmt.Errorf("dbus: %w", err)
+	}
+	nmpath := dbus.ObjectPath("/org/freedesktop/NetworkManager")
+	nullpath := dbus.ObjectPath("/")
 
 	settingspath, err := createNMConn(sysbus, ifname, ip6, mtu)
 	if err != nil {
 		return nil, fmt.Errorf("createNMConn: %s", err)
-	}
-	if tunfd == 0 {
-		tunfd, err = bindTun(ifname)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// logger.Printf("tunfd=%+v settingspath=%+v", tunfd, settingspath)
@@ -90,8 +77,13 @@ func NetworkManagerTun(ifname string, ip6 netip.Addr, mtu int, logger *log.Logge
 	if err != nil {
 		return nil, fmt.Errorf("ActivateConnection: %s", err)
 	}
-	// logger.Printf("activeconnpath=%+v", activeconnpath)
 
+	if tunfd == 0 {
+		tunfd, err = bindTun(ifname)
+		if err != nil {
+			return nil, err
+		}
+	}
 	dev, _, err := tun.CreateUnmonitoredTUNFromFD(tunfd)
 	return dev, err
 }
