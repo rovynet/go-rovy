@@ -113,6 +113,7 @@ func (fc *Fc00) listenTun() {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 		buf := pkt.Bytes()[rovy.UpperOffset:]
 
+		// TODO: "not pollable" error when device is deleted
 		n, err := fc.device.Read(buf, 0)
 		if err != nil {
 			fc.log.Printf("fc00: tun read: %s", err)
