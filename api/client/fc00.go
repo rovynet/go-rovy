@@ -15,39 +15,18 @@ import (
 
 type Fc00Client Client
 
-// TODO: put a timeout on Post request, then close the socket listener
+// TODO: put timeouts on Post request and socket listener
 func (c *Fc00Client) Start(tunfd *os.File) error {
 	dir, err := os.MkdirTemp(os.TempDir(), "rovy0-*")
 	if err != nil {
 		return fmt.Errorf("mkdirtemp: %s", err)
 	}
-	sa := filepath.Join(dir, "v0-fc00-start.sock")
 	defer os.RemoveAll(dir)
 
-	l, err := net.Listen("unix", sa)
-	if err != nil {
-		return fmt.Errorf("listen: %s", err)
-	}
-
+	sa := filepath.Join(dir, "v0-fc00-start.sock")
 	go func() {
-		defer l.Close()
-		conn, err2 := l.Accept()
-		if err2 != nil {
-			c.logger.Printf("accept: %s", err2)
-			return
-		}
-		defer conn.Close()
-
-		apifd, err2 := conn.(*net.UnixConn).File()
-		if err2 != nil {
-			c.logger.Printf("unixconn: %s", err2)
-			return
-		}
-
-		msg := unix.UnixRights(int(tunfd.Fd())) // 4 bytes per fd
-		if err2 := unix.Sendmsg(int(apifd.Fd()), nil, msg, nil, 0); err2 != nil {
-			c.logger.Printf("sendmsg: %s", err2)
-			return
+		if err := sendFD(sa, int(tunfd.Fd())); err != nil {
+			c.logger.Printf("sendFD: %s", err)
 		}
 	}()
 
@@ -70,3 +49,29 @@ func (c *Fc00Client) NodeAPI() rovyapi.NodeAPI {
 }
 
 var _ rovyapi.Fc00API = &Fc00Client{}
+
+func sendFD(socket string, fd int) error {
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		return fmt.Errorf("listen: %s", err)
+	}
+	defer l.Close()
+
+	conn, err := l.Accept()
+	if err != nil {
+		return fmt.Errorf("accept: %s", err)
+	}
+	defer conn.Close()
+
+	apifd, err := conn.(*net.UnixConn).File()
+	if err != nil {
+		return fmt.Errorf("unixconn: %s", err)
+	}
+
+	msg := unix.UnixRights(fd) // 4 bytes per fd
+	if err := unix.Sendmsg(int(apifd.Fd()), nil, msg, nil, 0); err != nil {
+		return fmt.Errorf("sendmsg: %s", err)
+	}
+
+	return nil
+}
