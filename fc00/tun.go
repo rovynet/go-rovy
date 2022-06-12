@@ -38,6 +38,9 @@ func checkTunExists(ifname string) (bool, error) {
 	return true, nil
 }
 
+const cloneDevicePath = "/dev/net/tun"
+const ifReqSize = unix.IFNAMSIZ + 64
+
 // taken from wireguard-go/tun/tun_linux.go (MIT-licensed)
 func bindTun(ifname string) (int, error) {
 	nfd, err := unix.Open(cloneDevicePath, os.O_RDWR, 0)

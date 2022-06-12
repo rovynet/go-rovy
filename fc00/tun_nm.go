@@ -6,8 +6,6 @@ import (
 	"log"
 	"net/netip"
 
-	"golang.org/x/sys/unix"
-
 	dbus "github.com/godbus/dbus/v5"
 	tun "golang.zx2c4.com/wireguard/tun"
 )
@@ -27,93 +25,117 @@ import (
 // }
 // logger.Printf("devconns=%+v", devconns.Value().([]dbus.ObjectPath))
 
-const cloneDevicePath = "/dev/net/tun"
-const ifReqSize = unix.IFNAMSIZ + 64
 const nmdest = "org.freedesktop.NetworkManager"
 
-func NetworkManagerTun(ifname string, ip6 netip.Addr, mtu int, logger *log.Logger) (tun.Device, error) {
+type NMTUN struct {
+	bus    *dbus.Conn
+	conn   *dbus.ObjectPath
+	dev    tun.Device
+	logger *log.Logger
+}
+
+func NewNMTUN(logger *log.Logger) *NMTUN {
+	nm := &NMTUN{logger: logger}
+	return nm
+}
+
+func (nm *NMTUN) Start(ifname string, ip netip.Addr, mtu int) error {
+	bus, err := dbus.SystemBus()
+	if err != nil {
+		return fmt.Errorf("dbus: %w", err)
+	}
+	nm.bus = bus
+
 	devPresent, err := checkTunExists(ifname)
 	if err != nil {
-		return nil, fmt.Errorf("checkTunExists: %s", err)
+		return fmt.Errorf("checkTunExists: %s", err)
 	}
 
 	var tunfd int
 	if devPresent {
 		// if rovy0 is present, we first want to check if it's used by someone else.
 		// TODO: consider it could be a multi-queue tun simultaneously used by others
-		logger.Printf("tun interface %s exists, trying to reuse it...", ifname)
+		nm.logger.Printf("tun interface %s exists, trying to reuse it...", ifname)
 		tunfd, err = bindTun(ifname)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	} else {
-		logger.Printf("tun interface %s doesn't exist, have NetworkManager create it...", ifname)
+		nm.logger.Printf("tun interface %s doesn't exist, have NetworkManager create it...", ifname)
 	}
 
-	sysbus, err := dbus.SystemBus()
-	if err != nil {
-		return nil, fmt.Errorf("dbus: %w", err)
-	}
 	nmpath := dbus.ObjectPath("/org/freedesktop/NetworkManager")
 	nullpath := dbus.ObjectPath("/")
 
-	settingspath, err := createNMConn(sysbus, ifname, ip6, mtu)
+	settingspath, err := nm.createNMConn(ifname, ip, mtu)
 	if err != nil {
-		return nil, fmt.Errorf("createNMConn: %s", err)
+		return fmt.Errorf("createNMConn: %s", err)
 	}
 
-	// logger.Printf("tunfd=%+v settingspath=%+v", tunfd, settingspath)
+	// nm.logger.Printf("tunfd=%+v settingspath=%+v", tunfd, settingspath)
 
-	devpath, err := getNMDevice(sysbus, ifname) // NetworkManager/Device/%d
+	devpath, err := nm.getNMDevice(ifname) // NetworkManager/Device/%d
 	if err != nil {
-		return nil, err
+		return err
 	}
-	// logger.Printf("devpath=%+v", devpath)
+	// nm.logger.Printf("devpath=%+v", devpath)
 
 	var activeconnpath dbus.ObjectPath
-	err = sysbus.Object(nmdest, nmpath).CallWithContext(context.TODO(),
+	err = nm.bus.Object(nmdest, nmpath).CallWithContext(context.TODO(),
 		nmdest+".ActivateConnection", 0, settingspath, devpath, nullpath,
 	).Store(&activeconnpath)
 	if err != nil {
-		return nil, fmt.Errorf("ActivateConnection: %s", err)
+		return fmt.Errorf("ActivateConnection: %s", err)
 	}
 
 	if tunfd == 0 {
 		tunfd, err = bindTun(ifname)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	dev, _, err := tun.CreateUnmonitoredTUNFromFD(tunfd)
-	return dev, err
+	nm.dev, _, err = tun.CreateUnmonitoredTUNFromFD(tunfd)
+	return err
+}
+
+func (nm *NMTUN) Device() tun.Device {
+	return nm.dev
+}
+
+func (nm *NMTUN) Close() error {
+	// close nm.tun
+	// delete nm.conn
+	return nil
 }
 
 // returns path to /org/freedesktop/NetworkManager/Settings/%d
-func createNMConn(bus *dbus.Conn, ifname string, ip6 netip.Addr, mtu int) (dbus.ObjectPath, error) {
-	nm := bus.Object(
+func (nm *NMTUN) createNMConn(ifname string, ip6 netip.Addr, mtu int) (dbus.ObjectPath, error) {
+	settingsObj := nm.bus.Object(
 		nmdest,
 		dbus.ObjectPath("/org/freedesktop/NetworkManager/Settings"),
 	)
 
 	settings := getNMConnSettings(ifname, ip6, mtu)
+
 	var settingspath dbus.ObjectPath
-	err := nm.CallWithContext(context.TODO(),
+	err := settingsObj.CallWithContext(context.TODO(),
 		nmdest+".Settings.AddConnectionUnsaved", 0, settings,
 	).Store(&settingspath)
 	if err != nil {
 		return settingspath, fmt.Errorf("AddConnectionUnsaved: %s", err)
 	}
+
 	return settingspath, nil
 }
 
-func getNMDevice(bus *dbus.Conn, ifname string) (dbus.ObjectPath, error) {
-	nm := bus.Object(
+func (nm *NMTUN) getNMDevice(ifname string) (dbus.ObjectPath, error) {
+	nmObj := nm.bus.Object(
 		nmdest,
 		dbus.ObjectPath("/org/freedesktop/NetworkManager"),
 	)
 
 	var devpath dbus.ObjectPath
-	err := nm.CallWithContext(context.TODO(),
+	err := nmObj.CallWithContext(context.TODO(),
 		nmdest+".GetDeviceByIpIface", 0, ifname,
 	).Store(&devpath)
 	if err != nil {

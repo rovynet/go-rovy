@@ -55,10 +55,11 @@ func run() error {
 		return err
 	}
 
-	devA, err := fc00.NetworkManagerTun("rovy0", nodeA.IPAddr(), rovy.UpperMTU, nodeA.Log())
-	if err != nil {
+	nmA := fc00.NewNMTUN(nodeA.Log())
+	if err := nmA.Start("rovy0", nodeA.IPAddr(), rovy.UpperMTU); err != nil {
 		return err
 	}
+	devA := nmA.Device()
 
 	devB, _, err := rovygvisor.NewGvisorTUN(nodeB.IPAddr(), rovy.UpperMTU, nodeB.Log())
 	if err != nil {

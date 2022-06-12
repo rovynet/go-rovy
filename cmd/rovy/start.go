@@ -209,15 +209,14 @@ func configureFc00(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Nod
 		return nil
 	}
 
-	tunif, err := rovyfc00.NetworkManagerTun(cfg.Fc00.Ifname, node.IPAddr(), rovy.UpperMTU, node.Log())
-	if err != nil {
+	nm := rovyfc00.NewNMTUN(node.Log())
+	if err := nm.Start(cfg.Fc00.Ifname, node.IPAddr(), rovy.UpperMTU); err != nil {
 		return fmt.Errorf("networkmanager: %s", err)
 	}
 
-	tunfd := tunif.File()
+	tunfd := nm.Device().File()
 
-	err = api.Fc00().Start(tunfd)
-	if err != nil {
+	if err := api.Fc00().Start(tunfd); err != nil {
 		return fmt.Errorf("api: %s", err)
 	}
 
