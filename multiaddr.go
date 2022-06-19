@@ -94,6 +94,11 @@ type Multiaddr struct {
 	More   multiaddr.Multiaddr
 }
 
+// TODO: implement ParseMultiaddrBytes
+// TODO: implement encoding.BinaryMarshaler & Unmarshaler
+// TODO: implement Multiaddr.Encapsulate & Decapsulate
+//var _ multiaddr.Multiaddr = Multiaddr{}
+
 func MustParseMultiaddr(addr string) Multiaddr {
 	ma, err := ParseMultiaddr(addr)
 	if err != nil {
@@ -102,6 +107,7 @@ func MustParseMultiaddr(addr string) Multiaddr {
 	return ma
 }
 
+// TODO: support parsing IP addresses without a port (currently end up in ma.More)
 func ParseMultiaddr(addr string) (ma Multiaddr, err error) {
 	a := strings.Split(addr, "/")
 	a = a[1:]
@@ -157,6 +163,7 @@ func (ma Multiaddr) Equal(other multiaddr.Multiaddr) bool {
 	return bytes.Equal(ma.Bytes(), other.Bytes())
 }
 
+// TODO: /rovy part doesn't have a multiaddr codec prefix
 func (ma Multiaddr) Bytes() []byte {
 	l := 0
 	if ma.IP.IsValid() {

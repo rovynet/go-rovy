@@ -1,16 +1,5 @@
 
-# Current
-
-- [x] load and use keyfile
-- [x] /maddrfmt support
-- [x] start command doing configuration
-- [x] command scaffolding for peer commands
-- [x] go vet, go fmt -w -s
-- [ ] dialers, listeners, connect
-- [x] init command
-
-
-# Tasks
+# Epics
 
 - [x] Noise IKpsk2 handshake
 - [x] Forwarding/Switching using route labels
@@ -19,38 +8,34 @@
 - [x] Daemon and CLI
 - [x] Configuration
 - [ ] Local peer discovery
-- [ ] Basic unified tests for CLI, HTTP API, Go API
 - [ ] TLS termination and re-encryption
 - [ ] Systemd unit file for servers
-- [ ] Reloadable config
 - [ ] Minimum-viable routing
 - [ ] 1 Gbps routed throughput on fc00::/8
-- [ ] DHT for decentral global and local routing lookups
+- [ ] Gnome extension via DBus API
 - [ ] Petnames in .rovy TLD
+- [ ] External routing protocols, e.g. Babel and OLSR
+- [ ] DHT for decentral global and local routing lookups
+- [ ] Support for onion-like sessions
 - [ ] Transit of Internet traffic using TUN interface, BGP, and RPKI RTAs
 
-## Foundation
+# Next
 
-- [ ] Context wiring
-- [ ] Clean shutdown
-- [x] netip.Addr and rovy.Multiaddr everywhere
+- [ ] node: proper transport/listener/dialer interfaces
+- [ ] node: clean shutdown (close tun, delete nmconn, notify peers)
+- [ ] all: Context wiring
+
+- [ ] test: basic shared cucumber suite for CLI, HTTP API, Go API
 - [ ] fc00: signatures on ping/pong
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission
 - [ ] session: get the stages in order
 - [ ] session: research whether hello/response payload construction is okay
 - [ ] session: rework the complicated way we handle session remoteAddr
+- [x] perf: GC-friendly PeerID and Addr types
+- [x] perf: Break work up into queues
 
-## Throughput
-
-- [x] GC-friendly PeerID and Addr types
-- [x] Break work up into queues
-- [ ] Buffer pool for fewer allocations
-- [ ] io_uring for less packet copying
-- [ ] Better data structures for sessionmanager, forwarder, routing
-- [ ] Lockless goroutine-equivalent for our ringbuf
-
-## Next
+# Backlog
 
 - [x] session: handshake waiters are strange - not anymore :-)
 - [x] remove multigram table negotiation, it doesn't make sense much sense at the moment
@@ -59,21 +44,28 @@
 - [ ] fc00: ping ff02::1%rovy
 - [ ] fc00: reverse dns
 - [ ] fc00: clarify the fc00 api interface
+- [ ] fc00: rename to fcnet
 - [x] fc00: embedded virtual tun device
 - [ ] fc00: node keeps track of fc00 service
-- [ ] fc00: expose fc00 start command in cli
+- [ ] cli: rovy fc00 start command with --nm and other options
 - [ ] fc00: fc00 stop and status commands
 - [ ] fc00: default-deny and fc00 ports command
 - [ ] fc00: define fc00::/64 as unroutable
 - [ ] fc00: learn routes from traceroute replies
-- [x] perf: ring buffers
+- [ ] cli: rovy reload command
+- [x] perf: faked ring buffer queues
+- [ ] perf: Buffer pool for fewer allocations
+- [ ] perf: Better data structures for sessionmanager, forwarder, routing
+- [ ] perf: transmitter object which moves work off the hot path (route lookup, transport lookup, pubkey and session lookup)
+- [ ] perf: Lockless goroutine-equivalent for our ringbuf
+- [ ] perf: io_uring to avoid syscalls and copying
 - [ ] multicodec registrations
 - [ ] motd on startup
 
-### Messy internals
+# Messy internals
 
 - [ ] make multigram varints exactly 4 bytes long, padding + length restriction
-- [ ] transmitter object that knows route (and thus mtu and offsets) before we construct packet
+- [x] netip.Addr and rovy.Multiaddr everywhere
 - [x] remove multigram table negotiation, it doesn't make sense much sense at the moment
 - [ ] make multigram varints exactly 4 bytes long, padding + length restriction
 - [ ] unify lowerpacket and upperpacket in one packet type, which tracks state (lower, upper, tpt) and gives access to respective payload slices
@@ -81,14 +73,6 @@
 - [ ] node: enforce max route length of 14 bytes
 - [ ] constants for sizes and offsets
 - [ ] fix endianness once and for all, do what wireguard and cjdns do
-
-## Reading
-
-- [ ] check out wireguard-go/conn, why does it exist? sticky sockets, perf?
-- [ ] check out x/sys
-- [ ] benchmark: goroutine throughput, large routing table, udp read pps, udp write pps
-- [ ] security: check noise-protocol application responsibilities and security considerations
-
 
 ---
 
