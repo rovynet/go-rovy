@@ -20,7 +20,7 @@ type NodeAPI interface {
 type PeerStatus struct {
 	Peers     []PeerInfo
 	Listeners []PeerListener
-	Dialers   []PeerDialer
+	Policy    []string
 }
 
 type PeerInfo struct {
@@ -36,19 +36,13 @@ type PeerListener struct {
 	ExternalAddrs  []rovy.Multiaddr // what others might see (NAT, hole punching, ...)
 }
 
-type PeerDialer struct {
-	Protocol rovy.Multiaddr // the /maddrfmt address
-	Enabled  bool
-}
-
 type PeerAPI interface {
 	Status() PeerStatus
-	Enable(rovy.Multiaddr) (PeerDialer, error)
-	// Disable(rovy.Multiaddr) (PeerDialer, error)
 	Listen(rovy.Multiaddr) (PeerListener, error)
 	// Close(rovy.Multiaddr) (PeerListener, error)
 	Connect(rovy.Multiaddr) (PeerInfo, error)
 	// Disconnect(rovy.Multiaddr) (PeerInfo, error)
+	Policy(...string) error
 }
 
 type Fc00API interface {

@@ -88,8 +88,9 @@ type Config struct {
 }
 
 type Peer struct {
-	Dialers   []rovy.Multiaddr
-	Listeners []rovy.Multiaddr
+	Listen  []rovy.Multiaddr
+	Connect []rovy.Multiaddr
+	Policy  []string
 }
 
 type Fc00 struct {
@@ -100,16 +101,13 @@ type Fc00 struct {
 func DefaultConfig() *Config {
 	cfg := &Config{
 		Peer: Peer{
-			Dialers: []rovy.Multiaddr{
-				rovy.MustParseMultiaddr("/proto/ip6/udp"),
-				rovy.MustParseMultiaddr("/proto/ip4/udp"),
-				// rovy.MustParseMultiaddr("/proto/ethif"),
-			},
-			Listeners: []rovy.Multiaddr{
+			Listen: []rovy.Multiaddr{
 				rovy.MustParseMultiaddr("/ip6/::/udp/1312"),
 				rovy.MustParseMultiaddr("/ip4/0.0.0.0/udp/1312"),
 				// rovy.MustParseMultiaddr("/ethif/wlp3s0"),
 			},
+			Connect: []rovy.Multiaddr{},
+			Policy:  []string{"local", "open"},
 		},
 		Fc00: Fc00{
 			Enabled: true,

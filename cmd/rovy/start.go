@@ -188,17 +188,20 @@ func checkSocket(socket string) error {
 
 // TODO: do the actual configuration using api/client module
 func configurePeering(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
-	for _, protos := range cfg.Peer.Dialers {
-		_, err := api.Peer().Enable(protos)
-		if err != nil {
-			return err
-		}
-	}
-	for _, addr := range cfg.Peer.Listeners {
+	for _, addr := range cfg.Peer.Listen {
 		_, err := api.Peer().Listen(addr)
 		if err != nil {
 			return err
 		}
+	}
+	for _, addr := range cfg.Peer.Connect {
+		_, err := api.Peer().Connect(addr)
+		if err != nil {
+			return err
+		}
+	}
+	if err := api.Peer().Policy(cfg.Peer.Policy...); err != nil {
+		return err
 	}
 	return nil
 }

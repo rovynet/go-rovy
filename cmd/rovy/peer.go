@@ -17,16 +17,16 @@ var peerCmd = &cli.Command{
 			Action: peerStatusCmdFunc,
 		},
 		{
-			Name:   "enable",
-			Action: peerEnableCmdFunc,
-		},
-		{
 			Name:   "listen",
 			Action: peerListenCmdFunc,
 		},
 		{
 			Name:   "connect",
 			Action: peerConnectCmdFunc,
+		},
+		{
+			Name:   "policy",
+			Action: peerPolicyCmdFunc,
 		},
 	},
 }
@@ -42,31 +42,6 @@ func peerStatusCmdFunc(c *cli.Context) error {
 	status := api.Peer().Status()
 
 	fmt.Fprintf(os.Stdout, "Status: %#v\n", status)
-
-	return nil
-}
-
-func peerEnableCmdFunc(c *cli.Context) error {
-	logger := newLogger(c)
-	socket, err := getSocket(c)
-	if err != nil {
-		return exitErr("getsocket: %s", err)
-	}
-
-	if c.NArg() == 0 {
-		return exitErr("expecting /proto multiaddr argument")
-	}
-	for i := 0; i < c.NArg(); i++ {
-		maddr, err := rovy.ParseMultiaddr(c.Args().Get(i))
-		if err != nil {
-			return exitErr("multiaddr: %s", err)
-		}
-
-		api := rovyapic.NewClient(socket, logger)
-		pd, err := api.Peer().Enable(maddr)
-
-		fmt.Fprintf(os.Stdout, "Dialer: %#v", pd)
-	}
 
 	return nil
 }
@@ -98,4 +73,8 @@ func peerListenCmdFunc(c *cli.Context) error {
 
 func peerConnectCmdFunc(c *cli.Context) error {
 	return exitErr("TODO: connect is not yet implemented")
+}
+
+func peerPolicyCmdFunc(c *cli.Context) error {
+	return exitErr("TODO: policy is not yet implemented")
 }
