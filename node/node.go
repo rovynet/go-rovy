@@ -8,10 +8,10 @@ import (
 
 	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	rovy "go.rovy.net"
-	forwarder "go.rovy.net/forwarder"
-	routing "go.rovy.net/routing"
-	session "go.rovy.net/session"
-	ringbuf "go.rovy.net/util/ringbuf"
+	forwarder "go.rovy.net/node/forwarder"
+	routing "go.rovy.net/node/routing"
+	session "go.rovy.net/node/session"
+	ringbuf "go.rovy.net/node/util/ringbuf"
 )
 
 const DirectUpperCodec = 0x12347

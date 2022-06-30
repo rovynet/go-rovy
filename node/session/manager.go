@@ -9,7 +9,7 @@ import (
 	"time"
 
 	rovy "go.rovy.net"
-	ikpsk2 "go.rovy.net/session/ikpsk2"
+	ikpsk2 "go.rovy.net/node/session/ikpsk2"
 )
 
 // TODO: make sure indexes from remote don't overwrite other sessions

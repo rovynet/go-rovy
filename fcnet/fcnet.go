@@ -12,9 +12,9 @@ import (
 
 	rovy "go.rovy.net"
 	fcgvisor "go.rovy.net/fcnet/gvisor"
-	forwarder "go.rovy.net/forwarder"
 	node "go.rovy.net/node"
-	rovyrt "go.rovy.net/routing"
+	forwarder "go.rovy.net/node/forwarder"
+	rovyrt "go.rovy.net/node/routing"
 )
 
 const FcnetMulticodec = 0x42004

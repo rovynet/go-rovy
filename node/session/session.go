@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	rovy "go.rovy.net"
-	ikpsk2 "go.rovy.net/session/ikpsk2"
+	ikpsk2 "go.rovy.net/node/session/ikpsk2"
 )
 
 var (

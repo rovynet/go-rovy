@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	rovy "go.rovy.net"
-	forwarder "go.rovy.net/forwarder"
+	forwarder "go.rovy.net/node/forwarder"
 )
 
 func BenchmarkHandlePacket(b *testing.B) {

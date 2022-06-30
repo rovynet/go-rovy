@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	rovy "go.rovy.net"
-	forwarder "go.rovy.net/forwarder"
-	session "go.rovy.net/session"
+	forwarder "go.rovy.net/node/forwarder"
+	session "go.rovy.net/node/session"
 )
 
 // hello receive

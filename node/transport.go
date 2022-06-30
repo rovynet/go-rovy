@@ -8,7 +8,7 @@ import (
 
 	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
-	ringbuf "go.rovy.net/util/ringbuf"
+	ringbuf "go.rovy.net/node/util/ringbuf"
 )
 
 // tpt
