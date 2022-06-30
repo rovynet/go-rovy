@@ -11,9 +11,18 @@ func (c *PeerAPI) Status() rovyapi.PeerStatus {
 	return rovyapi.PeerStatus{}
 }
 
-// TODO: implement listeners
 func (c *PeerAPI) Listen(ma rovy.Multiaddr) (rovyapi.PeerListener, error) {
-	return rovyapi.PeerListener{Addr: ma}, nil
+	tpt, err := NewTransport(ma, c.logger)
+	if err != nil {
+		return rovyapi.PeerListener{}, err
+	}
+
+	node := (*Node)(c)
+	node.transports = append(node.transports, tpt)
+	go tpt.RecvRoutine(node.lowerRecvQ)
+	go tpt.SendRoutine()
+
+	return rovyapi.PeerListener{ListenAddr: ma}, nil
 }
 
 func (c *PeerAPI) Connect(ma rovy.Multiaddr) (rovyapi.PeerInfo, error) {

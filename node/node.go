@@ -178,20 +178,6 @@ func (node *Node) connectedCallback(peerid rovy.PeerID, lower bool) {
 	}
 }
 
-func (node *Node) Listen(lisaddr rovy.Multiaddr) error {
-	tpt, err := NewTransport(lisaddr, node.logger)
-	if err != nil {
-		return err
-	}
-
-	node.transports = append(node.transports, tpt)
-
-	go tpt.RecvRoutine(node.lowerRecvQ)
-	go tpt.SendRoutine()
-
-	return nil
-}
-
 func (node *Node) Handle(codec uint64, cb UpperHandler) {
 	_, present := node.upperHandlers[codec]
 	if present {

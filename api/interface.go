@@ -31,7 +31,7 @@ type PeerInfo struct {
 }
 
 type PeerListener struct {
-	Addr           rovy.Multiaddr   // what we told it to listen on
+	ListenAddr     rovy.Multiaddr   // what we told it to listen on
 	EffectiveAddrs []rovy.Multiaddr // what it's actually listening on
 	ExternalAddrs  []rovy.Multiaddr // what others might see (NAT, hole punching, ...)
 }
