@@ -29,7 +29,7 @@ Right now (mid 2022) Rovy is an early work-in-progress with some foundational pa
 00:45:36 start.go:132: starting with ephemeral private key
 00:45:36 start.go:94: we are /rovy/bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
 00:45:36 start.go:106: api socket ready at http:/home/user/.rovy/api.sock
-00:45:36 start.go:199: started fc00 endpoint fc78:4ece:63c9:903c:5a54:cb0c:fda3:39cf using NetworkManager
+00:45:36 start.go:199: started fcnet endpoint fc78:4ece:63c9:903c:5a54:cb0c:fda3:39cf using NetworkManager
 ...
 > rovy info
 PeerID: bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
@@ -42,7 +42,7 @@ PeerID: bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
 
 To test IPv6 networking over Rovy's TUN interface, run traceroute against the IPv6 address of `nodeD` from the following command's output:
 ```
-> go run ./examples/fc00
+> go run ./examples/fcnet
 ...
 [nodeD] 02:28:45 main.go:32: /rovy/bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm
 [nodeD] 02:28:45 main.go:32: /ip6/fc75:d625:ca71:1e82:7636:37ea:3e8a:aa63

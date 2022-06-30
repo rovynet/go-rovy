@@ -15,8 +15,8 @@ import (
 // sess+mgram
 // fwd|ping
 // sess+mgram
-// echo|fc00
-// (rovyctl|fc00tun|mdns)
+// echo|fcnet
+// (rovyctl|fcnettun|mdns)
 
 const TransportBufferSize = 1024
 

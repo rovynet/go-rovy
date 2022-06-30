@@ -12,8 +12,8 @@ import (
 	"syscall"
 
 	rovy "go.rovy.net"
-	fc00 "go.rovy.net/fc00"
-	rovygvisor "go.rovy.net/fc00/gvisor"
+	fcnet "go.rovy.net/fcnet"
+	rovygvisor "go.rovy.net/fcnet/gvisor"
 	node "go.rovy.net/node"
 )
 
@@ -55,7 +55,7 @@ func run() error {
 		return err
 	}
 
-	nmA := fc00.NewNMTUN(nodeA.Log())
+	nmA := fcnet.NewNMTUN(nodeA.Log())
 	if err := nmA.Start("rovy0", nodeA.IPAddr(), rovy.UpperMTU); err != nil {
 		return err
 	}
@@ -76,23 +76,23 @@ func run() error {
 		return err
 	}
 
-	fc00a := fc00.NewFc00(nodeA, devA)
-	if err := fc00a.Start(rovy.UpperMTU); err != nil {
+	fcnetA := fcnet.NewFcnet(nodeA, devA)
+	if err := fcnetA.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
-	fc00b := fc00.NewFc00(nodeB, devB)
-	if err := fc00b.Start(rovy.UpperMTU); err != nil {
+	fcnetB := fcnet.NewFcnet(nodeB, devB)
+	if err := fcnetB.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
-	fc00c := fc00.NewFc00(nodeC, devC)
-	if err := fc00c.Start(rovy.UpperMTU); err != nil {
+	fcnetC := fcnet.NewFcnet(nodeC, devC)
+	if err := fcnetC.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 
-	fc00d := fc00.NewFc00(nodeD, devD)
-	if err := fc00d.Start(rovy.UpperMTU); err != nil {
+	fcnetD := fcnet.NewFcnet(nodeD, devD)
+	if err := fcnetD.Start(rovy.UpperMTU); err != nil {
 		return err
 	}
 

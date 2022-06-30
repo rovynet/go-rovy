@@ -9,11 +9,11 @@ import (
 	"golang.org/x/sys/unix"
 
 	rovy "go.rovy.net"
-	rovyfc00 "go.rovy.net/fc00"
+	fcnet "go.rovy.net/fcnet"
 	rovynode "go.rovy.net/node"
 )
 
-func (s *Server) serveFc00Start(w http.ResponseWriter, r *http.Request) {
+func (s *Server) serveFcnetStart(w http.ResponseWriter, r *http.Request) {
 	params := struct{ Socket string }{}
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		s.writeError(w, r, fmt.Errorf("params: %s", err))
@@ -27,7 +27,7 @@ func (s *Server) serveFc00Start(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: check if the device has correct address and mtu
-	tunif, err := rovyfc00.FileTUN(fd)
+	tunif, err := fcnet.FileTUN(fd)
 	if err != nil {
 		s.writeError(w, r, fmt.Errorf("tun: %s", err))
 		return
@@ -35,8 +35,8 @@ func (s *Server) serveFc00Start(w http.ResponseWriter, r *http.Request) {
 
 	node := s.node.(*rovynode.Node)
 
-	fc00 := rovyfc00.NewFc00(node, tunif)
-	if err := fc00.Start(rovy.UpperMTU); err != nil {
+	fc := fcnet.NewFcnet(node, tunif)
+	if err := fc.Start(rovy.UpperMTU); err != nil {
 		s.writeError(w, r, fmt.Errorf("start: %s", err))
 		return
 	}

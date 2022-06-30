@@ -13,7 +13,7 @@ type NodeInfo struct {
 type NodeAPI interface {
 	Info() (NodeInfo, error)
 	Stop() error
-	Fc00() Fc00API
+	Fcnet() FcnetAPI
 	Peer() PeerAPI
 }
 
@@ -45,7 +45,7 @@ type PeerAPI interface {
 	Policy(...string) error
 }
 
-type Fc00API interface {
+type FcnetAPI interface {
 	Start(tunfd *os.File) error
 	NodeAPI() NodeAPI
 }

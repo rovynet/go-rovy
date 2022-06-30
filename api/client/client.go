@@ -58,8 +58,8 @@ func (c *Client) Stop() error {
 	return nil
 }
 
-func (c *Client) Fc00() rovyapi.Fc00API {
-	return (*Fc00Client)(c)
+func (c *Client) Fcnet() rovyapi.FcnetAPI {
+	return (*FcnetClient)(c)
 }
 
 func (c *Client) Peer() rovyapi.PeerAPI {

@@ -83,8 +83,8 @@ IPAddr = '%s'
 }
 
 type Config struct {
-	Peer Peer
-	Fc00 Fc00
+	Peer  Peer
+	Fcnet Fcnet
 }
 
 type Peer struct {
@@ -93,7 +93,7 @@ type Peer struct {
 	Policy  []string
 }
 
-type Fc00 struct {
+type Fcnet struct {
 	Enabled bool
 	Ifname  string
 }
@@ -109,7 +109,7 @@ func DefaultConfig() *Config {
 			Connect: []rovy.Multiaddr{},
 			Policy:  []string{"local", "open"},
 		},
-		Fc00: Fc00{
+		Fcnet: Fcnet{
 			Enabled: true,
 			Ifname:  "rovy0",
 		},

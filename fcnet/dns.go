@@ -1,4 +1,4 @@
-package rovyfc00
+package fcnet
 
 import (
 	"log"
@@ -63,8 +63,8 @@ func (h DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(m)
 }
 
-func (fc *Fc00) initDns() error {
-	pktconn, err := fc.fc001net.ListenUDP(&net.UDPAddr{Port: 53})
+func (fc *Fcnet) initDns() error {
+	pktconn, err := fc.fc1net.ListenUDP(&net.UDPAddr{Port: 53})
 	if err != nil {
 		return err
 	}
@@ -79,6 +79,6 @@ func (fc *Fc00) initDns() error {
 		}
 	}()
 
-	fc.fc001dns = serv
+	fc.fc1dns = serv
 	return nil
 }

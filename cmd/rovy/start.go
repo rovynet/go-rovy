@@ -17,7 +17,7 @@ import (
 	rovyapic "go.rovy.net/api/client"
 	rovyapis "go.rovy.net/api/server"
 	rovycfg "go.rovy.net/cmd/rovy/config"
-	rovyfc00 "go.rovy.net/fc00"
+	fcnet "go.rovy.net/fcnet"
 	rovynode "go.rovy.net/node"
 )
 
@@ -127,8 +127,8 @@ func startCmdFunc(c *cli.Context) error {
 			return exitErr("failed to configure peering: %s", err)
 		}
 
-		if err = configureFc00(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
-			return exitErr("failed to configure fc00: %s", err)
+		if err = configureFcnet(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
+			return exitErr("failed to configure fcnet: %s", err)
 		}
 	}
 
@@ -207,23 +207,23 @@ func configurePeering(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.
 }
 
 // TODO: make use of actual config
-func configureFc00(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
-	if !cfg.Fc00.Enabled {
+func configureFcnet(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
+	if !cfg.Fcnet.Enabled {
 		return nil
 	}
 
-	nm := rovyfc00.NewNMTUN(node.Log())
-	if err := nm.Start(cfg.Fc00.Ifname, node.IPAddr(), rovy.UpperMTU); err != nil {
+	nm := fcnet.NewNMTUN(node.Log())
+	if err := nm.Start(cfg.Fcnet.Ifname, node.IPAddr(), rovy.UpperMTU); err != nil {
 		return fmt.Errorf("networkmanager: %s", err)
 	}
 
 	tunfd := nm.Device().File()
 
-	if err := api.Fc00().Start(tunfd); err != nil {
+	if err := api.Fcnet().Start(tunfd); err != nil {
 		return fmt.Errorf("api: %s", err)
 	}
 
-	node.Log().Printf("started fc00 endpoint %s using NetworkManager", node.IPAddr())
+	node.Log().Printf("started fcnet endpoint %s using NetworkManager", node.IPAddr())
 
 	return nil
 }

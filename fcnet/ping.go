@@ -1,4 +1,4 @@
-package rovyfc00
+package fcnet
 
 import (
 	"bytes"
@@ -22,16 +22,16 @@ var pingRequestId = [RequestIdSize]byte{0x0, 0x0, 0x0, 0x1}
 var pongRequestId = [RequestIdSize]byte{0x0, 0x0, 0x0, 0x2}
 
 // TODO implement me
-func (fc *Fc00) sign(ppkt PingPacket) (PingPacket, error) {
+func (fc *Fcnet) sign(ppkt PingPacket) (PingPacket, error) {
 	return ppkt, nil
 }
 
 // TODO implement me
-func (fc *Fc00) verify(ppkt PingPacket) error {
+func (fc *Fcnet) verify(ppkt PingPacket) error {
 	return nil
 }
 
-func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
+func (fc *Fcnet) handlePingPacket(lpkt rovy.LowerPacket) error {
 	ppkt := NewPingPacket(lpkt.Packet)
 
 	if !ppkt.IsDestination() {
@@ -57,7 +57,7 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 
 		dst := fc.ip.AsSlice()
 		if 0 != bytes.Compare(buf[8:24], dst) {
-			return fmt.Errorf("fc00: recv: dst address mismatch -- expected %#v -- got %#v", dst, buf[8:24])
+			return fmt.Errorf("fcnet: recv: dst address mismatch -- expected %#v -- got %#v", dst, buf[8:24])
 		}
 
 		src2 := ppkt.Sender().IPAddr().AsSlice()
@@ -83,7 +83,7 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 		cbuf := append(chdr, 0x3, 0x0, 0, 0)
 		cbody, err := msg.Body.Marshal(ipv6.ICMPTypeTimeExceeded.Protocol())
 		if err != nil {
-			return fmt.Errorf("fc00: icmp checksuming error: %s", err)
+			return fmt.Errorf("fcnet: icmp checksuming error: %s", err)
 		}
 		cbuf = append(cbuf, cbody...)
 		lenoff := 2 * net.IPv6len
@@ -104,7 +104,7 @@ func (fc *Fc00) handlePingPacket(lpkt rovy.LowerPacket) error {
 		copy(p2[24:40], dst2)
 		copy(p2[40:], icmpdata)
 
-		return fc.handleFc00Packet(rovy.NewPeerID(ppkt.Sender()), p2)
+		return fc.handleFcnetPacket(rovy.NewPeerID(ppkt.Sender()), p2)
 	}
 
 	ppkt2 := NewPingPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))

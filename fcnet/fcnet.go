@@ -1,4 +1,4 @@
-package rovyfc00
+package fcnet
 
 import (
 	"bytes"
@@ -11,13 +11,13 @@ import (
 	ipv6 "golang.org/x/net/ipv6"
 
 	rovy "go.rovy.net"
-	rovygvtun "go.rovy.net/fc00/gvisor"
+	fcgvisor "go.rovy.net/fcnet/gvisor"
 	forwarder "go.rovy.net/forwarder"
 	node "go.rovy.net/node"
 	rovyrt "go.rovy.net/routing"
 )
 
-const Fc00Multicodec = 0x42004
+const FcnetMulticodec = 0x42004
 const PingMulticodec = 0x42005
 
 const TunIfname = "rovy0"
@@ -25,7 +25,7 @@ const TunIfname = "rovy0"
 var (
 	linklocalPrefix = netip.MustParsePrefix("fe80::/64")
 	multicastPrefix = netip.MustParsePrefix("ff00::/8")
-	fc001Addr       = netip.MustParseAddr("fc00::1")
+	fc1Addr         = netip.MustParseAddr("fc00::1")
 )
 
 type nodeIface interface {
@@ -43,33 +43,33 @@ type routingIface interface {
 	LookupIPv6(netip.Addr) (rovy.PeerID, error)
 }
 
-type Fc00 struct {
-	node     nodeIface
-	routing  routingIface
-	log      *log.Logger
-	ip       netip.Addr
-	device   Device
-	fc001net rovygvtun.GvisorNet
-	fc001tun Device
-	fc001dns *dns.Server
+type Fcnet struct {
+	node    nodeIface
+	routing routingIface
+	log     *log.Logger
+	ip      netip.Addr
+	device  Device
+	fc1net  fcgvisor.GvisorNet
+	fc1tun  Device
+	fc1dns  *dns.Server
 }
 
-func NewFc00(node nodeIface, dev Device) *Fc00 {
-	fc := &Fc00{
+func NewFcnet(node nodeIface, dev Device) *Fcnet {
+	fc := &Fcnet{
 		node: node, ip: node.PeerID().PublicKey().IPAddr(), log: node.Log(), device: dev, routing: node.Routing(),
 	}
 	return fc
 }
 
-func (fc *Fc00) Start(mtu int) error {
+func (fc *Fcnet) Start(mtu int) error {
 	fc.node.HandleLower(PingMulticodec, fc.handlePingPacket)
-	fc.node.Handle(Fc00Multicodec, func(upkt rovy.UpperPacket) error {
-		return fc.handleFc00Packet(upkt.UpperSrc, upkt.Payload())
+	fc.node.Handle(FcnetMulticodec, func(upkt rovy.UpperPacket) error {
+		return fc.handleFcnetPacket(upkt.UpperSrc, upkt.Payload())
 	})
 
 	go fc.listenTun()
 
-	if err := fc.initFc001(mtu); err != nil {
+	if err := fc.initFcnet1(mtu); err != nil {
 		return err
 	}
 
@@ -80,20 +80,20 @@ func (fc *Fc00) Start(mtu int) error {
 	return nil
 }
 
-func (fc *Fc00) initFc001(mtu int) error {
-	ftun, fnet, err := rovygvtun.NewGvisorTUN(fc001Addr, mtu, fc.log)
+func (fc *Fcnet) initFcnet1(mtu int) error {
+	ftun, fnet, err := fcgvisor.NewGvisorTUN(fc1Addr, mtu, fc.log)
 	if err != nil {
 		return err
 	}
-	fc.fc001tun = ftun
-	fc.fc001net = fnet
+	fc.fc1tun = ftun
+	fc.fc1net = fnet
 
 	go func() {
 		for {
 			pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 			buf := pkt.Bytes()[rovy.UpperOffset:]
 
-			if _, err := fc.fc001tun.Read(buf, 0); err != nil {
+			if _, err := fc.fc1tun.Read(buf, 0); err != nil {
 				fc.log.Printf("dns: tun read: %s", err)
 				continue
 			}
@@ -108,7 +108,7 @@ func (fc *Fc00) initFc001(mtu int) error {
 	return nil
 }
 
-func (fc *Fc00) listenTun() {
+func (fc *Fcnet) listenTun() {
 	for {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 		buf := pkt.Bytes()[rovy.UpperOffset:]
@@ -116,7 +116,7 @@ func (fc *Fc00) listenTun() {
 		// TODO: "not pollable" error when device is deleted
 		n, err := fc.device.Read(buf, 0)
 		if err != nil {
-			fc.log.Printf("fc00: tun read: %s", err)
+			fc.log.Printf("fcnet: tun read: %s", err)
 			continue
 		}
 		pkt.Length = rovy.UpperOffset + n
@@ -127,13 +127,13 @@ func (fc *Fc00) listenTun() {
 		}
 
 		if err := fc.handleTunPacket(buf[:n]); err != nil {
-			fc.log.Printf("fc00: handleTunPacket: %s", err)
+			fc.log.Printf("fcnet: handleTunPacket: %s", err)
 			continue
 		}
 	}
 }
 
-func (fc *Fc00) handleTunPacket(buf []byte) error {
+func (fc *Fcnet) handleTunPacket(buf []byte) error {
 	// fc.log.Printf("tun: got %#v", buf)
 
 	plen := len(buf)
@@ -145,7 +145,7 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 
 	gotlen := int(binary.BigEndian.Uint16(buf[4:6]))
 	if plen != gotlen+ipv6.HeaderLen {
-		return fmt.Errorf("fc00: recv: length mismatch, expected %d, got %d (%d + %d)", plen, gotlen+ipv6.HeaderLen, gotlen, ipv6.HeaderLen)
+		return fmt.Errorf("fcnet: recv: length mismatch, expected %d, got %d (%d + %d)", plen, gotlen+ipv6.HeaderLen, gotlen, ipv6.HeaderLen)
 	}
 
 	nexthdr := buf[6]
@@ -162,9 +162,9 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		return nil
 	}
 
-	if dst == fc001Addr {
+	if dst == fc1Addr {
 		// fc.log.Printf("tun: packet for fc00::1")
-		_, err := fc.fc001tun.Write(buf, 0)
+		_, err := fc.fc1tun.Write(buf, 0)
 		return err
 	}
 
@@ -183,7 +183,7 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 		upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
 		upkt.UpperDst = peerid
 		upkt.SetRoute(route)
-		upkt.SetCodec(Fc00Multicodec)
+		upkt.SetCodec(FcnetMulticodec)
 		upkt = upkt.SetPayload(buf)
 		return fc.node.SendUpper(upkt)
 	}
@@ -221,23 +221,23 @@ func (fc *Fc00) handleTunPacket(buf []byte) error {
 	return nil
 }
 
-func (fc *Fc00) handleFc00Packet(src rovy.PeerID, payload []byte) error {
+func (fc *Fcnet) handleFcnetPacket(src rovy.PeerID, payload []byte) error {
 	n := len(payload)
 	if n < ipv6.HeaderLen {
-		return fmt.Errorf("fc00: recv: packet too short (len=%d)", n)
+		return fmt.Errorf("fcnet: recv: packet too short (len=%d)", n)
 	}
 	gotlen := int(binary.BigEndian.Uint16(payload[4:6]))
 	if n != gotlen+ipv6.HeaderLen {
-		return fmt.Errorf("fc00: recv: length mismatch, expected %d, got %d (%d + %d)", n, gotlen+ipv6.HeaderLen, gotlen, ipv6.HeaderLen)
+		return fmt.Errorf("fcnet: recv: length mismatch, expected %d, got %d (%d + %d)", n, gotlen+ipv6.HeaderLen, gotlen, ipv6.HeaderLen)
 	}
 	if payload[0]>>4 != 0x6 {
-		return fmt.Errorf("fc00: recv: not an ipv6 packet")
+		return fmt.Errorf("fcnet: recv: not an ipv6 packet")
 	}
 	if 0 != bytes.Compare(payload[8:24], src.PublicKey().IPAddr().AsSlice()) {
-		return fmt.Errorf("fc00: recv: src address mismatch")
+		return fmt.Errorf("fcnet: recv: src address mismatch")
 	}
 	if 0 != bytes.Compare(payload[24:40], fc.ip.AsSlice()) {
-		return fmt.Errorf("fc00: recv: dst address mismatch")
+		return fmt.Errorf("fcnet: recv: dst address mismatch")
 	}
 
 	_, err := fc.device.Write(payload, 0)

@@ -26,7 +26,7 @@
 - [ ] all: Context wiring
 
 - [ ] test: basic shared cucumber suite for CLI, HTTP API, Go API
-- [ ] fc00: signatures on ping/pong
+- [ ] fcnet: signatures on ping/pong
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission
 - [ ] session: get the stages in order
@@ -40,18 +40,18 @@
 - [x] session: handshake waiters are strange - not anymore :-)
 - [x] remove multigram table negotiation, it doesn't make sense much sense at the moment
 - [x] node: add lower codec for direct-upper hack
-- [x] fc00: less verbose error handling
-- [ ] fc00: ping ff02::1%rovy
-- [ ] fc00: reverse dns
-- [ ] fc00: clarify the fc00 api interface
-- [ ] fc00: rename to fcnet
-- [x] fc00: embedded virtual tun device
-- [ ] fc00: node keeps track of fc00 service
-- [ ] cli: rovy fc00 start command with --nm and other options
-- [ ] fc00: fc00 stop and status commands
-- [ ] fc00: default-deny and fc00 ports command
-- [ ] fc00: define fc00::/64 as unroutable
-- [ ] fc00: learn routes from traceroute replies
+- [x] fcnet: less verbose error handling
+- [ ] fcnet: ping ff02::1%rovy
+- [ ] fcnet: reverse dns
+- [ ] fcnet: clarify the fcnet api interface
+- [ ] fcnet: rename to fcnet
+- [x] fcnet: embedded virtual tun device
+- [ ] fcnet: node keeps track of fcnet service
+- [ ] cli: rovy fcnet start command with --nm and other options
+- [ ] fcnet: fcnet stop and status commands
+- [ ] fcnet: default-deny and fcnet ports command
+- [ ] fcnet: define fc00::/64 as unroutable
+- [ ] fcnet: learn routes from traceroute replies
 - [ ] cli: rovy reload command
 - [x] perf: faked ring buffer queues
 - [ ] perf: Buffer pool for fewer allocations

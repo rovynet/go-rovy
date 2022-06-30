@@ -25,7 +25,7 @@ func (s *Server) Serve(lis net.Listener) {
 
 	router.HandleFunc("/v0/info", s.serveInfo)
 	router.HandleFunc("/v0/stop", s.serveStop)
-	router.HandleFunc("/v0/fc00/start", s.serveFc00Start) // not part of THE api
+	router.HandleFunc("/v0/fcnet/start", s.serveFcnetStart) // not part of THE api
 	router.HandleFunc("/v0/peer/status", s.servePeerStatus)
 	router.HandleFunc("/v0/peer/listen", s.servePeerListen)
 	// router.HandleFunc("/v0/peer/close", s.servePeerClose)
