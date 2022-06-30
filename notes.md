@@ -21,11 +21,13 @@
 
 # Next
 
-- [ ] node: proper transport/listener/dialer interfaces
+- [x] node: implement listeners and separate ip4/ip6
+- [ ] test: basic shared cucumber suite for CLI, HTTP API, Go API
+- [ ] node: complete peer api
 - [ ] node: clean shutdown (close tun, delete nmconn, notify peers)
 - [ ] all: Context wiring
+- [ ] all: resolve every TODO in the codebase
 
-- [ ] test: basic shared cucumber suite for CLI, HTTP API, Go API
 - [ ] fcnet: signatures on ping/pong
 - [ ] session: replay protection, flood protection, cookie
 - [ ] session: timeouts, handshake retransmission
@@ -44,7 +46,7 @@
 - [ ] fcnet: ping ff02::1%rovy
 - [ ] fcnet: reverse dns
 - [ ] fcnet: clarify the fcnet api interface
-- [ ] fcnet: rename to fcnet
+- [x] fcnet: rename fc00 to fcnet
 - [x] fcnet: embedded virtual tun device
 - [ ] fcnet: node keeps track of fcnet service
 - [ ] cli: rovy fcnet start command with --nm and other options

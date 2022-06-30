@@ -207,6 +207,7 @@ func configurePeering(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.
 }
 
 // TODO: make use of actual config
+// TODO: close our FD?
 func configureFcnet(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
 	if !cfg.Fcnet.Enabled {
 		return nil
