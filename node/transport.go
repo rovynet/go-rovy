@@ -1,10 +1,12 @@
 package node
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/netip"
 
+	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
 	ringbuf "go.rovy.net/util/ringbuf"
 )
@@ -19,22 +21,38 @@ import (
 const TransportBufferSize = 1024
 
 type Transport struct {
-	conn   *net.UDPConn
-	sendQ  rovy.Queue
-	logger *log.Logger
+	conn       *net.UDPConn
+	listenAddr rovy.Multiaddr
+	sendQ      rovy.Queue
+	logger     *log.Logger
 }
 
 func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error) {
+	var network string
+	protos := lisaddr.Protocols()
+	if len(protos) != 2 || protos[1].Code != multiaddr.P_UDP {
+		return nil, fmt.Errorf("can't listen on %s", lisaddr)
+	}
+	switch protos[0].Code {
+	case multiaddr.P_IP6:
+		network = "udp6"
+	case multiaddr.P_IP4:
+		network = "udp4"
+	default:
+		return nil, fmt.Errorf("can't listen on %s", lisaddr)
+	}
+
 	udpaddr := net.UDPAddrFromAddrPort(lisaddr.AddrPort())
-	conn, err := net.ListenUDP("udp", udpaddr)
+	conn, err := net.ListenUDP(network, udpaddr)
 	if err != nil {
 		return nil, err
 	}
 
 	tpt := &Transport{
-		conn:   conn,
-		sendQ:  ringbuf.NewRingBuffer(TransportBufferSize),
-		logger: logger,
+		conn:       conn,
+		listenAddr: lisaddr,
+		sendQ:      ringbuf.NewRingBuffer(TransportBufferSize),
+		logger:     logger,
 	}
 
 	return tpt, nil
