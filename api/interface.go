@@ -15,6 +15,7 @@ type NodeAPI interface {
 	Stop() error
 	Fcnet() FcnetAPI
 	Peer() PeerAPI
+	Discovery() DiscoveryAPI
 }
 
 type PeerStatus struct {
@@ -45,7 +46,24 @@ type PeerAPI interface {
 	Policy(...string) error
 }
 
+type DiscoveryStatus struct {
+	LinkLocal DiscoveryLinkLocal
+}
+
+type DiscoveryLinkLocal struct {
+	Interfaces   []rovy.Multiaddr
+	Interval     time.Duration
+	DontAnnounce bool
+	DontReceive  bool
+}
+
+type DiscoveryAPI interface {
+	Status() DiscoveryStatus
+	StartLinkLocal(DiscoveryLinkLocal) error
+	StopLinkLocal() error
+}
+
 type FcnetAPI interface {
 	Start(tunfd *os.File) error
-	NodeAPI() NodeAPI
+	NodeAPI() NodeAPI // TODO: ?
 }

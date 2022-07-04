@@ -16,7 +16,7 @@
 - [ ] Petnames in .rovy TLD
 - [ ] External routing protocols, e.g. Babel and OLSR
 - [ ] DHT for decentral global and local routing lookups
-- [ ] Support for onion-like sessions
+- [ ] Support for onion-like sessions (Labeled Fwd'er, Wrapped Fwd'er, Potato Fwd'er)
 - [ ] Transit of Internet traffic using TUN interface, BGP, and RPKI RTAs
 
 # Next
@@ -77,6 +77,21 @@
 - [ ] fix endianness once and for all, do what wireguard and cjdns do
 
 ---
+
+# Discovery
+
+rovy peer discovery  # for status info
+rovy peer discovery linklocal /ethif/enp2s0f0 /ethif/wlp3s0
+rovy peer discovery linklocal --all
+rovy peer discovery linklocal /ethif/enp2s0f0 --dont-announce
+rovy peer discovery linklocal /ethif/enp2s0f0 --ignore-incoming --interval=10
+rovy peer discovery linklocal --disable
+rovy peer discovery exchange /https/exchange.rovy.net /https/exchange.freifunk.berlin
+rovy peer discovery exchange --disable
+rovy peer discovery olsr /path/to/servicesfile.txt
+rovy peer discovery olsr --disable
+rovy peer discovery mdns
+rovy peer discovery mdns --disable
 
 # Random Notes
 
