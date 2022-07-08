@@ -6,7 +6,6 @@ import (
 	"net/netip"
 	"sync"
 
-	multiaddrnet "github.com/multiformats/go-multiaddr/net"
 	rovy "go.rovy.net"
 	forwarder "go.rovy.net/node/forwarder"
 	routing "go.rovy.net/node/routing"
@@ -17,8 +16,6 @@ import (
 const DirectUpperCodec = 0x12347
 
 const DefaultQueueSize = 1024
-
-type Listener multiaddrnet.PacketConn
 
 type UpperHandler func(rovy.UpperPacket) error
 type LowerHandler func(rovy.LowerPacket) error
