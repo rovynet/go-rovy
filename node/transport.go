@@ -23,7 +23,7 @@ type Transport struct {
 	conn       *net.UDPConn
 	listenAddr rovy.Multiaddr
 	running    chan int
-	sendQ      rovy.Queue
+	sendQ      *ringbuf.RingBuffer
 	logger     *log.Logger
 }
 
@@ -58,7 +58,7 @@ func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error
 	return tpt, nil
 }
 
-func (tpt *Transport) Start(next rovy.Queue) error {
+func (tpt *Transport) Start(next *ringbuf.RingBuffer) error {
 	if tpt.Running() {
 		return ErrRunning
 	}
@@ -100,7 +100,7 @@ func (tpt *Transport) LocalMultiaddr() rovy.Multiaddr {
 	return rovy.Multiaddr{IP: ip.Addr(), Port: ip.Port()}
 }
 
-func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
+func (tpt *Transport) RecvRoutine(next *ringbuf.RingBuffer) {
 	for {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 
@@ -112,7 +112,7 @@ func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
 
 		pkt.Length = n
 		pkt.TptSrc = rovy.Multiaddr{IP: raddr.Addr(), Port: raddr.Port()}
-		recvQ.Put(pkt)
+		next.Put(pkt)
 	}
 }
 

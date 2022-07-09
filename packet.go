@@ -21,15 +21,6 @@ const (
 	TptMTU = 1500 - 48
 )
 
-type Queue interface {
-	Put(Packet)
-	PutWithBackpressure(Packet)
-	Get() Packet
-	Capacity() int
-	Length() int
-	Channel() chan Packet
-}
-
 type Packet struct {
 	Buf      []byte
 	Length   int

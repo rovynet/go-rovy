@@ -42,14 +42,14 @@ type Node struct {
 	RxUpper uint64
 
 	running    chan int
-	helloSendQ rovy.Queue
-	lowerSendQ rovy.Queue
-	upperSendQ rovy.Queue
-	helloRecvQ rovy.Queue
-	lowerRecvQ rovy.Queue
-	lowerMuxQ  rovy.Queue
-	upperRecvQ rovy.Queue
-	upperMuxQ  rovy.Queue
+	helloSendQ *ringbuf.RingBuffer
+	lowerSendQ *ringbuf.RingBuffer
+	upperSendQ *ringbuf.RingBuffer
+	helloRecvQ *ringbuf.RingBuffer
+	lowerRecvQ *ringbuf.RingBuffer
+	lowerMuxQ  *ringbuf.RingBuffer
+	upperRecvQ *ringbuf.RingBuffer
+	upperMuxQ  *ringbuf.RingBuffer
 }
 
 func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
