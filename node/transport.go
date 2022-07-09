@@ -105,6 +105,10 @@ func (tpt *Transport) RecvRoutine(next *ringbuf.RingBuffer) {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
 
 		n, raddr, err := tpt.conn.ReadFromUDPAddrPort(pkt.Bytes())
+		if err == net.ErrClosed {
+			tpt.logger.Printf("closing transport recv routine, socket is closed")
+			return
+		}
 		if err != nil {
 			tpt.logger.Printf("RecvRoutine: %s", err)
 			continue
@@ -130,6 +134,10 @@ func (tpt *Transport) SendRoutine() {
 			// tpt.logger.Printf("SendRoutine: writeTo: TptDst=%+v LowerDst=%+v UpperDst=%+v", pkt.TptDst, pkt.LowerDst, pkt.UpperDst)
 
 			_, err := tpt.conn.WriteToUDPAddrPort(pkt.Bytes(), pkt.TptDst.AddrPort())
+			if err == net.ErrClosed {
+				tpt.logger.Printf("closing transport send routine, socket is closed")
+				return
+			}
 			if err != nil {
 				tpt.logger.Printf("SendRoutine: %s", err)
 			}
