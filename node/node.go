@@ -139,10 +139,6 @@ func (node *Node) PeerID() rovy.PeerID {
 	return node.peerid
 }
 
-func (node *Node) Multiaddr() rovy.Multiaddr {
-	return rovy.Multiaddr{PeerID: node.peerid}
-}
-
 func (node *Node) IPAddr() netip.Addr {
 	return node.peerid.PublicKey().IPAddr()
 }
