@@ -16,16 +16,19 @@ const (
 	// TODO: officially register the multicodec numbers
 	RovyMultiaddrCodec  = 0x1a6
 	ProtoMultiaddrCodec = 0x34
+	IP4MultiaddrCodec   = 0x4
+	IP6MultiaddrCodec   = 0x29
+	UDPMultiaddrCodec   = 0x111
 )
 
 var (
 	udp4protocols = []multiaddr.Protocol{
-		multiaddr.ProtocolWithCode(multiaddr.P_IP4),
-		multiaddr.ProtocolWithCode(multiaddr.P_UDP),
+		multiaddr.ProtocolWithCode(IP4MultiaddrCodec),
+		multiaddr.ProtocolWithCode(UDPMultiaddrCodec),
 	}
 	udp6protocols = []multiaddr.Protocol{
-		multiaddr.ProtocolWithCode(multiaddr.P_IP6),
-		multiaddr.ProtocolWithCode(multiaddr.P_UDP),
+		multiaddr.ProtocolWithCode(IP6MultiaddrCodec),
+		multiaddr.ProtocolWithCode(UDPMultiaddrCodec),
 	}
 	rovyProtocol = multiaddr.Protocol{
 		Name:       "rovy",
@@ -257,11 +260,11 @@ func (ma Multiaddr) Protocols() []multiaddr.Protocol {
 }
 
 func (ma Multiaddr) ValueForProtocol(code int) (string, error) {
-	if code == multiaddr.P_IP4 && ma.IP.Is4() {
+	if code == IP4MultiaddrCodec && ma.IP.Is4() {
 		return ma.IP.String(), nil
-	} else if code == multiaddr.P_IP6 && ma.IP.Is6() {
+	} else if code == IP6MultiaddrCodec && ma.IP.Is6() {
 		return ma.IP.String(), nil
-	} else if code == multiaddr.P_UDP && ma.IP.IsValid() {
+	} else if code == UDPMultiaddrCodec && ma.IP.IsValid() {
 		return strconv.FormatUint(uint64(ma.Port), 10), nil
 	}
 	if code == RovyMultiaddrCodec && ma.PeerID != emptyPeerID {

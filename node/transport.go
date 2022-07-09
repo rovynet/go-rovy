@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 
-	multiaddr "github.com/multiformats/go-multiaddr"
 	rovy "go.rovy.net"
 	ringbuf "go.rovy.net/node/util/ringbuf"
 )
@@ -31,13 +30,13 @@ type Transport struct {
 func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error) {
 	var network string
 	protos := lisaddr.Protocols()
-	if len(protos) != 2 || protos[1].Code != multiaddr.P_UDP {
+	if len(protos) != 2 || protos[1].Code != rovy.UDPMultiaddrCodec {
 		return nil, fmt.Errorf("can't listen on %s", lisaddr)
 	}
 	switch protos[0].Code {
-	case multiaddr.P_IP6:
+	case rovy.IP6MultiaddrCodec:
 		network = "udp6"
-	case multiaddr.P_IP4:
+	case rovy.IP4MultiaddrCodec:
 		network = "udp4"
 	default:
 		return nil, fmt.Errorf("can't listen on %s", lisaddr)
