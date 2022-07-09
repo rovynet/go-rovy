@@ -29,7 +29,7 @@ type Node struct {
 	peerid        rovy.PeerID
 	logger        *log.Logger
 	transports    []*Transport
-	waiters       map[string][]chan error
+	waiters       map[rovy.PeerID][]chan error
 	waitersLock   sync.Mutex
 	sessions      *session.SessionManager
 	upperHandlers map[uint64]UpperHandler
@@ -59,7 +59,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	node := &Node{
 		peerid:        peerid,
 		logger:        logger,
-		waiters:       map[string][]chan error{},
+		waiters:       map[rovy.PeerID][]chan error{},
 		upperHandlers: map[uint64]UpperHandler{},
 		lowerHandlers: map[uint64]LowerHandler{},
 		routing:       routing.NewRouting(logger),
@@ -169,15 +169,13 @@ func (node *Node) Routing() *routing.Routing {
 func (node *Node) WaitFor(pid rovy.PeerID) error {
 	node.waitersLock.Lock()
 
-	spid := pid.String()
-
-	_, present := node.waiters[spid]
+	_, present := node.waiters[pid]
 	if !present {
-		node.waiters[spid] = []chan error{}
+		node.waiters[pid] = []chan error{}
 	}
 
 	ch := make(chan error, 1)
-	node.waiters[spid] = append(node.waiters[spid], ch)
+	node.waiters[pid] = append(node.waiters[pid], ch)
 	node.waitersLock.Unlock()
 
 	return <-ch
@@ -205,14 +203,12 @@ func (node *Node) connectedCallback(peerid rovy.PeerID, lower bool) {
 	node.waitersLock.Lock()
 	defer node.waitersLock.Unlock()
 
-	spid := peerid.String()
-
-	w, present := node.waiters[spid]
+	w, present := node.waiters[peerid]
 	if present {
 		for _, ch := range w {
 			ch <- err
 		}
-		delete(node.waiters, spid)
+		delete(node.waiters, peerid)
 	}
 }
 
