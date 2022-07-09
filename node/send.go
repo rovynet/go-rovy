@@ -12,29 +12,32 @@ import (
 
 func (node *Node) helloSendRoutine() {
 	for {
-		pkt := node.helloSendQ.Get()
-
-		if pkt.LowerDst.Empty() {
-			if pkt.UpperDst.Empty() {
-				node.Log().Printf("helloSendRoutine: upper packet without UpperDst")
-				continue
-			}
-			if err := node.doUpperHelloSend(pkt); err != nil {
-				node.Log().Printf("helloSendRoutine: %s", err)
-				continue
-			}
-		} else {
-			if pkt.TptDst.Empty() {
-				node.Log().Printf("helloSendRoutine: lower packet without TptDst")
-				continue
-			}
+		select {
+		case <-node.running:
+			return
+		case pkt := <-node.helloSendQ.Channel():
 			if pkt.LowerDst.Empty() {
-				node.Log().Printf("helloSendRoutine: lower packet without LowerDst")
-				continue
-			}
-			if err := node.doLowerHelloSend(pkt); err != nil {
-				node.Log().Printf("helloSendRoutine: %s", err)
-				continue
+				if pkt.UpperDst.Empty() {
+					node.Log().Printf("helloSendRoutine: upper packet without UpperDst")
+					continue
+				}
+				if err := node.doUpperHelloSend(pkt); err != nil {
+					node.Log().Printf("helloSendRoutine: %s", err)
+					continue
+				}
+			} else {
+				if pkt.TptDst.Empty() {
+					node.Log().Printf("helloSendRoutine: lower packet without TptDst")
+					continue
+				}
+				if pkt.LowerDst.Empty() {
+					node.Log().Printf("helloSendRoutine: lower packet without LowerDst")
+					continue
+				}
+				if err := node.doLowerHelloSend(pkt); err != nil {
+					node.Log().Printf("helloSendRoutine: %s", err)
+					continue
+				}
 			}
 		}
 	}
@@ -47,9 +50,7 @@ func (node *Node) doLowerHelloSend(pkt rovy.Packet) error {
 		return err
 	}
 
-	node.sendTransport(hellopkt.Packet)
-
-	return nil
+	return node.sendTransport(hellopkt.Packet)
 }
 
 func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
@@ -77,16 +78,18 @@ func (node *Node) doUpperHelloSend(pkt rovy.Packet) error {
 
 func (node *Node) lowerSendRoutine() {
 	for {
-		pkt := node.lowerSendQ.Get()
-
-		if pkt.LowerDst.Empty() {
-			node.Log().Printf("lowerSendRoutine: dropping packet without LowerDst")
-			continue
-		}
-
-		if err := node.doLowerSend(pkt); err != nil {
-			node.Log().Printf("lowerSendRoutine: %s", err)
-			continue
+		select {
+		case <-node.running:
+			return
+		case pkt := <-node.lowerSendQ.Channel():
+			if pkt.LowerDst.Empty() {
+				node.Log().Printf("lowerSendRoutine: dropping packet without LowerDst")
+				continue
+			}
+			if err := node.doLowerSend(pkt); err != nil {
+				node.Log().Printf("lowerSendRoutine: %s", err)
+				continue
+			}
 		}
 	}
 }
@@ -107,16 +110,20 @@ func (node *Node) doLowerSend(pkt rovy.Packet) error {
 
 func (node *Node) upperSendRoutine() {
 	for {
-		pkt := node.upperSendQ.Get()
+		select {
+		case <-node.running:
+			return
+		case pkt := <-node.upperSendQ.Channel():
 
-		if pkt.UpperDst.Empty() {
-			node.Log().Printf("upperSendRoutine: packet without UpperDst")
-			continue
-		}
+			if pkt.UpperDst.Empty() {
+				node.Log().Printf("upperSendRoutine: packet without UpperDst")
+				continue
+			}
 
-		if err := node.doUpperSend(pkt); err != nil {
-			node.Log().Printf("upperSendRoutine: %s", err)
-			continue
+			if err := node.doUpperSend(pkt); err != nil {
+				node.Log().Printf("upperSendRoutine: %s", err)
+				continue
+			}
 		}
 	}
 }

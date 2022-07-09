@@ -91,12 +91,14 @@ func startCmdFunc(c *cli.Context) error {
 	}
 
 	node := rovynode.NewNode(privkey, logger)
+	if err := node.Start(); err != nil {
+		return exitErr("node: %s", err)
+	}
 	logger.Printf("we are /rovy/%s", node.PeerID())
 
 	if err := checkSocket(socket); err != nil {
 		return exitErr("failed to check socket %s: %s", socket, err)
 	}
-
 	apilis, err := net.Listen("unix", socket)
 	if err != nil {
 		return exitErr("failed to start socket listener: %s", err)

@@ -17,6 +17,9 @@ func newNode(name string, lisaddr rovy.Multiaddr) (*node.Node, error) {
 	}
 
 	node := node.NewNode(privkey, logger)
+	if err := node.Start(); err != nil {
+		return node, err
+	}
 
 	if _, err = node.Peer().Listen(lisaddr); err != nil {
 		return nil, err

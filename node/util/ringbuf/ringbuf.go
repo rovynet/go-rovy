@@ -44,3 +44,7 @@ func (rb *RingBuffer) Length() int {
 func (rb *RingBuffer) Dropped() uint64 {
 	return rb.dropped
 }
+
+func (rb *RingBuffer) Channel() chan rovy.Packet {
+	return rb.ch
+}

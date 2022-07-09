@@ -123,9 +123,13 @@ func iStartNode(ctx context.Context, name string) error {
 	if !ok {
 		return fmt.Errorf("unknown rovy node: %s", name)
 	}
-	// return node.Start()
-	_ = node
-	return godog.ErrPending
+	if err := node.Start(); err != nil {
+		return err
+	}
+	if !node.Running() {
+		return fmt.Errorf("node isn't running")
+	}
+	return nil
 }
 
 func thePeerIDOfIs(ctx context.Context, name, peerid string) error {

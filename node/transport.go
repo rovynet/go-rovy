@@ -23,6 +23,7 @@ const TransportBufferSize = 1024
 type Transport struct {
 	conn       *net.UDPConn
 	listenAddr rovy.Multiaddr
+	running    chan int
 	sendQ      rovy.Queue
 	logger     *log.Logger
 }
@@ -58,6 +59,43 @@ func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error
 	return tpt, nil
 }
 
+func (tpt *Transport) Start(next rovy.Queue) error {
+	if tpt.Running() {
+		return ErrRunning
+	}
+
+	tpt.running = make(chan int)
+	go tpt.SendRoutine()
+	go tpt.RecvRoutine(next)
+
+	return nil
+}
+
+func (tpt *Transport) Stop() error {
+	if !tpt.Running() {
+		return ErrNotRunning
+	}
+
+	close(tpt.running)
+
+	return nil
+}
+
+func (tpt *Transport) Running() bool {
+	if tpt.running != nil {
+		select {
+		case <-tpt.running:
+			// we're not running anymore, channel is closed.
+			// the channel is unbuffered, so if we never write anything to it,
+			// then the only way to reach here is if the channel is closed.
+			return false
+		default:
+			return true
+		}
+	}
+	return false
+}
+
 func (tpt *Transport) LocalMultiaddr() rovy.Multiaddr {
 	ip := netip.MustParseAddrPort(tpt.conn.LocalAddr().String())
 	return rovy.Multiaddr{IP: ip.Addr(), Port: ip.Port()}
@@ -81,17 +119,21 @@ func (tpt *Transport) RecvRoutine(recvQ rovy.Queue) {
 
 func (tpt *Transport) SendRoutine() {
 	for {
-		pkt := tpt.sendQ.Get()
-		if pkt.TptDst.Empty() {
-			tpt.logger.Printf("SendRoutine: dropping packet without TptSrc")
-			continue
-		}
+		select {
+		case <-tpt.running:
+			return
+		case pkt := <-tpt.sendQ.Channel():
+			if pkt.TptDst.Empty() {
+				tpt.logger.Printf("SendRoutine: dropping packet without TptSrc")
+				continue
+			}
 
-		// tpt.logger.Printf("SendRoutine: writeTo: TptDst=%+v LowerDst=%+v UpperDst=%+v", pkt.TptDst, pkt.LowerDst, pkt.UpperDst)
+			// tpt.logger.Printf("SendRoutine: writeTo: TptDst=%+v LowerDst=%+v UpperDst=%+v", pkt.TptDst, pkt.LowerDst, pkt.UpperDst)
 
-		_, err := tpt.conn.WriteToUDPAddrPort(pkt.Bytes(), pkt.TptDst.AddrPort())
-		if err != nil {
-			tpt.logger.Printf("SendRoutine: %s", err)
+			_, err := tpt.conn.WriteToUDPAddrPort(pkt.Bytes(), pkt.TptDst.AddrPort())
+			if err != nil {
+				tpt.logger.Printf("SendRoutine: %s", err)
+			}
 		}
 	}
 }

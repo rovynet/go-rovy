@@ -19,8 +19,7 @@ func (c *PeerAPI) Listen(ma rovy.Multiaddr) (rovyapi.PeerListener, error) {
 
 	node := (*Node)(c)
 	node.transports = append(node.transports, tpt)
-	go tpt.RecvRoutine(node.lowerRecvQ)
-	go tpt.SendRoutine()
+	tpt.Start(node.lowerRecvQ)
 
 	return rovyapi.PeerListener{ListenAddr: ma}, nil
 }

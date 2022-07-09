@@ -1,6 +1,7 @@
 package node
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/netip"
@@ -16,6 +17,9 @@ import (
 const DirectUpperCodec = 0x12347
 
 const DefaultQueueSize = 1024
+
+var ErrRunning = errors.New("routines are already running")
+var ErrNotRunning = errors.New("routines are not running")
 
 type UpperHandler func(rovy.UpperPacket) error
 type LowerHandler func(rovy.LowerPacket) error
@@ -37,10 +41,10 @@ type Node struct {
 	RxLower uint64
 	RxUpper uint64
 
+	running    chan int
 	helloSendQ rovy.Queue
 	lowerSendQ rovy.Queue
 	upperSendQ rovy.Queue
-
 	helloRecvQ rovy.Queue
 	lowerRecvQ rovy.Queue
 	lowerMuxQ  rovy.Queue
@@ -77,17 +81,58 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		return nil
 	})
 
+	return node
+}
+
+func (node *Node) Start() error {
+	if node.Running() {
+		return ErrRunning
+	}
+
+	node.running = make(chan int)
 	go node.helloSendRoutine()
 	go node.lowerSendRoutine()
 	go node.upperSendRoutine()
-
 	go node.helloRecvRoutine()
 	go node.lowerRecvRoutine()
 	go node.lowerMuxRoutine()
 	go node.upperRecvRoutine()
 	go node.upperMuxRoutine()
 
-	return node
+	for _, tpt := range node.transports {
+		tpt.Start(node.lowerRecvQ)
+	}
+
+	return nil
+}
+
+func (node *Node) Stop() error {
+	if !node.Running() {
+		return ErrNotRunning
+	}
+
+	close(node.running)
+
+	for _, tpt := range node.transports {
+		tpt.Stop()
+	}
+
+	return nil
+}
+
+func (node *Node) Running() bool {
+	if node.running != nil {
+		select {
+		case <-node.running:
+			// we're not running anymore, channel is closed.
+			// the channel is unbuffered, so if we never write anything to it,
+			// then the only way to reach here is if the channel is closed.
+			return false
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func (node *Node) PeerID() rovy.PeerID {

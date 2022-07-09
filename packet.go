@@ -27,6 +27,7 @@ type Queue interface {
 	Get() Packet
 	Capacity() int
 	Length() int
+	Channel() chan Packet
 }
 
 type Packet struct {
