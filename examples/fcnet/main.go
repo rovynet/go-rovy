@@ -132,7 +132,10 @@ func run() error {
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			io.WriteString(w, fmt.Sprintf("Hello from\n%s\n%s\n", nodeD.Multiaddr(), nodeD.IPAddr()))
+			io.WriteString(w, fmt.Sprintf("Hello from\n%s\n", nodeD.IPAddr()))
+			for _, ma := range nodeB.Addresses() {
+				io.WriteString(w, ma.String())
+			}
 		})
 		if err = http.Serve(lis, mux); err != nil {
 			nodeD.Log().Printf("http: %s", err)

@@ -147,9 +147,11 @@ func (node *Node) Log() *log.Logger {
 	return node.logger
 }
 
-func (node *Node) Adresses() (addrs []rovy.Multiaddr) {
+func (node *Node) Addresses() (addrs []rovy.Multiaddr) {
 	for _, lis := range node.transports {
-		addrs = append(addrs, lis.LocalMultiaddr())
+		ma := lis.LocalMultiaddr()
+		ma.PeerID = node.PeerID()
+		addrs = append(addrs, ma)
 	}
 	return addrs
 }
