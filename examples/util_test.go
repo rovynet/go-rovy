@@ -11,17 +11,12 @@ import (
 func newNode(name string, lisaddr rovy.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
-	privkey, err := rovy.GeneratePrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	node := node.NewNode(privkey, logger)
+	node := node.NewNode(rovy.MustGeneratePrivateKey(), logger)
 	if err := node.Start(); err != nil {
 		return node, err
 	}
 
-	if _, err = node.Peer().Listen(lisaddr); err != nil {
+	if _, err := node.Peer().Listen(lisaddr); err != nil {
 		return nil, err
 	}
 
