@@ -19,13 +19,13 @@ Rovy aims to tear down artifical barriers in internetworking, make routing and t
 
 The protocols making up Rovy are pretty closely related to the ideas and concepts of [cjdns](https://github.com/cjdelisle/cjdns) and [libp2p](https://libp2p.io).
 
-Right now (mid 2022) Rovy is an early work-in-progress with some foundational parts in place and working, while many of the more interesting parts are still missing.
+Right now (mid 2022) Rovy is an early work-in-progress with some foundational parts in place and working, while many of the more interesting parts are still missing. The peering layer and transport is working, as is very basic IPv6 networking over a TUN interface without root (using NetworkManager) and convenient local DNS server at `fc00::1`. No actual routing is operable yet.
 
 ## Usage
 
 ```sh
-> go install go.rovy.net/cmd/rovy@latest
-> rovy start -K @
+> go install -v go.rovy.net/cmd/rovy@latest
+> rovy start -K @ # rovy init to use a persistent key
 00:45:36 start.go:132: starting with ephemeral private key
 00:45:36 start.go:94: we are /rovy/bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
 00:45:36 start.go:106: api socket ready at http:/home/user/.rovy/api.sock
@@ -36,13 +36,13 @@ PeerID: bafzqaidqzzy5ykgv6hovz6u6lbpmzqzddcmwegzgu3pmc7tlrjff2m4age
 
 > ping fc00::1
 > ip addr show rovy0
-> nmcli
-> resolvectl
+> nmcli device show rovy0
+> resolvectl status rovy0
 ```
 
 To test IPv6 networking over Rovy's TUN interface, run traceroute against the IPv6 address of `nodeD` from the following command's output:
 ```
-> go run ./examples/fcnet
+> go run -v ./examples/fcnet
 ...
 [nodeD] 02:28:45 main.go:32: /rovy/bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm
 [nodeD] 02:28:45 main.go:32: /ip6/fc75:d625:ca71:1e82:7636:37ea:3e8a:aa63
@@ -50,4 +50,18 @@ To test IPv6 networking over Rovy's TUN interface, run traceroute against the IP
 > curl http://bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm.rovy
 Hello world!
 > mtr bafzqaih2xv4tvuihz3vfwpxqr73qnfdtvggze6z53pzfbtywdoucznzwbm.rovy
+```
+
+To test throughput of the peering layer, run the benchmark script:
+```
+> go run -v ./examples/benchmark
+...
+[nodeA] 15:44:59 main.go:82: sending 1000000 packets, 1364 bytes each
+[nodeB] 15:45:58 main.go:96: received 999971 packets, took 5.917649492s, 1.84 Gbps
+```
+
+To run the automated tests:
+```
+> go test -v ./examples
+> go test -v ./test/embedded
 ```
