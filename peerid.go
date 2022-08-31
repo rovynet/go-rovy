@@ -30,11 +30,6 @@ const (
 	RovyKeyMulticodec = 0x73
 )
 
-func init() {
-	cid.Codecs["rovy-key"] = RovyKeyMulticodec
-	cid.CodecToStr[RovyKeyMulticodec] = "rovy-key"
-}
-
 var emptyPeerID = PeerID{}
 
 type PeerID struct {
