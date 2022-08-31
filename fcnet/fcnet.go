@@ -9,9 +9,9 @@ import (
 
 	dns "github.com/miekg/dns"
 	ipv6 "golang.org/x/net/ipv6"
+	wgnet "golang.zx2c4.com/wireguard/tun/netstack"
 
 	rovy "go.rovy.net"
-	fcgvisor "go.rovy.net/fcnet/gvisor"
 	node "go.rovy.net/node"
 	forwarder "go.rovy.net/node/forwarder"
 	rovyrt "go.rovy.net/node/routing"
@@ -49,7 +49,7 @@ type Fcnet struct {
 	log     *log.Logger
 	ip      netip.Addr
 	device  Device
-	fc1net  fcgvisor.GvisorNet
+	fc1net  *wgnet.Net
 	fc1tun  Device
 	fc1dns  *dns.Server
 }
@@ -81,7 +81,9 @@ func (fc *Fcnet) Start(mtu int) error {
 }
 
 func (fc *Fcnet) initFcnet1(mtu int) error {
-	ftun, fnet, err := fcgvisor.NewGvisorTUN(fc1Addr, mtu, fc.log)
+	addrs := []netip.Addr{fc1Addr}
+	dnssrv := []netip.Addr{}
+	ftun, fnet, err := wgnet.CreateNetTUN(addrs, dnssrv, mtu)
 	if err != nil {
 		return err
 	}

@@ -6,14 +6,16 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
 
+	wgnet "golang.zx2c4.com/wireguard/tun/netstack"
+
 	rovy "go.rovy.net"
 	fcnet "go.rovy.net/fcnet"
-	rovygvisor "go.rovy.net/fcnet/gvisor"
 	node "go.rovy.net/node"
 )
 
@@ -64,17 +66,19 @@ func run() error {
 	}
 	devA := nmA.Device()
 
-	devB, _, err := rovygvisor.NewGvisorTUN(nodeB.IPAddr(), rovy.UpperMTU, nodeB.Log())
+	dnssrv := []netip.Addr{netip.MustParseAddr("fc00::1")}
+
+	devB, _, err := wgnet.CreateNetTUN([]netip.Addr{nodeB.IPAddr()}, dnssrv, rovy.UpperMTU)
 	if err != nil {
 		return err
 	}
 
-	devC, _, err := rovygvisor.NewGvisorTUN(nodeC.IPAddr(), rovy.UpperMTU, nodeC.Log())
+	devC, _, err := wgnet.CreateNetTUN([]netip.Addr{nodeC.IPAddr()}, dnssrv, rovy.UpperMTU)
 	if err != nil {
 		return err
 	}
 
-	devD, netD, err := rovygvisor.NewGvisorTUN(nodeD.IPAddr(), rovy.UpperMTU, nodeD.Log())
+	devD, netD, err := wgnet.CreateNetTUN([]netip.Addr{nodeD.IPAddr()}, dnssrv, rovy.UpperMTU)
 	if err != nil {
 		return err
 	}
