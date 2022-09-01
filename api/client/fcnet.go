@@ -68,8 +68,9 @@ func sendFD(socket string, fd int) error {
 		return fmt.Errorf("unixconn: %s", err)
 	}
 
-	msg := unix.UnixRights(fd) // 4 bytes per fd
-	if err := unix.Sendmsg(int(apifd.Fd()), nil, msg, nil, 0); err != nil {
+	msg := []byte{0x42} // out-of-band data must be sent with some actual data...
+	oob := unix.UnixRights(fd)
+	if err := unix.Sendmsg(int(apifd.Fd()), msg, oob, nil, 0); err != nil {
 		return fmt.Errorf("sendmsg: %s", err)
 	}
 
