@@ -11,9 +11,9 @@
 - [ ] TLS termination and re-encryption
 - [ ] Systemd unit file for servers
 - [ ] Minimum-viable routing
-- [ ] 1 Gbps routed throughput on fc00::/8
-- [ ] Gnome extension via DBus API
 - [ ] Petnames in .rovy TLD
+- [ ] Gnome extension via DBus API
+- [ ] 1 Gbps routed throughput on fc00::/8
 - [ ] External routing protocols, e.g. Babel and OLSR
 - [ ] DHT for decentral global and local routing lookups
 - [ ] Support for onion-like sessions
@@ -21,6 +21,7 @@
 
 # Next
 
+- [x] fcnet: bump gvisor in wg/tun/netstack
 - [x] node: implement listeners and separate ip4/ip6
 - [ ] test: basic shared cucumber suite for CLI, HTTP API, Go API
 - [ ] node: complete peer api
@@ -57,10 +58,11 @@
 - [ ] cli: rovy reload command
 - [x] perf: faked ring buffer queues
 - [ ] perf: Buffer pool for fewer allocations
+- [ ] perf: io_uring to avoid syscalls and copying
 - [ ] perf: Better data structures for sessionmanager, forwarder, routing
 - [ ] perf: transmitter object which moves work off the hot path (route lookup, transport lookup, pubkey and session lookup)
-- [ ] perf: Lockless goroutine-equivalent for our ringbuf
-- [ ] perf: io_uring to avoid syscalls and copying
+- [ ] perf: maybe: Lockless goroutine-equivalent for our ringbuf
+- [ ] investigate setting SOCK_CLOEXEC
 - [ ] multicodec registrations
 - [ ] motd on startup
 
