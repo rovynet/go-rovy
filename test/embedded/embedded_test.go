@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/netip"
+	"strings"
 	"testing"
 
 	godog "github.com/cucumber/godog"
-	cid "github.com/ipfs/go-cid"
-	rovy "go.rovy.net"
+	rovycfg "go.rovy.net/cmd/rovy/config"
 	rovynode "go.rovy.net/node"
 )
+
+type keyfilesCtxKey struct{}
+type nodesCtxKey struct{}
 
 func TestEmbedded(t *testing.T) {
 	suite := godog.TestSuite{
@@ -27,13 +29,15 @@ func TestEmbedded(t *testing.T) {
 	}
 
 	suite.ScenarioInitializer = func(sctx *godog.ScenarioContext) {
-		sctx.Step(`^the following test node keyfiles:$`, theFollowingTestNodeKeyfiles)
-		sctx.Step(`^node '(\w+)' from test keyfile '(\w+)'$`, nodeFromTestKeyfile)
+		sctx.Step(`^a keyfile named '([^']*)'$`, aKeyfileNamed)
+		sctx.Step(`^node '([^']*)' from keyfile '([^']*)'$`, nodeFromKeyfile)
 		sctx.Step(`^I start node '(\w+)'$`, iStartNode)
 		sctx.Step(`^the PeerID of '(\w+)' is '(\w+)'$`, thePeerIDOfIs)
 		sctx.Step(`^the IP of '(\w+)' is '([\w:]+)'$`, theIPOfIs)
 
 		sctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
+			keyfiles := map[string]*rovycfg.Keyfile{}
+			ctx = context.WithValue(ctx, keyfilesCtxKey{}, keyfiles)
 			nodes := map[string]*rovynode.Node{}
 			return context.WithValue(ctx, nodesCtxKey{}, nodes), nil
 		})
@@ -44,76 +48,28 @@ func TestEmbedded(t *testing.T) {
 	}
 }
 
-type nodesCtxKey struct{}
-
-type keyfilesCtxKey struct{}
-type keyfile struct {
-	peerid     rovy.PeerID
-	ip         netip.Addr
-	privatekey rovy.PrivateKey
-}
-
-func theFollowingTestNodeKeyfiles(ctx context.Context, table *godog.Table) (context.Context, error) {
-	if len(table.Rows) < 2 {
-		return ctx, fmt.Errorf("expecting keyfile table with header row and at least 1 data row")
+func aKeyfileNamed(ctx context.Context, name string, kfs *godog.DocString) (context.Context, error) {
+	kf, err := rovycfg.NewKeyfile(strings.NewReader(kfs.Content))
+	if err != nil {
+		return ctx, err
 	}
 
-	var col struct {
-		name int
-		pid  int
-		ip   int
-		priv int
-	}
-	for i, cell := range table.Rows[0].Cells {
-		switch cell.Value {
-		case "name":
-			col.name = i
-		case "peerid":
-			col.pid = i
-		case "ip":
-			col.ip = i
-		case "privatekey":
-			col.priv = i
-		default:
-			return ctx, fmt.Errorf("unknown keyfiles table column: %s", cell.Value)
-		}
-	}
-
-	keyfiles := map[string]keyfile{}
-	for _, row := range table.Rows[1:] {
-		kfname := row.Cells[col.name].Value
-		c, err := cid.Decode(row.Cells[col.pid].Value)
-		if err != nil {
-			return ctx, err
-		}
-		pid, err := rovy.PeerIDFromCid(c)
-		if err != nil {
-			return ctx, err
-		}
-		ip, err := netip.ParseAddr(row.Cells[col.ip].Value)
-		if err != nil {
-			return ctx, err
-		}
-		priv, err := rovy.ParsePrivateKey(row.Cells[col.priv].Value)
-		if err != nil {
-			return ctx, err
-		}
-		keyfiles[kfname] = keyfile{pid, ip, priv}
-	}
+	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]*rovycfg.Keyfile)
+	keyfiles[name] = kf
 
 	return context.WithValue(ctx, keyfilesCtxKey{}, keyfiles), nil
 }
 
-func nodeFromTestKeyfile(ctx context.Context, name, kfname string) (context.Context, error) {
-	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]keyfile)
+func nodeFromKeyfile(ctx context.Context, name, kfname string) (context.Context, error) {
+	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]*rovycfg.Keyfile)
 
 	kf, ok := keyfiles[kfname]
 	if !ok {
-		return ctx, fmt.Errorf("unknown test keyfile '%s'", kfname)
+		return ctx, fmt.Errorf("unknown keyfile '%s'", kfname)
 	}
 
 	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rovynode.Node)
-	nodes[name] = rovynode.NewNode(kf.privatekey, log.Default())
+	nodes[name] = rovynode.NewNode(kf.PrivateKey, log.Default())
 	return context.WithValue(ctx, nodesCtxKey{}, nodes), nil
 }
 

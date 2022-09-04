@@ -3,6 +3,7 @@ package rovycfg
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/netip"
 	"os"
 
@@ -17,23 +18,29 @@ type Keyfile struct {
 	IPAddr     netip.Addr
 }
 
-// TODO: simplify this by impl'ing Keyfile.Marshal/Unmarshal
+// TODO: simplify all this by impl'ing Keyfile.Marshal/Unmarshal
+
 func LoadKeyfile(path string) (*Keyfile, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
+	return NewKeyfile(bytes.NewReader(b))
+}
+
+func NewKeyfile(r io.Reader) (*Keyfile, error) {
 	var kfraw struct {
 		PrivateKey string
 		PeerID     string
 		IPAddr     string
 	}
-	if err := toml.NewDecoder(bytes.NewReader(b)).Decode(&kfraw); err != nil {
+	if err := toml.NewDecoder(r).Decode(&kfraw); err != nil {
 		return nil, err
 	}
 
 	var kf Keyfile
+	var err error
 	kf.PrivateKey, err = rovy.ParsePrivateKey(kfraw.PrivateKey)
 	if err != nil {
 		return nil, err
