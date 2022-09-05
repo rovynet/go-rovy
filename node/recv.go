@@ -47,7 +47,7 @@ func (node *Node) doLowerHelloRecv(pkt rovy.Packet) error {
 			return err
 		}
 		resppkt.TptDst = hellopkt.TptSrc
-		node.sendTransport(resppkt.Packet)
+		return node.sendTransport(resppkt.Packet)
 	case session.ResponseMsgType:
 		resppkt := session.NewResponsePacket(pkt, rovy.LowerOffset, rovy.LowerPadding)
 		resppkt, peerid, err := node.SessionManager().HandleResponse(resppkt, pkt.TptSrc)

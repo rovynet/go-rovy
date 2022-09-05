@@ -255,8 +255,7 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr rovy.Multiaddr) error {
 }
 
 func (node *Node) sendTransport(pkt rovy.Packet) error {
-	node.transports[0].Send(pkt)
-	return nil
+	return node.transports[0].Send(pkt)
 }
 
 func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
