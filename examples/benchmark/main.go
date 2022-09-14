@@ -80,8 +80,8 @@ func run() error {
 	})
 
 	nodeA.Log().Printf("sending %d packets, %d bytes each", amount, mtu)
+	p := make([]byte, mtu)
 	for i := 1; i <= amount; i++ {
-		p := make([]byte, mtu)
 		binary.PutVarint(p, int64(i))
 		if err := nodeA.Send(nodeB.PeerID(), BenchmarkCodec, p); err != nil {
 			return err
@@ -89,7 +89,7 @@ func run() error {
 		runtime.Gosched()
 	}
 
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 
 	duration := time.Now().Sub(start)
 	gbps := float64(j*mtu) * 8 / 1000 / 1000 / 1000 / duration.Seconds()

@@ -1,4 +1,14 @@
 
+1. addressing sovereignity
+2. routing sovereignity
+3. trustworthy link layer
+
+bufpool
+- check that bufID is okay (it's not)
+- actually, pass a tag to Allocate that identifies the caller for debugging
+  - doesn't have to be unique, only want to know who allocated that buffer
+- all tests should test for buffer leaks afterwards
+
 # Epics
 
 - [x] Noise IKpsk2 handshake

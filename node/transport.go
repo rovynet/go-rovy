@@ -24,10 +24,11 @@ type Transport struct {
 	listenAddr rovy.Multiaddr
 	running    chan int
 	sendQ      *ringbuf.RingBuffer
+	alloc      rovy.Allocator
 	logger     *log.Logger
 }
 
-func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error) {
+func NewTransport(lisaddr rovy.Multiaddr, alloc rovy.Allocator, logger *log.Logger) (*Transport, error) {
 	var network string
 	protos := lisaddr.Protocols()
 	if len(protos) != 2 || protos[1].Code != rovy.UDPMultiaddrCodec {
@@ -52,6 +53,7 @@ func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error
 		conn:       conn,
 		listenAddr: lisaddr,
 		sendQ:      ringbuf.NewRingBuffer(TransportBufferSize),
+		alloc:      alloc,
 		logger:     logger,
 	}
 
@@ -104,15 +106,21 @@ func (tpt *Transport) LocalMultiaddr() rovy.Multiaddr {
 // TODO can only be stopped by closing the socket
 func (tpt *Transport) RecvRoutine(next *ringbuf.RingBuffer) {
 	for {
-		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+		pkt, err := tpt.alloc.AllocatePacket()
+		if err != nil {
+			tpt.logger.Printf("alloc: %s", err)
+			continue
+		}
 
 		n, raddr, err := tpt.conn.ReadFromUDPAddrPort(pkt.Bytes())
 		if err == net.ErrClosed {
 			tpt.logger.Printf("closing transport recv routine, socket is closed")
+			pkt.Release()
 			return
 		}
 		if err != nil {
 			tpt.logger.Printf("RecvRoutine: %s", err)
+			pkt.Release()
 			continue
 		}
 
@@ -136,6 +144,7 @@ func (tpt *Transport) SendRoutine() {
 			// tpt.logger.Printf("SendRoutine: writeTo: TptDst=%+v LowerDst=%+v UpperDst=%+v", pkt.TptDst, pkt.LowerDst, pkt.UpperDst)
 
 			_, err := tpt.conn.WriteToUDPAddrPort(pkt.Bytes(), pkt.TptDst.AddrPort())
+			pkt.Release()
 			if err == net.ErrClosed {
 				tpt.logger.Printf("closing transport send routine, socket is closed")
 				return

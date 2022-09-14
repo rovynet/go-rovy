@@ -19,16 +19,18 @@ type SessionManager struct {
 	pubkey  rovy.PublicKey
 	peerid  rovy.PeerID
 	store   map[uint32]*Session
+	alloc   rovy.Allocator
 	logger  *log.Logger
 }
 
-func NewSessionManager(privkey rovy.PrivateKey, logger *log.Logger) *SessionManager {
+func NewSessionManager(privkey rovy.PrivateKey, alloc rovy.Allocator, logger *log.Logger) *SessionManager {
 	pubkey := privkey.PublicKey()
 	sm := &SessionManager{
 		privkey: privkey,
 		pubkey:  pubkey,
 		peerid:  rovy.NewPeerID(pubkey),
 		store:   make(map[uint32]*Session),
+		alloc:   alloc,
 		logger:  logger,
 	}
 	return sm
@@ -139,7 +141,12 @@ func (sm *SessionManager) HandleHello(pkt HelloPacket, raddr rovy.Multiaddr) (Re
 		return pkt2, fmt.Errorf("HandleHello: %s", err)
 	}
 
-	pkt2 = NewResponsePacket(rovy.NewPacket(make([]byte, rovy.TptMTU)), pkt.Offset, pkt.Padding)
+	pkt22, err := sm.alloc.AllocatePacket()
+	if err != nil {
+		return pkt2, fmt.Errorf("alloc: %s", err)
+	}
+
+	pkt2 = NewResponsePacket(pkt22, pkt.Offset, pkt.Padding)
 	pkt2.SetSenderIndex(pkt.SenderIndex())
 
 	pkt2, err = s.CreateResponse(pkt2)

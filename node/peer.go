@@ -16,12 +16,14 @@ func (c *PeerAPI) Status() (rovyapi.PeerStatus, error) {
 }
 
 func (c *PeerAPI) Listen(ma rovy.Multiaddr) (rovyapi.PeerListener, error) {
-	tpt, err := NewTransport(ma, c.logger)
+	node := (*Node)(c)
+	alloc := (rovy.Allocator)(node)
+
+	tpt, err := NewTransport(ma, alloc, c.logger)
 	if err != nil {
 		return rovyapi.PeerListener{}, err
 	}
 
-	node := (*Node)(c)
 	node.transports = append(node.transports, tpt)
 	if ((*Node)(c)).Running() {
 		tpt.Start(node.lowerRecvQ)

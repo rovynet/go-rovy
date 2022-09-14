@@ -35,6 +35,7 @@ type nodeIface interface {
 	Forwarder() *forwarder.Forwarder
 	Routing() *rovyrt.Routing
 	SendUpper(rovy.UpperPacket) error
+	AllocatePacket() (rovy.Packet, error)
 	Log() *log.Logger
 }
 
@@ -92,18 +93,25 @@ func (fc *Fcnet) initFcnet1(mtu int) error {
 
 	go func() {
 		for {
-			pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+			pkt, err := fc.node.AllocatePacket()
+			if err != nil {
+				fc.log.Printf("dns: alloc: %s", err)
+			}
 			buf := pkt.Bytes()[rovy.UpperOffset:]
 
 			if _, err := fc.fc1tun.Read(buf, 0); err != nil {
 				fc.log.Printf("dns: tun read: %s", err)
+				pkt.Release()
 				continue
 			}
 
 			if _, err = fc.device.Write(buf, 0); err != nil {
 				fc.log.Printf("dns: tun write: %s", err)
+				pkt.Release()
 				continue
 			}
+
+			pkt.Release()
 		}
 	}()
 
@@ -112,26 +120,34 @@ func (fc *Fcnet) initFcnet1(mtu int) error {
 
 func (fc *Fcnet) listenTun() {
 	for {
-		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+		pkt, err := fc.node.AllocatePacket()
+		if err != nil {
+			fc.log.Printf("fcnet: alloc: %s", err)
+		}
 		buf := pkt.Bytes()[rovy.UpperOffset:]
 
 		// TODO: "not pollable" error when device is deleted
 		n, err := fc.device.Read(buf, 0)
 		if err != nil {
 			fc.log.Printf("fcnet: tun read: %s", err)
+			pkt.Release()
 			continue
 		}
 		pkt.Length = rovy.UpperOffset + n
 
 		if buf[0]>>4 != 6 {
 			fc.log.Printf("tun: not an ipv6 packet: %#v buf=%#v", buf[0]>>4, buf[0:16])
+			pkt.Release()
 			continue
 		}
 
 		if err := fc.handleTunPacket(buf[:n]); err != nil {
 			fc.log.Printf("fcnet: handleTunPacket: %s", err)
+			pkt.Release()
 			continue
 		}
+
+		pkt.Release()
 	}
 }
 
@@ -182,7 +198,11 @@ func (fc *Fcnet) handleTunPacket(buf []byte) error {
 
 	// end-to-end transmission
 	if hops >= route.Len() {
-		upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+		pkt, err := fc.node.AllocatePacket()
+		if err != nil {
+			return fmt.Errorf("tun: alloc: %s", err)
+		}
+		upkt := rovy.NewUpperPacket(pkt)
 		upkt.UpperDst = peerid
 		upkt.SetRoute(route)
 		upkt.SetCodec(FcnetMulticodec)
@@ -198,15 +218,20 @@ func (fc *Fcnet) handleTunPacket(buf []byte) error {
 		}
 		rt := rovy.NewRoute(r...)
 
-		ppkt := NewPingPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+		pkt, err := fc.node.AllocatePacket()
+		if err != nil {
+			return fmt.Errorf("ping: alloc: %s", err)
+		}
+		ppkt := NewPingPacket(pkt)
 		ppkt.LowerSrc = fc.node.PeerID()
 		ppkt.SetRoute(rt)
 		ppkt.SetSender(ppkt.LowerSrc.PublicKey())
 		ppkt.SetIsReply(false)
 		ppkt = ppkt.SetPayload(buf)
 
-		ppkt, err := fc.sign(ppkt)
+		ppkt, err = fc.sign(ppkt)
 		if err != nil {
+			ppkt.Packet.Release()
 			return err
 		}
 

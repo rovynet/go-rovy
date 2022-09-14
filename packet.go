@@ -21,9 +21,16 @@ const (
 	TptMTU = 1500 - 48
 )
 
+type Allocator interface {
+	AllocatePacket() (Packet, error)
+}
+
 type Packet struct {
-	Buf      []byte
-	Length   int
+	Buf       []byte // XXX should be private
+	Length    int
+	release   func()
+	available *bool
+
 	TptSrc   Multiaddr
 	TptDst   Multiaddr
 	LowerSrc PeerID
@@ -32,14 +39,32 @@ type Packet struct {
 	UpperDst PeerID
 }
 
-func NewPacket(buf []byte) Packet {
-	return Packet{
-		Buf:    buf,
-		Length: len(buf),
+func NewPacket(buf []byte, release func()) Packet {
+	av := true
+	pkt := Packet{
+		Buf:       buf,
+		Length:    len(buf),
+		release:   release,
+		available: &av,
+	}
+	return pkt
+}
+
+func (pkt Packet) Release() {
+	if !*pkt.available {
+		panic("packet already released")
+	}
+	av := false
+	pkt.available = &av
+	if pkt.release != nil {
+		pkt.release()
 	}
 }
 
 func (pkt Packet) Bytes() []byte {
+	if !*pkt.available {
+		panic("packet already released")
+	}
 	return pkt.Buf[:pkt.Length]
 }
 

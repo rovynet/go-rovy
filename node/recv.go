@@ -244,8 +244,8 @@ func (node *Node) upperMuxRoutine() {
 
 			if err := node.doUpperMux(pkt); err != nil {
 				node.Log().Printf("upperMuxRoutine: %s", err)
-				continue
 			}
+			pkt.Release()
 		}
 	}
 }

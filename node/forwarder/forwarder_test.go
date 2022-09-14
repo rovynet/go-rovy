@@ -19,7 +19,7 @@ func BenchmarkHandlePacket(b *testing.B) {
 	fwd.Attach(peeridB, func(_ rovy.LowerPacket) error { return nil })
 	fwd.Attach(peeridC, func(_ rovy.LowerPacket) error { return nil })
 
-	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+	upkt := rovy.NewUpperPacket(rovy.NewPacket(make([]byte, rovy.TptMTU), func() {}))
 	upkt.SetRoute(rovy.NewRoute(0x2, 0x1))
 
 	lpkt := rovy.NewLowerPacket(upkt.Packet)

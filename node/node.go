@@ -12,6 +12,7 @@ import (
 	routing "go.rovy.net/node/routing"
 	service "go.rovy.net/node/service"
 	session "go.rovy.net/node/session"
+	bufpool "go.rovy.net/node/util/bufpool"
 	ringbuf "go.rovy.net/node/util/ringbuf"
 )
 
@@ -38,6 +39,7 @@ type Node struct {
 	forwarder     *forwarder.Forwarder
 	routing       *routing.Routing
 	services      *service.ServiceManager
+	bufs          *bufpool.Pool
 
 	RxTpt   uint64
 	RxLower uint64
@@ -65,6 +67,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		upperHandlers: map[uint64]UpperHandler{},
 		lowerHandlers: map[uint64]LowerHandler{},
 		routing:       routing.NewRouting(logger),
+		bufs:          bufpool.NewPool(102400, 1536), // XXX revise
 		helloSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
 		lowerSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
 		upperSendQ:    ringbuf.NewRingBuffer(DefaultQueueSize),
@@ -75,7 +78,9 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 		upperMuxQ:     ringbuf.NewRingBuffer(DefaultQueueSize),
 	}
 
-	node.sessions = session.NewSessionManager(privkey, logger)
+	alloc := (rovy.Allocator)(node)
+	node.sessions = session.NewSessionManager(privkey, alloc, logger)
+
 	node.services = service.NewServiceManager(logger)
 
 	node.forwarder = forwarder.NewForwarder(logger)
@@ -136,6 +141,15 @@ func (node *Node) Running() bool {
 		}
 	}
 	return false
+}
+
+func (node *Node) AllocatePacket() (rovy.Packet, error) {
+	buf, id := node.bufs.Get()
+	release := func() {
+		// node.Log().Printf("release")
+		node.bufs.Release(buf, id)
+	}
+	return rovy.NewPacket(buf, release), nil
 }
 
 func (node *Node) PeerID() rovy.PeerID {
@@ -242,7 +256,10 @@ func (node *Node) HandleLower(codec uint64, cb LowerHandler) {
 // TODO: timeouts
 // TODO: check if we already have a session
 func (node *Node) Connect(peerid rovy.PeerID, raddr rovy.Multiaddr) error {
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+	pkt, err := node.AllocatePacket()
+	if err != nil {
+		return err
+	}
 
 	if !raddr.Empty() {
 		pkt.LowerDst = peerid
@@ -272,7 +289,11 @@ func (node *Node) Send(to rovy.PeerID, codec uint64, p []byte) error {
 		return err
 	}
 
-	pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))
+	pkt, err := node.AllocatePacket()
+	if err != nil {
+		return err
+	}
+
 	upkt := rovy.NewUpperPacket(pkt)
 	upkt.UpperDst = to
 	upkt.SetCodec(codec)

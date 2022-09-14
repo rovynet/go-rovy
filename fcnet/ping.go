@@ -107,7 +107,11 @@ func (fc *Fcnet) handlePingPacket(lpkt rovy.LowerPacket) error {
 		return fc.handleFcnetPacket(rovy.NewPeerID(ppkt.Sender()), p2)
 	}
 
-	ppkt2 := NewPingPacket(rovy.NewPacket(make([]byte, rovy.TptMTU)))
+	pkt2, err := fc.node.AllocatePacket()
+	if err != nil {
+		return err
+	}
+	ppkt2 := NewPingPacket(pkt2)
 	ppkt2.LowerSrc = fc.node.PeerID()
 	ppkt2.SetRoute(route)
 	ppkt2.SetSender(fc.node.PeerID().PublicKey())
@@ -116,6 +120,7 @@ func (fc *Fcnet) handlePingPacket(lpkt rovy.LowerPacket) error {
 
 	ppkt2, err = fc.sign(ppkt2)
 	if err != nil {
+		ppkt2.Packet.Release()
 		return err
 	}
 
@@ -139,13 +144,16 @@ func icmpChecksum(b []byte) uint16 {
 	return ^uint16(s)
 }
 
-//  4 bytes - codec
+//	4 bytes - codec
+//
 // 16 bytes - forwarder header
 // 32 bytes - sender static key
-//  8 bytes - signature (over requestID+randomizer+payload)
-//  4 bytes   request id
-//  8 bytes - randomizer
-//  .       - payload
+//
+//	8 bytes - signature (over requestID+randomizer+payload)
+//	4 bytes   request id
+//	8 bytes - randomizer
+//	.       - payload
+//
 // = 72+ bytes
 type PingPacket struct {
 	Offset  int
