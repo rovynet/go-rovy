@@ -58,6 +58,7 @@ func NewTransport(lisaddr rovy.Multiaddr, logger *log.Logger) (*Transport, error
 	return tpt, nil
 }
 
+// TODO: move ListenUDP call here so we can close the socket in Stop
 func (tpt *Transport) Start(next *ringbuf.RingBuffer) error {
 	if tpt.Running() {
 		return ErrRunning
@@ -100,6 +101,7 @@ func (tpt *Transport) LocalMultiaddr() rovy.Multiaddr {
 	return rovy.Multiaddr{IP: ip.Addr(), Port: ip.Port()}
 }
 
+// TODO can only be stopped by closing the socket
 func (tpt *Transport) RecvRoutine(next *ringbuf.RingBuffer) {
 	for {
 		pkt := rovy.NewPacket(make([]byte, rovy.TptMTU))

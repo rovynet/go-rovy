@@ -261,6 +261,7 @@ func (node *Node) Connect(peerid rovy.PeerID, raddr rovy.Multiaddr) error {
 	return nil
 }
 
+// TODO: pick correct transport
 func (node *Node) sendTransport(pkt rovy.Packet) error {
 	return node.transports[0].Send(pkt)
 }

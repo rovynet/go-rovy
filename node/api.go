@@ -5,7 +5,7 @@ import (
 )
 
 func (node *Node) Info() (rovyapi.NodeInfo, error) {
-	return rovyapi.NodeInfo{PeerID: node.PeerID()}, nil
+	return rovyapi.NodeInfo{PeerID: node.PeerID(), Running: node.Running()}, nil
 }
 
 func (node *Node) Fcnet() rovyapi.FcnetAPI {

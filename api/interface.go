@@ -8,7 +8,8 @@ import (
 )
 
 type NodeInfo struct {
-	PeerID rovy.PeerID
+	PeerID  rovy.PeerID
+	Running bool
 }
 
 type NodeAPI interface {
