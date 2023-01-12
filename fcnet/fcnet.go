@@ -67,8 +67,6 @@ func (fc *Fcnet) Start(mtu int) error {
 		return fc.handleFcnetPacket(upkt.UpperSrc, upkt.Payload())
 	})
 
-	go fc.listenTun()
-
 	if err := fc.initFcnet1(mtu); err != nil {
 		return err
 	}
@@ -76,6 +74,8 @@ func (fc *Fcnet) Start(mtu int) error {
 	if err := fc.initDns(); err != nil {
 		return err
 	}
+
+	go fc.listenTun()
 
 	return nil
 }
