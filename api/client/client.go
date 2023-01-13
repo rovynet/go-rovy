@@ -66,4 +66,8 @@ func (c *Client) Peer() rovyapi.PeerAPI {
 	return (*PeerClient)(c)
 }
 
+func (c *Client) Discovery() rovyapi.DiscoveryAPI {
+	return (*DiscoveryClient)(c)
+}
+
 var _ rovyapi.NodeAPI = &Client{}

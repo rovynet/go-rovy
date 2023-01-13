@@ -90,8 +90,9 @@ IPAddr = '%s'
 }
 
 type Config struct {
-	Peer  Peer
-	Fcnet Fcnet
+	Peer      Peer
+	Fcnet     Fcnet
+	Discovery Discovery
 }
 
 type Peer struct {
@@ -103,6 +104,15 @@ type Peer struct {
 type Fcnet struct {
 	Enabled bool
 	Ifname  string
+}
+
+type Discovery struct {
+	LinkLocal LinkLocal
+}
+
+type LinkLocal struct {
+	Enabled  bool
+	Interval string
 }
 
 func DefaultConfig() *Config {
@@ -119,6 +129,12 @@ func DefaultConfig() *Config {
 		Fcnet: Fcnet{
 			Enabled: true,
 			Ifname:  "rovy0",
+		},
+		Discovery: Discovery{
+			LinkLocal: LinkLocal{
+				Enabled:  true,
+				Interval: "5s",
+			},
 		},
 	}
 

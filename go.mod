@@ -27,6 +27,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cucumber/gherkin-go/v19 v19.0.3 // indirect
 	github.com/cucumber/messages-go/v16 v16.0.1 // indirect
+	github.com/fxamacker/cbor/v2 v2.4.0 // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.0 // indirect
@@ -40,6 +41,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/time v0.1.0 // indirect

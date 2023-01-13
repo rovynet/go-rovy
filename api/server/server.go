@@ -33,6 +33,10 @@ func (s *Server) Serve(lis net.Listener) {
 	// router.HandleFunc("/v0/peer/disconnect", s.servePeerDisconnect)
 	router.HandleFunc("/v0/peer/policy", s.servePeerPolicy)
 
+	// router.HandleFunc("/v0/discovery/status", s.serveDiscoveryStatus)
+	router.HandleFunc("/v0/discovery/linklocal/start", s.serveDiscoveryLinkLocalStart)
+	router.HandleFunc("/v0/discovery/linklocal/stop", s.serveDiscoveryLinkLocalStop)
+
 	srv := &http.Server{Handler: router}
 	if err := srv.Serve(lis); err != nil {
 		// return err

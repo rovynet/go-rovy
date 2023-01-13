@@ -10,6 +10,7 @@ import (
 	rovy "go.rovy.net"
 	forwarder "go.rovy.net/node/forwarder"
 	routing "go.rovy.net/node/routing"
+	service "go.rovy.net/node/service"
 	session "go.rovy.net/node/session"
 	ringbuf "go.rovy.net/node/util/ringbuf"
 )
@@ -36,6 +37,7 @@ type Node struct {
 	lowerHandlers map[uint64]LowerHandler
 	forwarder     *forwarder.Forwarder
 	routing       *routing.Routing
+	services      *service.ServiceManager
 
 	RxTpt   uint64
 	RxLower uint64
@@ -74,6 +76,7 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	}
 
 	node.sessions = session.NewSessionManager(privkey, logger)
+	node.services = service.NewServiceManager(logger)
 
 	node.forwarder = forwarder.NewForwarder(logger)
 	node.forwarder.Attach(peerid, func(lpkt rovy.LowerPacket) error {
@@ -166,6 +169,10 @@ func (node *Node) Forwarder() *forwarder.Forwarder {
 
 func (node *Node) Routing() *routing.Routing {
 	return node.routing
+}
+
+func (node *Node) Services() *service.ServiceManager {
+	return node.services
 }
 
 func (node *Node) WaitFor(pid rovy.PeerID) error {

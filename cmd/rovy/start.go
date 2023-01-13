@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
 	cli "github.com/urfave/cli/v2"
 
 	rovy "go.rovy.net"
+	rovyapi "go.rovy.net/api"
 	rovyapic "go.rovy.net/api/client"
 	rovyapis "go.rovy.net/api/server"
 	rovycfg "go.rovy.net/cmd/rovy/config"
@@ -112,7 +114,6 @@ func startCmdFunc(c *cli.Context) error {
 	// } else {
 	// 	logger.Printf("TODO: reading configuration file is not implemented yet")
 	// }
-	_ = config
 
 	if !stdin {
 		var cfg *rovycfg.Config
@@ -131,6 +132,10 @@ func startCmdFunc(c *cli.Context) error {
 
 		if err = configureFcnet(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
 			return exitErr("failed to configure fcnet: %s", err)
+		}
+
+		if err = configureDiscovery(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
+			return exitErr("failed to configure discovery: %s", err)
 		}
 	}
 
@@ -227,6 +232,26 @@ func configureFcnet(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.No
 	}
 
 	node.Log().Printf("started fcnet endpoint %s using NetworkManager", node.IPAddr())
+
+	return nil
+}
+
+func configureDiscovery(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
+	if !cfg.Discovery.LinkLocal.Enabled {
+		return nil
+	}
+
+	interval, err := time.ParseDuration(cfg.Discovery.LinkLocal.Interval)
+	if err != nil {
+		return fmt.Errorf("config: ParseDuration interval: %s", err)
+	}
+
+	opts := rovyapi.DiscoveryLinkLocal{
+		Interval: interval.Abs(),
+	}
+	if err := api.Discovery().StartLinkLocal(opts); err != nil {
+		return fmt.Errorf("api: %s", err)
+	}
 
 	return nil
 }

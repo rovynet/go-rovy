@@ -2,6 +2,7 @@ package rovyapi
 
 import (
 	"os"
+	"time"
 
 	rovy "go.rovy.net"
 )
@@ -15,6 +16,7 @@ type NodeAPI interface {
 	Stop() error
 	Fcnet() FcnetAPI
 	Peer() PeerAPI
+	Discovery() DiscoveryAPI
 }
 
 type PeerStatus struct {
@@ -45,7 +47,21 @@ type PeerAPI interface {
 	Policy(...string) error
 }
 
+type DiscoveryStatus struct {
+	LinkLocal DiscoveryLinkLocal
+}
+
+type DiscoveryLinkLocal struct {
+	Interval time.Duration
+}
+
+type DiscoveryAPI interface {
+	Status() (DiscoveryStatus, error)
+	StartLinkLocal(DiscoveryLinkLocal) error
+	StopLinkLocal() error
+}
+
 type FcnetAPI interface {
 	Start(tunfd *os.File) error
-	NodeAPI() NodeAPI
+	NodeAPI() NodeAPI // TODO: ?
 }

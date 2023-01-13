@@ -16,4 +16,8 @@ func (node *Node) Peer() rovyapi.PeerAPI {
 	return (*PeerAPI)(node)
 }
 
+func (node *Node) Discovery() rovyapi.DiscoveryAPI {
+	return (*DiscoveryAPI)(node)
+}
+
 var _ rovyapi.NodeAPI = &Node{}

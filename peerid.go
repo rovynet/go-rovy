@@ -130,6 +130,37 @@ func bePutUint64(b []byte, v uint64) {
 	b[7] = byte(v)
 }
 
+func (pid *PeerID) MarshalBinary() ([]byte, error) {
+	return pid.Cid().Bytes(), nil
+}
+
+func (pid *PeerID) UnmarshalBinary(b []byte) error {
+	var c cid.Cid
+	if err := c.UnmarshalBinary(b); err != nil {
+		return err
+	}
+
+	if c.Type() != RovyKeyMulticodec {
+		return fmt.Errorf("peerid can't be cid with type %O", c.Type())
+	}
+	mhash, err := multihash.Decode(c.Hash())
+	if err != nil {
+		return err
+	}
+	if mhash.Code != multihash.IDENTITY {
+		return fmt.Errorf("public key mishhashed as 0x%x", mhash.Code)
+	}
+	if mhash.Length != PublicKeySize {
+		return fmt.Errorf("invalid public key size: %d", mhash.Length)
+	}
+
+	pid.b1 = beUint64(mhash.Digest[:8])
+	pid.b2 = beUint64(mhash.Digest[8:16])
+	pid.b3 = beUint64(mhash.Digest[16:24])
+	pid.b4 = beUint64(mhash.Digest[24:])
+	return nil
+}
+
 func (pid PeerID) MarshalJSON() ([]byte, error) {
 	return json.Marshal(pid.String())
 }
