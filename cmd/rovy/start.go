@@ -9,17 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
 	cli "github.com/urfave/cli/v2"
 
 	rovy "go.rovy.net"
-	rovyapi "go.rovy.net/api"
 	rovyapic "go.rovy.net/api/client"
+	rconfig "go.rovy.net/api/config"
+	rnodecfg "go.rovy.net/api/config/nodecfg"
 	rovyapis "go.rovy.net/api/server"
-	rovycfg "go.rovy.net/cmd/rovy/config"
-	fcnet "go.rovy.net/fcnet"
 	rovynode "go.rovy.net/node"
 )
 
@@ -116,26 +114,19 @@ func startCmdFunc(c *cli.Context) error {
 	// }
 
 	if !stdin {
-		var cfg *rovycfg.Config
+		var cfg *rconfig.Config
 		if !ephemeral {
-			cfg, err = rovycfg.LoadConfig(config)
+			cfg, err = rconfig.LoadConfig(config)
 			if err != nil {
 				return exitErr("failed to load config: %s", err)
 			}
 		} else {
-			cfg = rovycfg.DefaultConfig()
+			cfg = rconfig.DefaultConfig()
 		}
 
-		if err = configurePeering(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
-			return exitErr("failed to configure peering: %s", err)
-		}
-
-		if err = configureFcnet(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
-			return exitErr("failed to configure fcnet: %s", err)
-		}
-
-		if err = configureDiscovery(rovyapic.NewClient(socket, logger), cfg, node); err != nil {
-			return exitErr("failed to configure discovery: %s", err)
+		nc := &rnodecfg.NodeConfig{API: rovyapic.NewClient(socket, logger), Logger: logger}
+		if err = nc.ConfigureAll(cfg, node); err != nil {
+			return exitErr(err.Error())
 		}
 	}
 
@@ -163,7 +154,7 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 		}
 		return privkey, nil
 	default:
-		kf, err := rovycfg.LoadKeyfile(keyfile)
+		kf, err := rconfig.LoadKeyfile(keyfile)
 		if err != nil {
 			return privkey, fmt.Errorf("keyfile: %s", err)
 		}
@@ -191,69 +182,6 @@ func checkSocket(socket string) error {
 	// someone else using it
 	sockconn.Close()
 	return fmt.Errorf("used by someone else")
-}
-
-// TODO: do the actual configuration using api/client module
-func configurePeering(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
-	for _, addr := range cfg.Peer.Listen {
-		_, err := api.Peer().Listen(addr)
-		if err != nil {
-			return err
-		}
-	}
-	for _, addr := range cfg.Peer.Connect {
-		_, err := api.Peer().Connect(addr)
-		if err != nil {
-			return err
-		}
-	}
-	if err := api.Peer().Policy(cfg.Peer.Policy...); err != nil {
-		return err
-	}
-	return nil
-}
-
-// TODO: make use of actual config
-// TODO: close our FD?
-func configureFcnet(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
-	if !cfg.Fcnet.Enabled {
-		return nil
-	}
-
-	nm := fcnet.NewNMTUN(node.Log())
-	if err := nm.Start(cfg.Fcnet.Ifname, node.IPAddr(), rovy.UpperMTU); err != nil {
-		return fmt.Errorf("networkmanager: %s", err)
-	}
-
-	tunfd := nm.Device().File()
-
-	if err := api.Fcnet().Start(tunfd); err != nil {
-		return fmt.Errorf("api: %s", err)
-	}
-
-	node.Log().Printf("started fcnet endpoint %s using NetworkManager", node.IPAddr())
-
-	return nil
-}
-
-func configureDiscovery(api *rovyapic.Client, cfg *rovycfg.Config, node *rovynode.Node) error {
-	if !cfg.Discovery.LinkLocal.Enabled {
-		return nil
-	}
-
-	interval, err := time.ParseDuration(cfg.Discovery.LinkLocal.Interval)
-	if err != nil {
-		return fmt.Errorf("config: ParseDuration interval: %s", err)
-	}
-
-	opts := rovyapi.DiscoveryLinkLocal{
-		Interval: interval.Abs(),
-	}
-	if err := api.Discovery().StartLinkLocal(opts); err != nil {
-		return fmt.Errorf("api: %s", err)
-	}
-
-	return nil
 }
 
 var stopCmd = &cli.Command{

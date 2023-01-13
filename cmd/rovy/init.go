@@ -8,7 +8,7 @@ import (
 	cli "github.com/urfave/cli/v2"
 
 	rovy "go.rovy.net"
-	rovycfg "go.rovy.net/cmd/rovy/config"
+	rconfig "go.rovy.net/api/config"
 )
 
 var initCmd = &cli.Command{
@@ -64,15 +64,15 @@ func initCmdFunc(c *cli.Context) error {
 		return exitErr("config already exists: %s", cfgpath)
 	}
 
-	cfg := rovycfg.DefaultConfig()
-	kf := &rovycfg.Keyfile{PrivateKey: rovy.MustGeneratePrivateKey()}
+	cfg := rconfig.DefaultConfig()
+	kf := &rconfig.Keyfile{PrivateKey: rovy.MustGeneratePrivateKey()}
 	kf.PeerID = rovy.NewPeerID(kf.PrivateKey.PublicKey())
 	kf.IPAddr = kf.PrivateKey.PublicKey().IPAddr()
 
 	if err = os.MkdirAll(filepath.Dir(kfpath), 0700); err != nil {
 		return exitErr("failed to create dir: %s", err)
 	}
-	if err := rovycfg.SaveKeyfile(kfpath, kf); err != nil {
+	if err := rconfig.SaveKeyfile(kfpath, kf); err != nil {
 		return exitErr("failed to write keyfile: %s", err)
 	}
 	logger.Printf("Wrote %s", kfpath)
@@ -80,7 +80,7 @@ func initCmdFunc(c *cli.Context) error {
 	if err = os.MkdirAll(filepath.Dir(cfgpath), 0700); err != nil {
 		return exitErr("failed to create dir: %s", err)
 	}
-	if err = rovycfg.SaveConfig(cfgpath, cfg); err != nil {
+	if err = rconfig.SaveConfig(cfgpath, cfg); err != nil {
 		return exitErr("failed to write config: %s", err)
 	}
 	logger.Printf("Wrote %s", cfgpath)

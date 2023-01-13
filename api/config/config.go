@@ -1,4 +1,4 @@
-package rovycfg
+package rconfig
 
 import (
 	"bytes"
