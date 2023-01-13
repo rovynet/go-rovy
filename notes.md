@@ -16,13 +16,19 @@
 - [ ] 1 Gbps routed throughput on fc00::/8
 - [ ] External routing protocols, e.g. Babel and OLSR
 - [ ] DHT for decentral global and local routing lookups
-- [ ] Support for onion-like sessions
+- [ ] Support for onion-like sessions (Labeled Fwd'er, Wrapped Fwd'er, Potato Fwd'er)
 - [ ] Transit of Internet traffic using TUN interface, BGP, and RPKI RTAs
 
 # Next
 
+- [ ] discovery: connect to discovered nodes
+- [ ] discovery: cli
+- [ ] discovery: status command
+- [ ] discovery: announcement packet needs multicodec header
+
 - [x] fcnet: bump gvisor in wg/tun/netstack
 - [x] node: implement listeners and separate ip4/ip6
+- [x] config: extract node configuration from start command
 - [ ] test: basic shared cucumber suite for CLI, HTTP API, Go API
 - [ ] node: complete peer api
 - [ ] node: clean shutdown (close tun, delete nmconn, notify peers)
