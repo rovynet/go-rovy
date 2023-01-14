@@ -100,8 +100,11 @@ func (ll *LinkLocal) receiveRoutine(conn *net.UDPConn) {
 			continue
 		}
 
-		maddr := rovy.Multiaddr{IP: raddr.Addr(), Port: raddr.Port(), PeerID: pkt.PeerID}
-		ll.Log.Printf("discovery: found %s", maddr)
+		for _, a := range pkt.Addrs {
+			a.IP = a.IP.WithZone(raddr.Addr().Zone())
+			a.PeerID = pkt.PeerID
+			ll.Log.Printf("discovery: found %s", a)
+		}
 	}
 }
 
@@ -115,21 +118,42 @@ func (ll *LinkLocal) announceRoutine(conn *net.UDPConn) {
 			ll.Log.Printf("discovery: shutting down linklocal announceRoutine")
 			return
 		case <-ticker.C:
-			ifnames, err := ll.linklocalCapableInterfaces()
+			// get interface names and respective link-local addresses
+			ifaces, err := ll.linklocalCapableInterfaces()
 			if err != nil {
 				ll.Log.Printf("discovery: linklocal: %s", err)
 				continue
 			}
-			for _, ifname := range ifnames {
-				addr := netip.AddrPortFrom(netip.IPv6LinkLocalAllNodes().WithZone(ifname), LinkLocalPort)
 
+			// get listening port
+			var ourport uint16
+			// ourport = uint16(12345)
+			status, err := ll.API.Peer().Status()
+			if err != nil {
+				ll.Log.Printf("discovery: peer/status: %s", err)
+				continue
+			}
+			for _, listener := range status.Listeners {
+				if listener.ListenAddr.IP.Is6() {
+					ourport = listener.ListenAddr.Port
+					break
+				}
+			}
+
+			// announce on each capable interface
+			for ifname, ouraddr := range ifaces {
 				ni, _ := ll.API.Info()
-				buf, err := cbor.Marshal(LinkLocalPacket{PeerID: ni.PeerID})
+				pkt := LinkLocalPacket{
+					PeerID: ni.PeerID,
+					Addrs:  []rovy.Multiaddr{rovy.Multiaddr{IP: ouraddr, Port: ourport}},
+				}
+				buf, err := cbor.Marshal(pkt)
 				if err != nil {
 					ll.Log.Printf("discovery: cbor: %s", err)
 					break
 				}
 
+				addr := netip.AddrPortFrom(netip.IPv6LinkLocalAllNodes().WithZone(ifname), LinkLocalPort)
 				if _, err = conn.WriteToUDPAddrPort(buf, addr); err != nil {
 					ll.Log.Printf("discovery: %s", err)
 				}
@@ -138,42 +162,44 @@ func (ll *LinkLocal) announceRoutine(conn *net.UDPConn) {
 	}
 }
 
-func (ll *LinkLocal) linklocalCapableInterfaces() ([]string, error) {
-	links := []string{}
+func (ll *LinkLocal) linklocalCapableInterfaces() (map[string]netip.Addr, error) {
+	out := make(map[string]netip.Addr)
 	fcpref := netip.MustParsePrefix("fc00::/8")
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return links, fmt.Errorf("discovery: error getting network interfaces: %s", err)
+		return out, fmt.Errorf("discovery: error getting network interfaces: %s", err)
 	}
 
 	for _, iface := range ifaces {
 		ifaddrs, err := iface.Addrs()
 		if err != nil {
-			return links, fmt.Errorf("discovery: error getting interface addresses: %s", err)
+			return out, fmt.Errorf("discovery: error getting interface addresses: %s", err)
 		}
 
 		capable := false
 		isrovy := false
+		var addr netip.Addr
 		for _, ifaddr := range ifaddrs {
 			pref, err := netip.ParsePrefix(ifaddr.String())
 			if err != nil {
-				return links, fmt.Errorf("discovery: error parsing address: %s", err)
+				return out, fmt.Errorf("discovery: error parsing address: %s", err)
 			}
-			addr := pref.Addr()
+			a := pref.Addr()
 
-			if fcpref.Contains(addr) {
+			if fcpref.Contains(a) {
 				isrovy = true
 			}
 
-			if addr.Is6() && addr.IsLinkLocalUnicast() {
+			if a.Is6() && a.IsLinkLocalUnicast() {
 				capable = true
+				addr = a
 			}
 		}
 		if capable && !isrovy {
-			links = append(links, iface.Name)
+			out[iface.Name] = addr
 		}
 	}
 
-	return links, nil
+	return out, nil
 }

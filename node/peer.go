@@ -7,8 +7,12 @@ import (
 
 type PeerAPI Node
 
-func (c *PeerAPI) Status() rovyapi.PeerStatus {
-	return rovyapi.PeerStatus{}
+func (c *PeerAPI) Status() (rovyapi.PeerStatus, error) {
+	var listeners []rovyapi.PeerListener
+	for _, tpt := range (*Node)(c).transports {
+		listeners = append(listeners, rovyapi.PeerListener{ListenAddr: tpt.LocalMultiaddr()})
+	}
+	return rovyapi.PeerStatus{Listeners: listeners}, nil
 }
 
 func (c *PeerAPI) Listen(ma rovy.Multiaddr) (rovyapi.PeerListener, error) {

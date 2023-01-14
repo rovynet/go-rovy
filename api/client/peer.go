@@ -12,8 +12,8 @@ import (
 
 type PeerClient Client
 
-func (c *PeerClient) Status() rovyapi.PeerStatus {
-	return rovyapi.PeerStatus{}
+func (c *PeerClient) Status() (rovyapi.PeerStatus, error) {
+	return rovyapi.PeerStatus{}, nil
 }
 
 func (c *PeerClient) Listen(ma rovy.Multiaddr) (pl rovyapi.PeerListener, err error) {

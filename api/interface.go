@@ -39,7 +39,7 @@ type PeerListener struct {
 }
 
 type PeerAPI interface {
-	Status() PeerStatus
+	Status() (PeerStatus, error)
 	Listen(rovy.Multiaddr) (PeerListener, error)
 	// Close(rovy.Multiaddr) (PeerListener, error)
 	Connect(rovy.Multiaddr) (PeerInfo, error)

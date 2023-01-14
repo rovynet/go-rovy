@@ -39,7 +39,10 @@ func peerStatusCmdFunc(c *cli.Context) error {
 	}
 
 	api := rovyapic.NewClient(socket, logger)
-	status := api.Peer().Status()
+	status, err := api.Peer().Status()
+	if err != nil {
+		return exitErr("peer/status: %s", err)
+	}
 
 	fmt.Fprintf(os.Stdout, "Status: %#v\n", status)
 
@@ -64,6 +67,9 @@ func peerListenCmdFunc(c *cli.Context) error {
 
 		api := rovyapic.NewClient(socket, logger)
 		pl, err := api.Peer().Listen(maddr)
+		if err != nil {
+			return exitErr("peer/listen: %s", err)
+		}
 
 		fmt.Fprintf(os.Stdout, "Listener: %#v\n", pl)
 	}
