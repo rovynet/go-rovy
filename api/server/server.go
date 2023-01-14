@@ -31,7 +31,6 @@ func (s *Server) Serve(lis net.Listener) {
 	// router.HandleFunc("/v0/peer/close", s.servePeerClose)
 	router.HandleFunc("/v0/peer/connect", s.servePeerConnect)
 	// router.HandleFunc("/v0/peer/disconnect", s.servePeerDisconnect)
-	router.HandleFunc("/v0/peer/policy", s.servePeerPolicy)
 
 	// router.HandleFunc("/v0/discovery/status", s.serveDiscoveryStatus)
 	router.HandleFunc("/v0/discovery/linklocal/start", s.serveDiscoveryLinkLocalStart)

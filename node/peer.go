@@ -34,10 +34,6 @@ func (c *PeerAPI) Connect(ma rovy.Multiaddr) (rovyapi.PeerInfo, error) {
 	return rovyapi.PeerInfo{}, nil
 }
 
-func (c *PeerAPI) Policy(pols ...string) error {
-	return nil
-}
-
 func (c *PeerAPI) NodeAPI() rovyapi.NodeAPI {
 	return (*Node)(c)
 }

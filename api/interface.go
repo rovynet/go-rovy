@@ -22,7 +22,6 @@ type NodeAPI interface {
 type PeerStatus struct {
 	Peers     []PeerInfo
 	Listeners []PeerListener
-	Policy    []string
 }
 
 type PeerInfo struct {
@@ -44,7 +43,6 @@ type PeerAPI interface {
 	// Close(rovy.Multiaddr) (PeerListener, error)
 	Connect(rovy.Multiaddr) (PeerInfo, error)
 	// Disconnect(rovy.Multiaddr) (PeerInfo, error)
-	Policy(...string) error
 }
 
 type DiscoveryStatus struct {

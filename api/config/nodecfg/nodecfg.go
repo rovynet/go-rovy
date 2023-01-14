@@ -47,9 +47,6 @@ func (nc *NodeConfig) ConfigurePeering(cfg *rconfig.Config) error {
 			return err
 		}
 	}
-	if err := nc.API.Peer().Policy(cfg.Peer.Policy...); err != nil {
-		return err
-	}
 	return nil
 }
 

@@ -41,21 +41,6 @@ func (c *PeerClient) Connect(ma rovy.Multiaddr) (rovyapi.PeerInfo, error) {
 	return rovyapi.PeerInfo{}, nil
 }
 
-func (c *PeerClient) Policy(pols ...string) error {
-	reqbody, err := json.Marshal(&pols)
-	if err != nil {
-		return err
-	}
-	res, err := c.http.Post("http://unix/v0/peer/policy", "application/json", bytes.NewReader(reqbody))
-	if err != nil {
-		return err
-	}
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("http: %s", res.Status)
-	}
-	return nil
-}
-
 func (c *PeerClient) NodeAPI() rovyapi.NodeAPI {
 	return (*Client)(c)
 }

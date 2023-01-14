@@ -98,7 +98,6 @@ type Config struct {
 type Peer struct {
 	Listen  []rovy.Multiaddr
 	Connect []rovy.Multiaddr
-	Policy  []string
 }
 
 type Fcnet struct {
@@ -124,7 +123,6 @@ func DefaultConfig() *Config {
 				// rovy.MustParseMultiaddr("/ethif/wlp3s0"),
 			},
 			Connect: []rovy.Multiaddr{},
-			Policy:  []string{"local", "open"},
 		},
 		Fcnet: Fcnet{
 			Enabled: true,
