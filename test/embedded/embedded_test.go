@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	godog "github.com/cucumber/godog"
-	rovycfg "go.rovy.net/cmd/rovy/config"
+	rconfig "go.rovy.net/api/config"
 	rovynode "go.rovy.net/node"
 )
 
@@ -36,7 +36,7 @@ func TestEmbedded(t *testing.T) {
 		sctx.Step(`^the IP of '(\w+)' is '([\w:]+)'$`, theIPOfIs)
 
 		sctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
-			keyfiles := map[string]*rovycfg.Keyfile{}
+			keyfiles := map[string]*rconfig.Keyfile{}
 			ctx = context.WithValue(ctx, keyfilesCtxKey{}, keyfiles)
 			nodes := map[string]*rovynode.Node{}
 			return context.WithValue(ctx, nodesCtxKey{}, nodes), nil
@@ -49,19 +49,19 @@ func TestEmbedded(t *testing.T) {
 }
 
 func aKeyfileNamed(ctx context.Context, name string, kfs *godog.DocString) (context.Context, error) {
-	kf, err := rovycfg.NewKeyfile(strings.NewReader(kfs.Content))
+	kf, err := rconfig.NewKeyfile(strings.NewReader(kfs.Content))
 	if err != nil {
 		return ctx, err
 	}
 
-	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]*rovycfg.Keyfile)
+	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]*rconfig.Keyfile)
 	keyfiles[name] = kf
 
 	return context.WithValue(ctx, keyfilesCtxKey{}, keyfiles), nil
 }
 
 func nodeFromKeyfile(ctx context.Context, name, kfname string) (context.Context, error) {
-	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]*rovycfg.Keyfile)
+	keyfiles := ctx.Value(keyfilesCtxKey{}).(map[string]*rconfig.Keyfile)
 
 	kf, ok := keyfiles[kfname]
 	if !ok {
