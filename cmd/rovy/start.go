@@ -91,9 +91,6 @@ func startCmdFunc(c *cli.Context) error {
 	}
 
 	node := rovynode.NewNode(privkey, logger)
-	if err := node.Start(); err != nil {
-		return exitErr("node: %s", err)
-	}
 	logger.Printf("we are /rovy/%s", node.PeerID())
 
 	if err := startAPI(node, socket); err != nil {
@@ -111,6 +108,10 @@ func startCmdFunc(c *cli.Context) error {
 				return exitErr("config: %s", err)
 			}
 		}
+	}
+
+	if err := node.Start(); err != nil {
+		return exitErr("node: %s", err)
 	}
 
 	select {
