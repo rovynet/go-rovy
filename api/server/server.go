@@ -20,6 +20,7 @@ func NewServer(node rovyapi.NodeAPI, logger *log.Logger) *Server {
 	return s
 }
 
+// TODO: also serve /v0/start
 func (s *Server) Serve(lis net.Listener) {
 	router := mux.NewRouter()
 

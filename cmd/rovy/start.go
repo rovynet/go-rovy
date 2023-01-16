@@ -96,37 +96,20 @@ func startCmdFunc(c *cli.Context) error {
 	}
 	logger.Printf("we are /rovy/%s", node.PeerID())
 
-	if err := checkSocket(socket); err != nil {
-		return exitErr("failed to check socket %s: %s", socket, err)
+	if err := startAPI(node, socket); err != nil {
+		return exitErr("api: %s", err)
 	}
-	apilis, err := net.Listen("unix", socket)
-	if err != nil {
-		return exitErr("failed to start socket listener: %s", err)
-	}
-	api := rovyapis.NewServer(node, logger)
-	go api.Serve(apilis)
 	logger.Printf("api socket ready at http:%s", socket)
 
-	// if ephemeral || stdin {
-	// 	logger.Printf("ignoring configuration")
-	// } else {
-	// 	logger.Printf("TODO: reading configuration file is not implemented yet")
-	// }
-
 	if !stdin {
-		var cfg *rconfig.Config
 		if !ephemeral {
-			cfg, err = rconfig.LoadConfig(config)
-			if err != nil {
-				return exitErr("failed to load config: %s", err)
+			if err := configureNode(node, socket, config); err != nil {
+				return exitErr("config: %s", err)
 			}
 		} else {
-			cfg = rconfig.DefaultConfig()
-		}
-
-		nc := &rnodecfg.NodeConfig{API: rovyapic.NewClient(socket, logger), Logger: logger}
-		if err = nc.ConfigureAll(cfg, node); err != nil {
-			return exitErr(err.Error())
+			if err := configureNodeDefault(node, socket); err != nil {
+				return exitErr("config: %s", err)
+			}
 		}
 	}
 
@@ -160,6 +143,42 @@ func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privke
 		}
 		return kf.PrivateKey, nil
 	}
+}
+
+func startAPI(node *rovynode.Node, socket string) error {
+	if err := checkSocket(socket); err != nil {
+		return fmt.Errorf("failed to check socket %s: %s", socket, err)
+	}
+	apilis, err := net.Listen("unix", socket)
+	if err != nil {
+		return fmt.Errorf("failed to start socket listener: %s", err)
+	}
+	api := rovyapis.NewServer(node, node.Log())
+	go api.Serve(apilis)
+	return nil
+}
+
+func configureNode(node *rovynode.Node, socket, config string) error {
+	cfg, err := rconfig.LoadConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %s", err)
+	}
+	client := rovyapic.NewClient(socket, node.Log())
+	nc := &rnodecfg.NodeConfig{API: client, Logger: node.Log()}
+	if err = nc.ConfigureAll(cfg, node); err != nil {
+		return err
+	}
+	return nil
+}
+
+func configureNodeDefault(node *rovynode.Node, socket string) error {
+	cfg := rconfig.DefaultConfig()
+	client := rovyapic.NewClient(socket, node.Log())
+	nc := &rnodecfg.NodeConfig{API: client, Logger: node.Log()}
+	if err := nc.ConfigureAll(cfg, node); err != nil {
+		return err
+	}
+	return nil
 }
 
 func checkSocket(socket string) error {
