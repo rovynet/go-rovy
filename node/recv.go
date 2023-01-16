@@ -133,8 +133,6 @@ func (node *Node) doLowerRecv(pkt rovy.Packet) error {
 		node.connectedCallback(peerid, true)
 	}
 
-	node.RxLower += 1
-
 	datapkt.LowerSrc = peerid
 	node.lowerMuxQ.Put(datapkt.Packet)
 	return nil
@@ -251,8 +249,6 @@ func (node *Node) upperMuxRoutine() {
 }
 
 func (node *Node) doUpperMux(pkt rovy.Packet) error {
-	node.RxUpper += 1
-
 	upkt := rovy.NewUpperPacket(pkt)
 
 	codec, err := upkt.Codec()

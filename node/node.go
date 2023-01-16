@@ -39,10 +39,6 @@ type Node struct {
 	routing       *routing.Routing
 	services      *service.ServiceManager
 
-	RxTpt   uint64
-	RxLower uint64
-	RxUpper uint64
-
 	running    chan int
 	helloSendQ *ringbuf.RingBuffer
 	lowerSendQ *ringbuf.RingBuffer
