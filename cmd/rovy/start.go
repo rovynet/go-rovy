@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -85,7 +84,7 @@ func startCmdFunc(c *cli.Context) error {
 		}
 	}
 
-	privkey, err := readPrivateKey(keyfile, os.Stdin, logger)
+	privkey, err := readPrivateKey(keyfile, os.Stdin)
 	if err != nil {
 		return exitErr("privkey: %s", err)
 	}
@@ -119,7 +118,7 @@ func startCmdFunc(c *cli.Context) error {
 	}
 }
 
-func readPrivateKey(keyfile string, stdin io.Reader, logger *log.Logger) (privkey rovy.PrivateKey, err error) {
+func readPrivateKey(keyfile string, stdin io.Reader) (privkey rovy.PrivateKey, err error) {
 	switch keyfile {
 	case "@":
 		privkey, err = rovy.GeneratePrivateKey()
