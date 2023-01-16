@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"golang.org/x/sys/unix"
 
@@ -29,6 +30,7 @@ func (c *FcnetClient) Start(tunfd *os.File) error {
 			c.logger.Printf("sendFD: %s", err)
 		}
 	}()
+	runtime.Gosched() // give sendFD goroutine a moment to start
 
 	params := struct{ Socket string }{sa}
 	body, err := json.Marshal(params)
