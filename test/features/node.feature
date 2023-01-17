@@ -18,3 +18,7 @@ Feature: Node Basics
     Then node 'A' is running
     When I stop node 'A'
     Then node 'A' is not running
+    When I start node 'A'
+    Then node 'A' is running
+    When I stop node 'A'
+    Then node 'A' is not running
