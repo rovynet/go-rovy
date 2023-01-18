@@ -12,13 +12,64 @@ import (
 	rovy "go.rovy.net"
 )
 
+func DefaultConfig() *Config {
+	cfg := &Config{
+		Peer: Peer{
+			Listen: []rovy.Multiaddr{
+				rovy.MustParseMultiaddr("/ip6/::/udp/1312"),
+				rovy.MustParseMultiaddr("/ip4/0.0.0.0/udp/1312"),
+				// rovy.MustParseMultiaddr("/ethif/wlp3s0"),
+			},
+			Connect: []rovy.Multiaddr{},
+		},
+		Fcnet: Fcnet{
+			Enabled: true,
+			// Backend: "nm",
+			Ifname: "rovy0",
+		},
+		Discovery: Discovery{
+			LinkLocal: LinkLocal{
+				Enabled:  true,
+				Interval: "5s",
+			},
+		},
+	}
+
+	return cfg
+}
+
 type Keyfile struct {
 	PrivateKey rovy.PrivateKey
 	PeerID     rovy.PeerID
 	IPAddr     netip.Addr
 }
 
-// TODO: simplify all this by impl'ing Keyfile.Marshal/Unmarshal
+type Config struct {
+	Peer      Peer
+	Fcnet     Fcnet
+	Discovery Discovery
+}
+
+type Peer struct {
+	Listen  []rovy.Multiaddr
+	Connect []rovy.Multiaddr
+}
+
+type Fcnet struct {
+	Enabled bool
+	Ifname  string
+}
+
+type Discovery struct {
+	LinkLocal LinkLocal
+}
+
+type LinkLocal struct {
+	Enabled  bool
+	Interval string
+}
+
+// TODO: simplify all this by impl'ing Marshal/Unmarshal
 
 func LoadKeyfile(path string) (*Keyfile, error) {
 	b, err := os.ReadFile(path)
@@ -87,56 +138,6 @@ IPAddr = '%s'
 		return err
 	}
 	return nil
-}
-
-type Config struct {
-	Peer      Peer
-	Fcnet     Fcnet
-	Discovery Discovery
-}
-
-type Peer struct {
-	Listen  []rovy.Multiaddr
-	Connect []rovy.Multiaddr
-}
-
-type Fcnet struct {
-	Enabled bool
-	Ifname  string
-}
-
-type Discovery struct {
-	LinkLocal LinkLocal
-}
-
-type LinkLocal struct {
-	Enabled  bool
-	Interval string
-}
-
-func DefaultConfig() *Config {
-	cfg := &Config{
-		Peer: Peer{
-			Listen: []rovy.Multiaddr{
-				rovy.MustParseMultiaddr("/ip6/::/udp/1312"),
-				rovy.MustParseMultiaddr("/ip4/0.0.0.0/udp/1312"),
-				// rovy.MustParseMultiaddr("/ethif/wlp3s0"),
-			},
-			Connect: []rovy.Multiaddr{},
-		},
-		Fcnet: Fcnet{
-			Enabled: true,
-			Ifname:  "rovy0",
-		},
-		Discovery: Discovery{
-			LinkLocal: LinkLocal{
-				Enabled:  true,
-				Interval: "5s",
-			},
-		},
-	}
-
-	return cfg
 }
 
 func LoadConfig(path string) (*Config, error) {
