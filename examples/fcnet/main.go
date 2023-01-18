@@ -23,7 +23,7 @@ func newNode(name string, lisaddr rovy.Multiaddr) (*node.Node, error) {
 	logger := log.New(os.Stderr, "["+name+"] ", log.Ltime|log.Lshortfile)
 
 	node := node.NewNode(rovy.MustGeneratePrivateKey(), logger)
-	if err := node.Start(); err != nil {
+	if _, err := node.Start(); err != nil {
 		return node, err
 	}
 
