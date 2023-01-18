@@ -9,9 +9,10 @@ Feature: Node Basics
       """
     And node 'A' from keyfile 'testone.toml'
 
-  Scenario: PeerID and IPAddr
-    Then the PeerID of 'A' is 'bafzqaid26tco5uc5y22nhd6xuglvbmij5yx6iok7pzrgzf3mz3m6mellee'
-    And the IP of 'A' is 'fc89:54a1:b598:365f:357:d6a:b108:db7b'
+  Scenario: PeerID and IPAddress
+    When a 'info' call on 'A' is successful
+    Then response value 'PeerID' is 'bafzqaid26tco5uc5y22nhd6xuglvbmij5yx6iok7pzrgzf3mz3m6mellee'
+    And response value 'IPAddress' is 'fc89:54a1:b598:365f:357:d6a:b108:db7b'
 
   Scenario: Starting and stopping
     When I start node 'A'

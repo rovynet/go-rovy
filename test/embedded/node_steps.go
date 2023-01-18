@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"reflect"
+	"strconv"
 	"strings"
 
 	godog "github.com/cucumber/godog"
@@ -13,15 +15,17 @@ import (
 
 type keyfilesCtxKey struct{}
 type nodesCtxKey struct{}
+type responseCtxKey struct{}
 
 func nodeSteps(sctx *godog.ScenarioContext) {
 	sctx.Step(`^a keyfile named '(\w+\.toml)'$`, aKeyfileNamed)
 	sctx.Step(`^node '([^']*)' from keyfile '(\w+\.toml)'$`, nodeFromKeyfile)
-	sctx.Step(`^the PeerID of '(\w+)' is '(\w+)'$`, thePeerIDOfIs)
-	sctx.Step(`^the IP of '(\w+)' is '([\w:]+)'$`, theIPOfIs)
 	sctx.Step(`^I start node '(\w+)'$`, iStartNode)
 	sctx.Step(`^I stop node '(\w+)'$`, iStopNode)
 	sctx.Step(`^node '(\w+)' (is|is not) running$`, nodeIsRunning)
+	sctx.Step(`^a '(\w+)' call on '(\w+)' is successful$`, aCallIsSuccessful)
+	sctx.Step(`^response value '([\w.]+)' is '([\w:]+)'$`, responseValueIsString)
+	sctx.Step(`^response value '([\w.]+)' is (true|false)$`, responseValueIsBool)
 
 	sctx.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
 		keyfiles := map[string]*rconfig.Keyfile{}
@@ -107,30 +111,70 @@ func nodeIsRunning(ctx context.Context, name string, not string) error {
 	return nil
 }
 
-func thePeerIDOfIs(ctx context.Context, name, peerid string) error {
+// TODO: make this work for methods outside of NodeAPI
+func aCallIsSuccessful(ctx context.Context, cmd, name string) (context.Context, error) {
 	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rnode.Node)
 	node, ok := nodes[name]
 	if !ok {
-		return fmt.Errorf("unknown rovy node: %s", name)
+		return ctx, fmt.Errorf("unknown rovy node: %s", name)
 	}
 
-	actual := node.PeerID().String()
-	if actual != peerid {
-		return fmt.Errorf("expected PeerID '%s', got '%s'", peerid, actual)
+	v := reflect.ValueOf(node)
+	m := v.MethodByName(strings.Title(cmd))
+	if m == (reflect.Value{}) {
+		return ctx, fmt.Errorf("unknown api method: %s", cmd)
+	}
+
+	res := m.Call([]reflect.Value{})
+	if !res[len(res)-1].IsZero() {
+		err := res[len(res)-1].Interface().(error)
+		return ctx, fmt.Errorf("api call %s failed: %s", cmd, err)
+	}
+
+	return context.WithValue(ctx, responseCtxKey{}, res), nil
+}
+
+func responseValueIsBool(ctx context.Context, key string, trueOrFalse string) error {
+	res := ctx.Value(responseCtxKey{}).([]reflect.Value)
+
+	v := res[0].FieldByName(key)
+	if v == (reflect.Value{}) {
+		return fmt.Errorf("unknown response field: %s", key)
+	}
+
+	if v.Kind() != reflect.Bool {
+		return fmt.Errorf("response field %s isn't boolean", key)
+	}
+
+	expected, _ := strconv.ParseBool(trueOrFalse)
+	actual := v.Bool()
+	if actual != expected {
+		return fmt.Errorf("mismatch: %s should be %t, is %t", key, expected, actual)
 	}
 	return nil
 }
 
-func theIPOfIs(ctx context.Context, name, ip string) error {
-	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rnode.Node)
-	node, ok := nodes[name]
-	if !ok {
-		return fmt.Errorf("unknown rovy node: %s", name)
+func responseValueIsString(ctx context.Context, key, val string) error {
+	res := ctx.Value(responseCtxKey{}).([]reflect.Value)
+
+	v := res[0].FieldByName(key)
+	if v == (reflect.Value{}) {
+		return fmt.Errorf("unknown response field: %s", key)
 	}
 
-	actual := node.IPAddr().String()
-	if actual != ip {
-		return fmt.Errorf("expected IPAddr '%s', got '%s'", ip, actual)
+	var actual string
+	if v.Kind() == reflect.String {
+		actual = v.Interface().(string)
+	} else {
+		m := v.MethodByName("String")
+		if m == (reflect.Value{}) {
+			return fmt.Errorf("response field %s has no String method", key)
+		}
+		actual = m.Call([]reflect.Value{})[0].Interface().(string)
+	}
+
+	if actual != val {
+		return fmt.Errorf("mismatch: %s should be '%s', is '%s'", key, val, actual)
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package rovyapi
 
 import (
+	"net/netip"
 	"os"
 	"time"
 
@@ -8,8 +9,9 @@ import (
 )
 
 type NodeInfo struct {
-	PeerID  rovy.PeerID
-	Running bool
+	PeerID    rovy.PeerID
+	IPAddress netip.Addr
+	Running   bool
 }
 
 type NodeAPI interface {
