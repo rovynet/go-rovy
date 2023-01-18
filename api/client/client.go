@@ -39,7 +39,6 @@ func (c *Client) Info() (ni rovyapi.NodeInfo, err error) {
 	if err != nil {
 		return ni, err
 	}
-
 	err = json.Unmarshal(body, &ni)
 	if err != nil {
 		return ni, err
@@ -48,14 +47,38 @@ func (c *Client) Info() (ni rovyapi.NodeInfo, err error) {
 	return ni, err
 }
 
-func (c *Client) Stop() error {
+func (c *Client) Start() (ni rovyapi.NodeInfo, err error) {
+	res, err := c.http.Get("http://unix/v0/start")
+	if err != nil {
+		return ni, err
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return ni, err
+	}
+	err = json.Unmarshal(body, &ni)
+	if err != nil {
+		return ni, err
+	}
+	return ni, err
+}
+
+func (c *Client) Stop() (ni rovyapi.NodeInfo, err error) {
 	res, err := c.http.Get("http://unix/v0/stop")
 	if err != nil {
-		return err
+		return ni, err
 	}
-	_ = res
 
-	return nil
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return ni, err
+	}
+	err = json.Unmarshal(body, &ni)
+	if err != nil {
+		return ni, err
+	}
+	return ni, err
 }
 
 func (c *Client) Fcnet() rovyapi.FcnetAPI {

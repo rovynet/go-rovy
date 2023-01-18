@@ -20,9 +20,6 @@ type responseCtxKey struct{}
 func nodeSteps(sctx *godog.ScenarioContext) {
 	sctx.Step(`^a keyfile named '(\w+\.toml)'$`, aKeyfileNamed)
 	sctx.Step(`^node '([^']*)' from keyfile '(\w+\.toml)'$`, nodeFromKeyfile)
-	sctx.Step(`^I start node '(\w+)'$`, iStartNode)
-	sctx.Step(`^I stop node '(\w+)'$`, iStopNode)
-	sctx.Step(`^node '(\w+)' (is|is not) running$`, nodeIsRunning)
 	sctx.Step(`^a '(\w+)' call on '(\w+)' is successful$`, aCallIsSuccessful)
 	sctx.Step(`^response value '([\w.]+)' is '([\w:]+)'$`, responseValueIsString)
 	sctx.Step(`^response value '([\w.]+)' is (true|false)$`, responseValueIsBool)
@@ -62,53 +59,6 @@ func nodeFromKeyfile(ctx context.Context, name, kfname string) (context.Context,
 	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rnode.Node)
 	nodes[name] = rnode.NewNode(kf.PrivateKey, log.Default())
 	return context.WithValue(ctx, nodesCtxKey{}, nodes), nil
-}
-
-func iStartNode(ctx context.Context, name string) error {
-	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rnode.Node)
-	node, ok := nodes[name]
-	if !ok {
-		return fmt.Errorf("unknown rovy node: %s", name)
-	}
-
-	return node.Start()
-}
-
-func iStopNode(ctx context.Context, name string) error {
-	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rnode.Node)
-	node, ok := nodes[name]
-	if !ok {
-		return fmt.Errorf("unknown rovy node: %s", name)
-	}
-	return node.Stop()
-}
-
-func nodeIsRunning(ctx context.Context, name string, not string) error {
-	nodes := ctx.Value(nodesCtxKey{}).(map[string]*rnode.Node)
-	node, ok := nodes[name]
-	if !ok {
-		return fmt.Errorf("unknown rovy node: %s", name)
-	}
-
-	info, _ := node.Info()
-
-	if not == "is" {
-		if true != info.Running {
-			return fmt.Errorf("expected Running to be true, got false")
-		}
-	} else if not == "is not" {
-		if false != info.Running {
-			return fmt.Errorf("expected Running to be false, got true")
-		}
-	} else {
-		return fmt.Errorf("must be either 'is' or 'is not'")
-	}
-
-	if node.PeerID() != info.PeerID {
-		return fmt.Errorf("expected PeerID '%s', got '%s'", node.PeerID(), info.PeerID)
-	}
-
-	return nil
 }
 
 // TODO: make this work for methods outside of NodeAPI

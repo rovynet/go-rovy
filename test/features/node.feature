@@ -15,11 +15,15 @@ Feature: Node Basics
     And response value 'IPAddress' is 'fc89:54a1:b598:365f:357:d6a:b108:db7b'
 
   Scenario: Starting and stopping
-    When I start node 'A'
-    Then node 'A' is running
-    When I stop node 'A'
-    Then node 'A' is not running
-    When I start node 'A'
-    Then node 'A' is running
-    When I stop node 'A'
-    Then node 'A' is not running
+    When a 'start' call on 'A' is successful
+    Then response value 'Running' is true
+    When a 'stop' call on 'A' is successful
+    Then response value 'Running' is false
+    When a 'start' call on 'A' is successful
+    Then response value 'Running' is true
+    When a 'stop' call on 'A' is successful
+    Then response value 'Running' is false
+    When a 'start' call on 'A' is successful
+    Then response value 'Running' is true
+    When a 'stop' call on 'A' is successful
+    Then response value 'Running' is false

@@ -109,7 +109,7 @@ func startCmdFunc(c *cli.Context) error {
 		}
 	}
 
-	if err := node.Start(); err != nil {
+	if _, err := node.Start(); err != nil {
 		return exitErr("node: %s", err)
 	}
 
@@ -221,10 +221,10 @@ func stopCmdFunc(c *cli.Context) error {
 	}
 
 	api := rovyapic.NewClient(socket, logger)
-	err = api.Stop()
+	_, err = api.Stop()
 	if err != nil {
 		return exitErr("api: %s", err)
 	}
 
-	return exitErr("TODO: shutdown is not yet implemented (and neither are api error responses)")
+	return exitErr("node operation is paused, but exiting isn't implemented yet")
 }

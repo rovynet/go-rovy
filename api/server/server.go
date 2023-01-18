@@ -25,6 +25,7 @@ func (s *Server) Serve(lis net.Listener) {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/v0/info", s.serveInfo)
+	router.HandleFunc("/v0/start", s.serveStart)
 	router.HandleFunc("/v0/stop", s.serveStop)
 	router.HandleFunc("/v0/fcnet/start", s.serveFcnetStart) // not part of THE api
 	router.HandleFunc("/v0/peer/status", s.servePeerStatus)
@@ -63,8 +64,42 @@ func (s *Server) serveInfo(w http.ResponseWriter, r *http.Request) {
 	s.logger.Printf("api request %s -> ok", r.RequestURI)
 }
 
-func (s *Server) serveStop(w http.ResponseWriter, r *http.Request) {
-	// s.node.Stop()
+func (s *Server) serveStart(w http.ResponseWriter, r *http.Request) {
+	ni, err := s.node.Start()
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+
+	out, err := json.Marshal(ni)
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
+	out = append(out, 0x0a) // newline
+	_, _ = w.Write(out)
+
+	s.logger.Printf("api request %s -> ok", r.RequestURI)
+}
+
+func (s *Server) serveStop(w http.ResponseWriter, r *http.Request) {
+	ni, err := s.node.Stop()
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+
+	out, err := json.Marshal(ni)
+	if err != nil {
+		s.writeError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	out = append(out, 0x0a) // newline
+	_, _ = w.Write(out)
+
 	s.logger.Printf("api request %s -> ok", r.RequestURI)
 }

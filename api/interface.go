@@ -16,7 +16,8 @@ type NodeInfo struct {
 
 type NodeAPI interface {
 	Info() (NodeInfo, error)
-	Stop() error
+	Start() (NodeInfo, error)
+	Stop() (NodeInfo, error)
 	Fcnet() FcnetAPI
 	Peer() PeerAPI
 	Discovery() DiscoveryAPI

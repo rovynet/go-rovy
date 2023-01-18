@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	rovy "go.rovy.net"
+	rapi "go.rovy.net/api"
 	forwarder "go.rovy.net/node/forwarder"
 	routing "go.rovy.net/node/routing"
 	service "go.rovy.net/node/service"
@@ -83,9 +84,11 @@ func NewNode(privkey rovy.PrivateKey, logger *log.Logger) *Node {
 	return node
 }
 
-func (node *Node) Start() error {
+func (node *Node) Start() (rapi.NodeInfo, error) {
+	var ni rapi.NodeInfo
+
 	if node.Running() {
-		return ErrRunning
+		return ni, ErrRunning
 	}
 
 	node.running = make(chan int)
@@ -102,12 +105,15 @@ func (node *Node) Start() error {
 		tpt.Start(node.lowerRecvQ)
 	}
 
-	return nil
+	ni, _ = node.Info()
+	return ni, nil
 }
 
-func (node *Node) Stop() error {
+func (node *Node) Stop() (rapi.NodeInfo, error) {
+	var ni rapi.NodeInfo
+
 	if !node.Running() {
-		return ErrNotRunning
+		return ni, ErrNotRunning
 	}
 
 	close(node.running)
@@ -116,7 +122,8 @@ func (node *Node) Stop() error {
 		tpt.Stop()
 	}
 
-	return nil
+	ni, _ = node.Info()
+	return ni, nil
 }
 
 func (node *Node) Running() bool {
